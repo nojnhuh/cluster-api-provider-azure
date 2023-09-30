@@ -21,14 +21,14 @@ import (
 	"encoding/base64"
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v4"
+	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20230201"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/format"
 	"k8s.io/utils/ptr"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
-	"sigs.k8s.io/cluster-api-provider-azure/azure/converters"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/agentpools"
 	gomockinternal "sigs.k8s.io/cluster-api-provider-azure/internal/test/matchers/gomock"
 )
@@ -37,25 +37,10 @@ func TestParameters(t *testing.T) {
 	testcases := []struct {
 		name          string
 		spec          *ManagedClusterSpec
-		existing      interface{}
+		existing      *asocontainerservicev1.ManagedCluster
 		expectedError string
-		expect        func(g *WithT, result interface{})
+		expect        func(g *WithT, result *asocontainerservicev1.ManagedCluster)
 	}{
-		{
-			name: "managedcluster in non-terminal provisioning state",
-			existing: armcontainerservice.ManagedCluster{
-				Properties: &armcontainerservice.ManagedClusterProperties{
-					ProvisioningState: ptr.To("Deleting"),
-				},
-			},
-			spec: &ManagedClusterSpec{
-				Name: "test-managedcluster",
-			},
-			expect: func(g *WithT, result interface{}) {
-				g.Expect(result).To(BeNil())
-			},
-			expectedError: "Unable to update existing managed cluster in non-terminal state. Managed cluster must be in one of the following provisioning states: Canceled, Failed, or Succeeded. Actual state: Deleting. Object will be requeued after 20s",
-		},
 		{
 			name:     "managedcluster does not exist",
 			existing: nil,
@@ -75,27 +60,27 @@ func TestParameters(t *testing.T) {
 				OIDCIssuerProfile: &OIDCIssuerProfile{
 					Enabled: ptr.To(true),
 				},
-				GetAllAgentPools: func() ([]azure.ResourceSpecGetter, error) {
-					return []azure.ResourceSpecGetter{
+				GetAllAgentPools: func() ([]azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool], error) {
+					return []azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool]{
 						&agentpools.AgentPoolSpec{
-							Name:          "test-agentpool-0",
+							AzureName:     "test-agentpool-0",
 							Mode:          string(infrav1.NodePoolModeSystem),
 							ResourceGroup: "test-rg",
-							Replicas:      int32(2),
+							Replicas:      2,
 							AdditionalTags: map[string]string{
 								"test-tag": "test-value",
 							},
 						},
 						&agentpools.AgentPoolSpec{
-							Name:              "test-agentpool-1",
+							AzureName:         "test-agentpool-1",
 							Mode:              string(infrav1.NodePoolModeUser),
 							ResourceGroup:     "test-rg",
-							Replicas:          int32(4),
+							Replicas:          4,
 							Cluster:           "test-managedcluster",
 							SKU:               "test_SKU",
 							Version:           ptr.To("v1.22.0"),
 							VnetSubnetID:      "fake/subnet/id",
-							MaxPods:           ptr.To[int32](int32(32)),
+							MaxPods:           ptr.To(32),
 							AvailabilityZones: []string{"1", "2"},
 							AdditionalTags: map[string]string{
 								"test-tag": "test-value",
@@ -104,8 +89,7 @@ func TestParameters(t *testing.T) {
 					}, nil
 				},
 			},
-			expect: func(g *WithT, result interface{}) {
-				g.Expect(result).To(BeAssignableToTypeOf(armcontainerservice.ManagedCluster{}))
+			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
 				sampleCluster := getSampleManagedCluster()
 				g.Expect(gomockinternal.DiffEq(result).Matches(sampleCluster)).To(BeTrue(), cmp.Diff(result, getSampleManagedCluster()))
 			},
@@ -126,8 +110,8 @@ func TestParameters(t *testing.T) {
 					Enabled: ptr.To(true),
 				},
 			},
-			expect: func(g *WithT, result interface{}) {
-				g.Expect(result).To(BeNil())
+			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
+				g.Expect(result).To(Equal(getExistingCluster()))
 			},
 		},
 		{
@@ -148,12 +132,11 @@ func TestParameters(t *testing.T) {
 				},
 				KubeletUserAssignedIdentity: "/resource/ID",
 			},
-			expect: func(g *WithT, result interface{}) {
-				g.Expect(result).To(BeAssignableToTypeOf(armcontainerservice.ManagedCluster{}))
-				g.Expect(result.(armcontainerservice.ManagedCluster).Properties.KubernetesVersion).To(Equal(ptr.To("v1.22.99")))
-				g.Expect(result.(armcontainerservice.ManagedCluster).Identity.Type).To(Equal(ptr.To(armcontainerservice.ResourceIdentityType("UserAssigned"))))
-				g.Expect(result.(armcontainerservice.ManagedCluster).Identity.UserAssignedIdentities).To(Equal(map[string]*armcontainerservice.ManagedServiceIdentityUserAssignedIdentitiesValue{"/resource/ID": {}}))
-				g.Expect(result.(armcontainerservice.ManagedCluster).Properties.IdentityProfile).To(Equal(map[string]*armcontainerservice.UserAssignedIdentity{kubeletIdentityKey: {ResourceID: ptr.To("/resource/ID")}}))
+			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
+				g.Expect(result.Spec.KubernetesVersion).To(Equal(ptr.To("v1.22.99")))
+				g.Expect(result.Spec.Identity.Type).To(Equal(ptr.To(asocontainerservicev1.ManagedClusterIdentity_Type_UserAssigned)))
+				g.Expect(result.Spec.Identity.UserAssignedIdentities).To(Equal([]asocontainerservicev1.UserAssignedIdentityDetails{{Reference: genruntime.ResourceReference{ARMID: "/resource/ID"}}}))
+				g.Expect(result.Spec.IdentityProfile).To(Equal(map[string]asocontainerservicev1.UserAssignedIdentity{kubeletIdentityKey: {ResourceReference: &genruntime.ResourceReference{ARMID: "/resource/ID"}}}))
 			},
 		},
 		{
@@ -170,10 +153,10 @@ func TestParameters(t *testing.T) {
 					Enabled: ptr.To(true),
 				},
 			},
-			expect: func(g *WithT, result interface{}) {
+			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
 				// Additional tags are handled by azure/services/tags, so a diff
 				// here shouldn't trigger an update on the managed cluster resource.
-				g.Expect(result).To(BeNil())
+				g.Expect(result).To(Equal(getExistingCluster()))
 			},
 		},
 		{
@@ -190,13 +173,13 @@ func TestParameters(t *testing.T) {
 					Enabled: ptr.To(true),
 				},
 				SSHPublicKey: base64.StdEncoding.EncodeToString([]byte("test-ssh-key")),
-				GetAllAgentPools: func() ([]azure.ResourceSpecGetter, error) {
-					return []azure.ResourceSpecGetter{
+				GetAllAgentPools: func() ([]azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool], error) {
+					return []azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool]{
 						&agentpools.AgentPoolSpec{
 							Name:          "test-agentpool-0",
 							Mode:          string(infrav1.NodePoolModeSystem),
 							ResourceGroup: "test-rg",
-							Replicas:      int32(2),
+							Replicas:      2,
 							AdditionalTags: map[string]string{
 								"test-tag": "test-value",
 							},
@@ -204,10 +187,9 @@ func TestParameters(t *testing.T) {
 					}, nil
 				},
 			},
-			expect: func(g *WithT, result interface{}) {
-				g.Expect(result).To(BeAssignableToTypeOf(armcontainerservice.ManagedCluster{}))
-				g.Expect(result.(armcontainerservice.ManagedCluster).Properties.LinuxProfile).To(Not(BeNil()))
-				g.Expect(*(result.(armcontainerservice.ManagedCluster).Properties.LinuxProfile.SSH.PublicKeys)[0].KeyData).To(Equal("test-ssh-key"))
+			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
+				g.Expect(result.Spec.LinuxProfile).To(Not(BeNil()))
+				g.Expect(*(result.Spec.LinuxProfile.Ssh.PublicKeys)[0].KeyData).To(Equal("test-ssh-key"))
 			},
 		},
 		{
@@ -227,14 +209,13 @@ func TestParameters(t *testing.T) {
 					HTTPProxy:  ptr.To("http://proxy.com"),
 					HTTPSProxy: ptr.To("https://proxy.com"),
 				},
-				GetAllAgentPools: func() ([]azure.ResourceSpecGetter, error) {
-					return []azure.ResourceSpecGetter{}, nil
+				GetAllAgentPools: func() ([]azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool], error) {
+					return []azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool]{}, nil
 				},
 			},
-			expect: func(g *WithT, result interface{}) {
-				g.Expect(result).To(BeAssignableToTypeOf(armcontainerservice.ManagedCluster{}))
-				g.Expect(result.(armcontainerservice.ManagedCluster).Properties.HTTPProxyConfig).To(Not(BeNil()))
-				g.Expect((*result.(armcontainerservice.ManagedCluster).Properties.HTTPProxyConfig.HTTPProxy)).To(Equal("http://proxy.com"))
+			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
+				g.Expect(result.Spec.HttpProxyConfig).To(Not(BeNil()))
+				g.Expect(*result.Spec.HttpProxyConfig.HttpProxy).To(Equal("http://proxy.com"))
 			},
 		},
 		{
@@ -253,14 +234,13 @@ func TestParameters(t *testing.T) {
 				HTTPProxyConfig: &HTTPProxyConfig{
 					NoProxy: []string{"noproxy1", "noproxy2"},
 				},
-				GetAllAgentPools: func() ([]azure.ResourceSpecGetter, error) {
-					return []azure.ResourceSpecGetter{}, nil
+				GetAllAgentPools: func() ([]azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool], error) {
+					return []azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool]{}, nil
 				},
 			},
-			expect: func(g *WithT, result interface{}) {
-				g.Expect(result).To(BeAssignableToTypeOf(armcontainerservice.ManagedCluster{}))
-				g.Expect(result.(armcontainerservice.ManagedCluster).Properties.HTTPProxyConfig).To(Not(BeNil()))
-				g.Expect((result.(armcontainerservice.ManagedCluster).Properties.HTTPProxyConfig.NoProxy)).To(Equal([]*string{ptr.To("noproxy1"), ptr.To("noproxy2")}))
+			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
+				g.Expect(result.Spec.HttpProxyConfig).To(Not(BeNil()))
+				g.Expect((result.Spec.HttpProxyConfig.NoProxy)).To(Equal([]string{"noproxy1", "noproxy2"}))
 			},
 		},
 		{
@@ -277,13 +257,13 @@ func TestParameters(t *testing.T) {
 					Enabled: ptr.To(true),
 				},
 				SSHPublicKey: "",
-				GetAllAgentPools: func() ([]azure.ResourceSpecGetter, error) {
-					return []azure.ResourceSpecGetter{
+				GetAllAgentPools: func() ([]azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool], error) {
+					return []azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool]{
 						&agentpools.AgentPoolSpec{
 							Name:          "test-agentpool-0",
 							Mode:          string(infrav1.NodePoolModeSystem),
 							ResourceGroup: "test-rg",
-							Replicas:      int32(2),
+							Replicas:      2,
 							AdditionalTags: map[string]string{
 								"test-tag": "test-value",
 							},
@@ -291,9 +271,8 @@ func TestParameters(t *testing.T) {
 					}, nil
 				},
 			},
-			expect: func(g *WithT, result interface{}) {
-				g.Expect(result).To(BeAssignableToTypeOf(armcontainerservice.ManagedCluster{}))
-				g.Expect(result.(armcontainerservice.ManagedCluster).Properties.LinuxProfile).To(BeNil())
+			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
+				g.Expect(result.Spec.LinuxProfile).To(BeNil())
 			},
 		},
 		{
@@ -318,8 +297,8 @@ func TestParameters(t *testing.T) {
 					}(),
 				},
 			},
-			expect: func(g *WithT, result interface{}) {
-				g.Expect(result).To(BeNil())
+			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
+				g.Expect(result).To(Equal(getExistingClusterWithAPIServerAccessProfile()))
 			},
 		},
 		{
@@ -338,10 +317,9 @@ func TestParameters(t *testing.T) {
 					Enabled: ptr.To(true),
 				},
 			},
-			expect: func(g *WithT, result interface{}) {
-				g.Expect(result).To(BeAssignableToTypeOf(armcontainerservice.ManagedCluster{}))
-				g.Expect(result.(armcontainerservice.ManagedCluster).Properties.APIServerAccessProfile).To(Not(BeNil()))
-				g.Expect(result.(armcontainerservice.ManagedCluster).Properties.APIServerAccessProfile.AuthorizedIPRanges).To(Equal([]*string{}))
+			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
+				g.Expect(result.Spec.ApiServerAccessProfile).To(Not(BeNil()))
+				g.Expect(result.Spec.ApiServerAccessProfile.AuthorizedIPRanges).To(Equal([]string{}))
 			},
 		},
 		{
@@ -363,10 +341,9 @@ func TestParameters(t *testing.T) {
 					AuthorizedIPRanges: []string{"192.168.0.1/32, 192.168.0.2/32, 192.168.0.3/32"},
 				},
 			},
-			expect: func(g *WithT, result interface{}) {
-				g.Expect(result).To(BeAssignableToTypeOf(armcontainerservice.ManagedCluster{}))
-				g.Expect(result.(armcontainerservice.ManagedCluster).Properties.APIServerAccessProfile).To(Not(BeNil()))
-				g.Expect(result.(armcontainerservice.ManagedCluster).Properties.APIServerAccessProfile.AuthorizedIPRanges).To(Equal([]*string{ptr.To("192.168.0.1/32, 192.168.0.2/32, 192.168.0.3/32")}))
+			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
+				g.Expect(result.Spec.ApiServerAccessProfile).To(Not(BeNil()))
+				g.Expect(result.Spec.ApiServerAccessProfile.AuthorizedIPRanges).To(Equal([]string{"192.168.0.1/32, 192.168.0.2/32, 192.168.0.3/32"}))
 			},
 		},
 		{
@@ -388,8 +365,8 @@ func TestParameters(t *testing.T) {
 					AuthorizedIPRanges: []string{"192.168.0.1/32, 192.168.0.2/32, 192.168.0.3/32"},
 				},
 			},
-			expect: func(g *WithT, result interface{}) {
-				g.Expect(result).To(BeNil())
+			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
+				g.Expect(result).To(Equal(getExistingClusterWithAuthorizedIPRanges()))
 			},
 		},
 		{
@@ -412,15 +389,15 @@ func TestParameters(t *testing.T) {
 					UserAssignedIdentityResourceID: "some id",
 				},
 			},
-			expect: func(g *WithT, result interface{}) {
-				g.Expect(result).To(BeNil())
+			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
+				g.Expect(result).To(Equal(getExistingClusterWithUserAssignedIdentity()))
 			},
 		},
 		{
 			name: "setting networkPluginMode from nil to \"overlay\" will update",
-			existing: func() armcontainerservice.ManagedCluster {
+			existing: func() *asocontainerservicev1.ManagedCluster {
 				c := getExistingCluster()
-				c.Properties.NetworkProfile.NetworkPluginMode = nil
+				c.Spec.NetworkProfile.NetworkPluginMode = nil
 				return c
 			}(),
 			spec: &ManagedClusterSpec{
@@ -437,10 +414,9 @@ func TestParameters(t *testing.T) {
 				},
 				NetworkPluginMode: ptr.To(infrav1.NetworkPluginModeOverlay),
 			},
-			expect: func(g *WithT, result interface{}) {
-				g.Expect(result).To(BeAssignableToTypeOf(armcontainerservice.ManagedCluster{}))
-				g.Expect(result.(armcontainerservice.ManagedCluster).Properties.NetworkProfile.NetworkPluginMode).NotTo(BeNil())
-				g.Expect(*result.(armcontainerservice.ManagedCluster).Properties.NetworkProfile.NetworkPluginMode).To(Equal(armcontainerservice.NetworkPluginModeOverlay))
+			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
+				g.Expect(result.Spec.NetworkProfile.NetworkPluginMode).NotTo(BeNil())
+				g.Expect(*result.Spec.NetworkProfile.NetworkPluginMode).To(Equal(asocontainerservicev1.ContainerServiceNetworkProfile_NetworkPluginMode_Overlay))
 			},
 		},
 		{
@@ -460,8 +436,8 @@ func TestParameters(t *testing.T) {
 				},
 				NetworkPluginMode: nil,
 			},
-			expect: func(g *WithT, result interface{}) {
-				g.Expect(result).To(BeNil())
+			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
+				g.Expect(result).To(Equal(getExistingCluster()))
 			},
 		},
 		{
@@ -480,9 +456,8 @@ func TestParameters(t *testing.T) {
 					Enabled: ptr.To(false),
 				},
 			},
-			expect: func(g *WithT, result interface{}) {
-				g.Expect(result).To(BeAssignableToTypeOf(armcontainerservice.ManagedCluster{}))
-				g.Expect(*result.(armcontainerservice.ManagedCluster).Properties.OidcIssuerProfile.Enabled).To(BeFalse())
+			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
+				g.Expect(*result.Spec.OidcIssuerProfile.Enabled).To(BeFalse())
 			},
 		},
 	}
@@ -509,7 +484,7 @@ func TestGetIdentity(t *testing.T) {
 	testcases := []struct {
 		name         string
 		identity     *infrav1.Identity
-		expectedType *armcontainerservice.ResourceIdentityType
+		expectedType *asocontainerservicev1.ManagedClusterIdentity_Type
 	}{
 		{
 			name:     "default",
@@ -521,14 +496,14 @@ func TestGetIdentity(t *testing.T) {
 				Type:                           infrav1.ManagedControlPlaneIdentityTypeUserAssigned,
 				UserAssignedIdentityResourceID: "/subscriptions/fae7cc14-bfba-4471-9435-f945b42a16dd/resourcegroups/my-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/my-cluster-user-identity",
 			},
-			expectedType: ptr.To(armcontainerservice.ResourceIdentityTypeUserAssigned),
+			expectedType: ptr.To(asocontainerservicev1.ManagedClusterIdentity_Type_UserAssigned),
 		},
 		{
 			name: "system-assigned identity",
 			identity: &infrav1.Identity{
 				Type: infrav1.ManagedControlPlaneIdentityTypeSystemAssigned,
 			},
-			expectedType: ptr.To(armcontainerservice.ResourceIdentityTypeSystemAssigned),
+			expectedType: ptr.To(asocontainerservicev1.ManagedClusterIdentity_Type_SystemAssigned),
 		},
 	}
 	for _, tc := range testcases {
@@ -543,7 +518,11 @@ func TestGetIdentity(t *testing.T) {
 				g.Expect(result.Type).To(Equal(tc.expectedType))
 				if tc.identity.Type == infrav1.ManagedControlPlaneIdentityTypeUserAssigned {
 					g.Expect(result.UserAssignedIdentities).To(Not(BeEmpty()))
-					g.Expect(*result.UserAssignedIdentities[tc.identity.UserAssignedIdentityResourceID]).To(Equal(armcontainerservice.ManagedServiceIdentityUserAssignedIdentitiesValue{}))
+					g.Expect(result.UserAssignedIdentities[0]).To(Equal(asocontainerservicev1.UserAssignedIdentityDetails{
+						Reference: genruntime.ResourceReference{
+							ARMID: tc.identity.UserAssignedIdentityResourceID,
+						},
+					}))
 				} else {
 					g.Expect(result.UserAssignedIdentities).To(BeEmpty())
 				}
@@ -554,112 +533,123 @@ func TestGetIdentity(t *testing.T) {
 	}
 }
 
-func getExistingClusterWithAPIServerAccessProfile() armcontainerservice.ManagedCluster {
+func getExistingClusterWithAPIServerAccessProfile() *asocontainerservicev1.ManagedCluster {
 	mc := getExistingCluster()
-	mc.Properties.APIServerAccessProfile = &armcontainerservice.ManagedClusterAPIServerAccessProfile{
+	mc.Spec.ApiServerAccessProfile = &asocontainerservicev1.ManagedClusterAPIServerAccessProfile{
 		EnablePrivateCluster: ptr.To(false),
 	}
 	return mc
 }
 
-func getExistingCluster() armcontainerservice.ManagedCluster {
+func getExistingCluster() *asocontainerservicev1.ManagedCluster {
 	mc := getSampleManagedCluster()
-	mc.Properties.ProvisioningState = ptr.To("Succeeded")
-	mc.ID = ptr.To("test-id")
+	mc.Status.Id = ptr.To("test-id")
 	return mc
 }
 
-func getExistingClusterWithUserAssignedIdentity() armcontainerservice.ManagedCluster {
+func getExistingClusterWithUserAssignedIdentity() *asocontainerservicev1.ManagedCluster {
 	mc := getSampleManagedCluster()
-	mc.Properties.ProvisioningState = ptr.To("Succeeded")
-	mc.ID = ptr.To("test-id")
-	mc.Identity = &armcontainerservice.ManagedClusterIdentity{
-		Type: ptr.To(armcontainerservice.ResourceIdentityTypeUserAssigned),
-		UserAssignedIdentities: map[string]*armcontainerservice.ManagedServiceIdentityUserAssignedIdentitiesValue{
-			"some id": {
-				ClientID:    ptr.To("some client id"),
-				PrincipalID: ptr.To("some principal id"),
+	mc.Status.Id = ptr.To("test-id")
+	mc.Spec.Identity = &asocontainerservicev1.ManagedClusterIdentity{
+		Type: ptr.To(asocontainerservicev1.ManagedClusterIdentity_Type_UserAssigned),
+		UserAssignedIdentities: []asocontainerservicev1.UserAssignedIdentityDetails{
+			{
+				Reference: genruntime.ResourceReference{
+					ARMID: "some id",
+				},
 			},
 		},
 	}
 	return mc
 }
 
-func getSampleManagedCluster() armcontainerservice.ManagedCluster {
-	return armcontainerservice.ManagedCluster{
-		Properties: &armcontainerservice.ManagedClusterProperties{
+func getSampleManagedCluster() *asocontainerservicev1.ManagedCluster {
+	return &asocontainerservicev1.ManagedCluster{
+		Spec: asocontainerservicev1.ManagedCluster_Spec{
+			AzureName:         "test-managedcluster",
+			Owner:             &genruntime.KnownResourceReference{Name: "test-rg"},
 			KubernetesVersion: ptr.To("v1.22.0"),
-			DNSPrefix:         ptr.To("test-managedcluster"),
-			AgentPoolProfiles: []*armcontainerservice.ManagedClusterAgentPoolProfile{
+			DnsPrefix:         ptr.To("test-managedcluster"),
+			AgentPoolProfiles: []asocontainerservicev1.ManagedClusterAgentPoolProfile{
 				{
 					Name:         ptr.To("test-agentpool-0"),
-					Mode:         ptr.To(armcontainerservice.AgentPoolMode(infrav1.NodePoolModeSystem)),
-					Count:        ptr.To[int32](2),
-					Type:         ptr.To(armcontainerservice.AgentPoolTypeVirtualMachineScaleSets),
-					OSDiskSizeGB: ptr.To[int32](0),
-					Tags: map[string]*string{
-						"test-tag": ptr.To("test-value"),
+					Mode:         ptr.To(asocontainerservicev1.AgentPoolMode(infrav1.NodePoolModeSystem)),
+					Count:        ptr.To(2),
+					Type:         ptr.To(asocontainerservicev1.AgentPoolType_VirtualMachineScaleSets),
+					OsDiskSizeGB: ptr.To[asocontainerservicev1.ContainerServiceOSDisk](0),
+					Tags: map[string]string{
+						"test-tag": "test-value",
 					},
 					EnableAutoScaling: ptr.To(false),
 				},
 				{
 					Name:                ptr.To("test-agentpool-1"),
-					Mode:                ptr.To(armcontainerservice.AgentPoolMode(infrav1.NodePoolModeUser)),
-					Count:               ptr.To[int32](4),
-					Type:                ptr.To(armcontainerservice.AgentPoolTypeVirtualMachineScaleSets),
-					OSDiskSizeGB:        ptr.To[int32](0),
-					VMSize:              ptr.To("test_SKU"),
+					Mode:                ptr.To(asocontainerservicev1.AgentPoolMode(infrav1.NodePoolModeUser)),
+					Count:               ptr.To(4),
+					Type:                ptr.To(asocontainerservicev1.AgentPoolType_VirtualMachineScaleSets),
+					OsDiskSizeGB:        ptr.To[asocontainerservicev1.ContainerServiceOSDisk](0),
+					VmSize:              ptr.To("test_SKU"),
 					OrchestratorVersion: ptr.To("v1.22.0"),
-					VnetSubnetID:        ptr.To("fake/subnet/id"),
-					MaxPods:             ptr.To[int32](int32(32)),
-					AvailabilityZones:   []*string{ptr.To("1"), ptr.To("2")},
-					Tags: map[string]*string{
-						"test-tag": ptr.To("test-value"),
+					VnetSubnetReference: &genruntime.ResourceReference{
+						ARMID: "fake/subnet/id",
+					},
+					MaxPods:           ptr.To(32),
+					AvailabilityZones: []string{"1", "2"},
+					Tags: map[string]string{
+						"test-tag": "test-value",
 					},
 					EnableAutoScaling: ptr.To(false),
 				},
 			},
-			LinuxProfile: &armcontainerservice.LinuxProfile{
+			LinuxProfile: &asocontainerservicev1.ContainerServiceLinuxProfile{
 				AdminUsername: ptr.To(azure.DefaultAKSUserName),
-				SSH: &armcontainerservice.SSHConfiguration{
-					PublicKeys: []*armcontainerservice.SSHPublicKey{
+				Ssh: &asocontainerservicev1.ContainerServiceSshConfiguration{
+					PublicKeys: []asocontainerservicev1.ContainerServiceSshPublicKey{
 						{
 							KeyData: ptr.To("test-ssh-key"),
 						},
 					},
 				},
 			},
-			ServicePrincipalProfile: &armcontainerservice.ManagedClusterServicePrincipalProfile{ClientID: ptr.To("msi")},
+			ServicePrincipalProfile: &asocontainerservicev1.ManagedClusterServicePrincipalProfile{ClientId: ptr.To("msi")},
 			NodeResourceGroup:       ptr.To("test-node-rg"),
 			EnableRBAC:              ptr.To(true),
-			NetworkProfile: &armcontainerservice.NetworkProfile{
-				LoadBalancerSKU:   ptr.To(armcontainerservice.LoadBalancerSKUStandard),
-				NetworkPluginMode: ptr.To(armcontainerservice.NetworkPluginModeOverlay),
+			NetworkProfile: &asocontainerservicev1.ContainerServiceNetworkProfile{
+				LoadBalancerSku:   ptr.To(asocontainerservicev1.ContainerServiceNetworkProfile_LoadBalancerSku_Standard),
+				NetworkPluginMode: ptr.To(asocontainerservicev1.ContainerServiceNetworkProfile_NetworkPluginMode_Overlay),
 			},
-			OidcIssuerProfile: &armcontainerservice.ManagedClusterOIDCIssuerProfile{
+			OidcIssuerProfile: &asocontainerservicev1.ManagedClusterOIDCIssuerProfile{
 				Enabled: ptr.To(true),
 			},
-		},
-		Identity: &armcontainerservice.ManagedClusterIdentity{
-			Type: ptr.To(armcontainerservice.ResourceIdentityTypeSystemAssigned),
-		},
-		Location: ptr.To("test-location"),
-		Tags: converters.TagsToMap(infrav1.Build(infrav1.BuildParams{
-			Lifecycle:   infrav1.ResourceLifecycleOwned,
-			ClusterName: "test-cluster",
-			Name:        ptr.To("test-managedcluster"),
-			Role:        ptr.To(infrav1.CommonRole),
-			Additional: infrav1.Tags{
-				"test-tag": "test-value",
+			OperatorSpec: &asocontainerservicev1.ManagedClusterOperatorSpec{
+				Secrets: &asocontainerservicev1.ManagedClusterOperatorSecrets{
+					AdminCredentials: &genruntime.SecretDestination{
+						Name: "test-cluster-kubeconfig",
+						Key:  "value",
+					},
+				},
 			},
-		})),
+			Identity: &asocontainerservicev1.ManagedClusterIdentity{
+				Type: ptr.To(asocontainerservicev1.ManagedClusterIdentity_Type_SystemAssigned),
+			},
+			Location: ptr.To("test-location"),
+			Tags: infrav1.Build(infrav1.BuildParams{
+				Lifecycle:   infrav1.ResourceLifecycleOwned,
+				ClusterName: "test-cluster",
+				Name:        ptr.To("test-managedcluster"),
+				Role:        ptr.To(infrav1.CommonRole),
+				Additional: infrav1.Tags{
+					"test-tag": "test-value",
+				},
+			}),
+		},
 	}
 }
 
-func getExistingClusterWithAuthorizedIPRanges() armcontainerservice.ManagedCluster {
+func getExistingClusterWithAuthorizedIPRanges() *asocontainerservicev1.ManagedCluster {
 	mc := getExistingCluster()
-	mc.Properties.APIServerAccessProfile = &armcontainerservice.ManagedClusterAPIServerAccessProfile{
-		AuthorizedIPRanges: []*string{ptr.To("192.168.0.1/32, 192.168.0.2/32, 192.168.0.3/32")},
+	mc.Spec.ApiServerAccessProfile = &asocontainerservicev1.ManagedClusterAPIServerAccessProfile{
+		AuthorizedIPRanges: []string{"192.168.0.1/32, 192.168.0.2/32, 192.168.0.3/32"},
 	}
 	return mc
 }

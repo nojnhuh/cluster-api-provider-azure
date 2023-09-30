@@ -20,7 +20,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v4"
+	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20230201"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -289,7 +289,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 					SKU:          "StandardD2S_V3",
 					OSDiskSizeGB: ptr.To[int32](512),
 					MaxPods:      ptr.To[int32](24),
-					OsDiskType:   ptr.To(string(armcontainerservice.OSDiskTypeEphemeral)),
+					OsDiskType:   ptr.To(string(asocontainerservicev1.OSDiskType_Ephemeral)),
 				},
 			},
 			old: &AzureManagedMachinePool{
@@ -298,7 +298,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 					SKU:          "StandardD2S_V3",
 					OSDiskSizeGB: ptr.To[int32](512),
 					MaxPods:      ptr.To[int32](24),
-					OsDiskType:   ptr.To(string(armcontainerservice.OSDiskTypeManaged)),
+					OsDiskType:   ptr.To(string(asocontainerservicev1.OSDiskType_Managed)),
 				},
 			},
 			wantErr: true,
@@ -392,7 +392,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 					SKU:          "StandardD2S_V3",
 					OSDiskSizeGB: ptr.To[int32](512),
 					MaxPods:      ptr.To[int32](30),
-					OsDiskType:   ptr.To(string(armcontainerservice.OSDiskTypeManaged)),
+					OsDiskType:   ptr.To(string(asocontainerservicev1.OSDiskType_Managed)),
 				},
 			},
 			old: &AzureManagedMachinePool{
@@ -401,7 +401,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 					SKU:          "StandardD2S_V3",
 					OSDiskSizeGB: ptr.To[int32](512),
 					MaxPods:      ptr.To[int32](30),
-					OsDiskType:   ptr.To(string(armcontainerservice.OSDiskTypeManaged)),
+					OsDiskType:   ptr.To(string(asocontainerservicev1.OSDiskType_Managed)),
 				},
 			},
 			wantErr: false,
@@ -638,7 +638,7 @@ func TestAzureManagedMachinePool_ValidateCreate(t *testing.T) {
 			ammp: &AzureManagedMachinePool{
 				Spec: AzureManagedMachinePoolSpec{
 					MaxPods:    ptr.To[int32](249),
-					OsDiskType: ptr.To(string(armcontainerservice.OSDiskTypeManaged)),
+					OsDiskType: ptr.To(string(asocontainerservicev1.OSDiskType_Managed)),
 				},
 			},
 			wantErr: false,
@@ -1292,7 +1292,7 @@ func getKnownValidAzureManagedMachinePool() *AzureManagedMachinePool {
 	return &AzureManagedMachinePool{
 		Spec: AzureManagedMachinePoolSpec{
 			MaxPods:    ptr.To[int32](30),
-			OsDiskType: ptr.To(string(armcontainerservice.OSDiskTypeEphemeral)),
+			OsDiskType: ptr.To(string(asocontainerservicev1.OSDiskType_Ephemeral)),
 		},
 	}
 }

@@ -22,11 +22,11 @@ import (
 	"strings"
 	"time"
 
+	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20230201"
 	asoresourcesv1 "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/pkg/errors"
 	"golang.org/x/mod/semver"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
@@ -38,11 +38,11 @@ import (
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/virtualnetworks"
 	"sigs.k8s.io/cluster-api-provider-azure/util/futures"
 	"sigs.k8s.io/cluster-api-provider-azure/util/maps"
+	"sigs.k8s.io/cluster-api-provider-azure/util/pointers"
 	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
-	"sigs.k8s.io/cluster-api/util/secret"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -117,10 +117,9 @@ func NewManagedControlPlaneScope(ctx context.Context, params ManagedControlPlane
 
 // ManagedControlPlaneScope defines the basic context for an actuator to operate upon.
 type ManagedControlPlaneScope struct {
-	Client         client.Client
-	patchHelper    *patch.Helper
-	kubeConfigData []byte
-	cache          *ManagedControlPlaneCache
+	Client      client.Client
+	patchHelper *patch.Helper
+	cache       *ManagedControlPlaneCache
 
 	AzureClients
 	Cluster             *clusterv1.Cluster
@@ -466,9 +465,10 @@ func (s *ManagedControlPlaneScope) ManagedClusterAnnotations() map[string]string
 }
 
 // ManagedClusterSpec returns the managed cluster spec.
-func (s *ManagedControlPlaneScope) ManagedClusterSpec() azure.ResourceSpecGetter {
+func (s *ManagedControlPlaneScope) ManagedClusterSpec() azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedCluster] {
 	managedClusterSpec := managedclusters.ManagedClusterSpec{
 		Name:              s.ControlPlane.Name,
+		Namespace:         s.ControlPlane.Namespace,
 		ResourceGroup:     s.ControlPlane.Spec.ResourceGroupName,
 		NodeResourceGroup: s.ControlPlane.Spec.NodeResourceGroupName,
 		ClusterName:       s.ClusterName(),
@@ -538,11 +538,11 @@ func (s *ManagedControlPlaneScope) ManagedClusterSpec() azure.ResourceSpecGetter
 
 	if s.ControlPlane.Spec.LoadBalancerProfile != nil {
 		managedClusterSpec.LoadBalancerProfile = &managedclusters.LoadBalancerProfile{
-			ManagedOutboundIPs:     s.ControlPlane.Spec.LoadBalancerProfile.ManagedOutboundIPs,
+			ManagedOutboundIPs:     pointers.ToUnsized(s.ControlPlane.Spec.LoadBalancerProfile.ManagedOutboundIPs),
 			OutboundIPPrefixes:     s.ControlPlane.Spec.LoadBalancerProfile.OutboundIPPrefixes,
 			OutboundIPs:            s.ControlPlane.Spec.LoadBalancerProfile.OutboundIPs,
-			AllocatedOutboundPorts: s.ControlPlane.Spec.LoadBalancerProfile.AllocatedOutboundPorts,
-			IdleTimeoutInMinutes:   s.ControlPlane.Spec.LoadBalancerProfile.IdleTimeoutInMinutes,
+			AllocatedOutboundPorts: pointers.ToUnsized(s.ControlPlane.Spec.LoadBalancerProfile.AllocatedOutboundPorts),
+			IdleTimeoutInMinutes:   pointers.ToUnsized(s.ControlPlane.Spec.LoadBalancerProfile.IdleTimeoutInMinutes),
 		}
 	}
 
@@ -596,9 +596,9 @@ func (s *ManagedControlPlaneScope) ManagedClusterSpec() azure.ResourceSpecGetter
 }
 
 // GetAllAgentPoolSpecs gets a slice of azure.AgentPoolSpec for the list of agent pools.
-func (s *ManagedControlPlaneScope) GetAllAgentPoolSpecs() ([]azure.ResourceSpecGetter, error) {
+func (s *ManagedControlPlaneScope) GetAllAgentPoolSpecs() ([]azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool], error) {
 	var (
-		ammps           = make([]azure.ResourceSpecGetter, 0, len(s.ManagedMachinePools))
+		ammps           = make([]azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool], 0, len(s.ManagedMachinePools))
 		foundSystemPool = false
 	)
 	for _, pool := range s.ManagedMachinePools {
@@ -629,30 +629,6 @@ func (s *ManagedControlPlaneScope) GetAllAgentPoolSpecs() ([]azure.ResourceSpecG
 func (s *ManagedControlPlaneScope) SetControlPlaneEndpoint(endpoint clusterv1.APIEndpoint) {
 	s.ControlPlane.Spec.ControlPlaneEndpoint.Host = endpoint.Host
 	s.ControlPlane.Spec.ControlPlaneEndpoint.Port = endpoint.Port
-}
-
-// MakeEmptyKubeConfigSecret creates an empty secret object that is used for storing kubeconfig secret data.
-func (s *ManagedControlPlaneScope) MakeEmptyKubeConfigSecret() corev1.Secret {
-	return corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secret.Name(s.Cluster.Name, secret.Kubeconfig),
-			Namespace: s.Cluster.Namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(s.ControlPlane, infrav1.GroupVersion.WithKind("AzureManagedControlPlane")),
-			},
-			Labels: map[string]string{clusterv1.ClusterNameLabel: s.Cluster.Name},
-		},
-	}
-}
-
-// GetKubeConfigData returns a []byte that contains kubeconfig.
-func (s *ManagedControlPlaneScope) GetKubeConfigData() []byte {
-	return s.kubeConfigData
-}
-
-// SetKubeConfigData sets kubeconfig data.
-func (s *ManagedControlPlaneScope) SetKubeConfigData(kubeConfigData []byte) {
-	s.kubeConfigData = kubeConfigData
 }
 
 // SetKubeletIdentity sets the ID of the user-assigned identity for kubelet if not already set.
@@ -745,18 +721,6 @@ func (s *ManagedControlPlaneScope) SetAnnotation(key, value string) {
 		s.ControlPlane.Annotations = map[string]string{}
 	}
 	s.ControlPlane.Annotations[key] = value
-}
-
-// TagsSpecs returns the tag specs for the ManagedControlPlane.
-func (s *ManagedControlPlaneScope) TagsSpecs() []azure.TagsSpec {
-	specs := []azure.TagsSpec{
-		{
-			Scope:      azure.ManagedClusterID(s.SubscriptionID(), s.ResourceGroup(), s.ManagedClusterSpec().ResourceName()),
-			Tags:       s.AdditionalTags(),
-			Annotation: azure.ManagedClusterTagsLastAppliedAnnotation,
-		},
-	}
-	return specs
 }
 
 // AvailabilityStatusResource refers to the AzureManagedControlPlane.

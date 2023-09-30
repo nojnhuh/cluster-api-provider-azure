@@ -362,7 +362,9 @@ spec:
                   provisioned. Immutable.
                 enum:
                 - Basic
+                - basic
                 - Standard
+                - standard
                 type: string
               location:
                 description: 'Location is a string matching one of the canonical Azure

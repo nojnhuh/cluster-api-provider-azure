@@ -68,6 +68,8 @@ type azureManagedControlPlaneWebhook struct {
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type.
 func (mw *azureManagedControlPlaneWebhook) Default(ctx context.Context, obj runtime.Object) error {
+	log := ctrl.Log.WithName("AzureManagedControlPlaneWebHookLogger")
+
 	m, ok := obj.(*AzureManagedControlPlane)
 	if !ok {
 		return apierrors.NewBadRequest("expected an AzureManagedControlPlane")
@@ -76,9 +78,19 @@ func (mw *azureManagedControlPlaneWebhook) Default(ctx context.Context, obj runt
 		networkPlugin := "azure"
 		m.Spec.NetworkPlugin = &networkPlugin
 	}
+
 	if m.Spec.LoadBalancerSKU == nil {
-		loadBalancerSKU := "Standard"
+		loadBalancerSKU := "standard"
 		m.Spec.LoadBalancerSKU = &loadBalancerSKU
+	}
+	lbSku := ptr.Deref(m.Spec.LoadBalancerSKU, "")
+	if lbSku == "Standard" {
+		m.Spec.LoadBalancerSKU = ptr.To("standard")
+		log.Info("\"Standard\" load balancer SKU tier is invalid. Replacing with \"standard\"")
+	}
+	if lbSku == "Basic" {
+		m.Spec.LoadBalancerSKU = ptr.To("basic")
+		log.Info("\"Basic\" load balancer SKU tier is invalid. Replacing with \"basic\"")
 	}
 
 	if m.Spec.Version != "" && !strings.HasPrefix(m.Spec.Version, "v") {
@@ -93,13 +105,13 @@ func (mw *azureManagedControlPlaneWebhook) Default(ctx context.Context, obj runt
 	}
 
 	if err := m.setDefaultSSHPublicKey(); err != nil {
-		ctrl.Log.WithName("AzureManagedControlPlaneWebHookLogger").Error(err, "setDefaultSSHPublicKey failed")
+		log.Error(err, "setDefaultSSHPublicKey failed")
 	}
 
 	// PaidManagedControlPlaneTier has been replaced with StandardManagedControlPlaneTier since v2023-02-01.
 	if m.Spec.SKU != nil && m.Spec.SKU.Tier == PaidManagedControlPlaneTier {
 		m.Spec.SKU.Tier = StandardManagedControlPlaneTier
-		ctrl.Log.WithName("AzureManagedControlPlaneWebHookLogger").Info("Paid SKU tier is deprecated and has been replaced by Standard")
+		log.Info("Paid SKU tier is deprecated and has been replaced by Standard")
 	}
 
 	m.setDefaultNodeResourceGroupName()

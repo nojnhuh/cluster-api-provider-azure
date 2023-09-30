@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/scope"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/groups"
@@ -27,12 +28,10 @@ import (
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/privateendpoints"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/resourcehealth"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/subnets"
-	"sigs.k8s.io/cluster-api-provider-azure/azure/services/tags"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/virtualnetworks"
 	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
-	"sigs.k8s.io/cluster-api/util/secret"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // azureManagedControlPlaneService contains the services required by the cluster controller.
@@ -44,10 +43,6 @@ type azureManagedControlPlaneService struct {
 
 // newAzureManagedControlPlaneReconciler populates all the services based on input scope.
 func newAzureManagedControlPlaneReconciler(scope *scope.ManagedControlPlaneScope) (*azureManagedControlPlaneService, error) {
-	managedClustersSvc, err := managedclusters.New(scope)
-	if err != nil {
-		return nil, err
-	}
 	privateEndpointsSvc, err := privateendpoints.New(scope)
 	if err != nil {
 		return nil, err
@@ -57,10 +52,6 @@ func newAzureManagedControlPlaneReconciler(scope *scope.ManagedControlPlaneScope
 		return nil, err
 	}
 	subnetsSvc, err := subnets.New(scope)
-	if err != nil {
-		return nil, err
-	}
-	tagsSvc, err := tags.New(scope)
 	if err != nil {
 		return nil, err
 	}
@@ -75,9 +66,8 @@ func newAzureManagedControlPlaneReconciler(scope *scope.ManagedControlPlaneScope
 			groups.New(scope),
 			virtualNetworksSvc,
 			subnetsSvc,
-			managedClustersSvc,
+			managedclusters.New(scope),
 			privateEndpointsSvc,
-			tagsSvc,
 			resourceHealthSvc,
 		},
 	}, nil
@@ -138,21 +128,30 @@ func (r *azureManagedControlPlaneService) reconcileKubeconfig(ctx context.Contex
 	ctx, _, done := tele.StartSpanWithLogger(ctx, "controllers.azureManagedControlPlaneService.reconcileKubeconfig")
 	defer done()
 
-	kubeConfigData := r.scope.GetKubeConfigData()
-	if kubeConfigData == nil {
+	// ASO creates the kubeconfig secret automatically, but we still need to add the cluster name label for
+	// CAPI to be able to find it.
+	managedCluster, err := r.scope.ManagedClusterSpec().Parameters(ctx, nil)
+	if err != nil {
+		return errors.Wrap(err, "failed to get parameters for managed cluster")
+	}
+	kubeconfigKey := client.ObjectKey{
+		Name:      managedCluster.Spec.OperatorSpec.Secrets.AdminCredentials.Name,
+		Namespace: r.scope.ManagedClusterSpec().ResourceRef().Namespace,
+	}
+	kubeconfig := &corev1.Secret{}
+	err = r.scope.GetClient().Get(ctx, kubeconfigKey, kubeconfig)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get secret %s", kubeconfigKey)
+	}
+	labels := kubeconfig.GetLabels()
+	if labels[clusterv1.ClusterNameLabel] == r.scope.ClusterName() {
 		return nil
 	}
-	kubeConfigSecret := r.scope.MakeEmptyKubeConfigSecret()
-
-	// Always update credentials in case of rotation
-	if _, err := controllerutil.CreateOrUpdate(ctx, r.kubeclient, &kubeConfigSecret, func() error {
-		kubeConfigSecret.Data = map[string][]byte{
-			secret.KubeconfigDataName: kubeConfigData,
-		}
-		return nil
-	}); err != nil {
-		return errors.Wrap(err, "failed to kubeconfig secret for cluster")
+	if labels == nil {
+		labels = map[string]string{}
 	}
-
-	return nil
+	labels[clusterv1.ClusterNameLabel] = r.scope.ClusterName()
+	kubeconfig.SetLabels(labels)
+	err = r.scope.GetClient().Update(ctx, kubeconfig)
+	return errors.Wrapf(err, "failed to update secret %s", &kubeconfig.ObjectMeta)
 }

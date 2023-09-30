@@ -81,6 +81,7 @@ func (r *reconciler[T]) CreateOrUpdateResource(ctx context.Context, spec azure.A
 
 	log = log.WithValues("service", serviceName, "resource", resourceName, "namespace", resourceNamespace)
 
+	var readyErr error
 	var adopt bool
 	var existing T
 	var zero T // holds the zero value, to be returned with non-nil errors.
@@ -105,7 +106,6 @@ func (r *reconciler[T]) CreateOrUpdateResource(ctx context.Context, spec azure.A
 		if !readyExists {
 			return zero, azure.WithTransientError(errors.New("ready status unknown"), requeueInterval)
 		}
-		var readyErr error
 		if cond := conds[i]; cond.Status != metav1.ConditionTrue {
 			switch {
 			case cond.Reason == conditions.ReasonAzureResourceNotFound.Name &&
@@ -122,20 +122,18 @@ func (r *reconciler[T]) CreateOrUpdateResource(ctx context.Context, spec azure.A
 				// update instead of returning early.
 				adopt = true
 			case cond.Reason == conditions.ReasonReconciling.Name:
-				readyErr = azure.NewOperationNotDoneError(&infrav1.Future{
+				err := azure.NewOperationNotDoneError(&infrav1.Future{
 					Type:          createOrUpdateFutureType,
 					ResourceGroup: existing.GetNamespace(),
 					Name:          existing.GetName(),
 				})
+				return zero, azure.WithTransientError(err, requeueInterval)
 			default:
-				readyErr = fmt.Errorf("resource is not Ready: %s", conds[i].Message)
-			}
-
-			if readyErr != nil {
+				err := fmt.Errorf("resource is not Ready: %s", conds[i].Message)
+				readyErr = azure.WithTransientError(err, requeueInterval)
 				if conds[i].Severity == conditions.ConditionSeverityError {
-					return zero, azure.WithTerminalError(readyErr)
+					readyErr = azure.WithTerminalError(err)
 				}
-				return zero, azure.WithTransientError(readyErr, requeueInterval)
 			}
 		}
 	}
@@ -201,6 +199,9 @@ func (r *reconciler[T]) CreateOrUpdateResource(ctx context.Context, spec azure.A
 	diff := cmp.Diff(existing, parameters)
 	if diff == "" {
 		log.V(2).Info("resource up to date")
+		if readyErr != nil {
+			return zero, readyErr
+		}
 		return existing, nil
 	}
 

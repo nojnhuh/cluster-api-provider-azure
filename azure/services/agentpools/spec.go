@@ -18,18 +18,17 @@ package agentpools
 
 import (
 	"context"
-	"fmt"
-	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v4"
+	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20230201"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/google/go-cmp/cmp"
-	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
-	"sigs.k8s.io/cluster-api-provider-azure/azure/converters"
 	azureutil "sigs.k8s.io/cluster-api-provider-azure/util/azure"
+	"sigs.k8s.io/cluster-api-provider-azure/util/pointers"
 	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
 )
 
@@ -42,27 +41,33 @@ type KubeletConfig struct {
 	// CPUCfsQuotaPeriod - Sets CPU CFS quota period value.
 	CPUCfsQuotaPeriod *string
 	// ImageGcHighThreshold - The percent of disk usage after which image garbage collection is always run.
-	ImageGcHighThreshold *int32
+	ImageGcHighThreshold *int
 	// ImageGcLowThreshold - The percent of disk usage before which image garbage collection is never run.
-	ImageGcLowThreshold *int32
+	ImageGcLowThreshold *int
 	// TopologyManagerPolicy - Topology Manager policy to use.
 	TopologyManagerPolicy *string
 	// AllowedUnsafeSysctls - Allowlist of unsafe sysctls or unsafe sysctl patterns (ending in `*`).
-	AllowedUnsafeSysctls *[]string
+	AllowedUnsafeSysctls []string
 	// FailSwapOn - If set to true it will make the Kubelet fail to start if swap is enabled on the node.
 	FailSwapOn *bool
 	// ContainerLogMaxSizeMB - The maximum size (e.g. 10Mi) of container log file before it is rotated.
-	ContainerLogMaxSizeMB *int32
+	ContainerLogMaxSizeMB *int
 	// ContainerLogMaxFiles - The maximum number of container log files that can be present for a container. The number must be ≥ 2.
-	ContainerLogMaxFiles *int32
+	ContainerLogMaxFiles *int
 	// PodMaxPids - The maximum number of processes per pod.
-	PodMaxPids *int32
+	PodMaxPids *int
 }
 
 // AgentPoolSpec contains agent pool specification details.
 type AgentPoolSpec struct {
-	// Name is the name of agent pool.
+	// Name is the name of the ASO ManagedClustersAgentPool resource.
 	Name string
+
+	// Namespace is the namespace of the ASO ManagedClustersAgentPool resource.
+	Namespace string
+
+	// AzureName is the name of the agentpool resource in Azure.
+	AzureName string
 
 	// ResourceGroup is the name of the Azure resource group for the AKS Cluster.
 	ResourceGroup string
@@ -77,7 +82,7 @@ type AgentPoolSpec struct {
 	SKU string
 
 	// Replicas is the number of desired machines.
-	Replicas int32
+	Replicas int
 
 	// OSDiskSizeGB is the OS disk size in GB for every machine in this agent pool.
 	OSDiskSizeGB int32
@@ -89,13 +94,13 @@ type AgentPoolSpec struct {
 	Mode string
 
 	//  Maximum number of nodes for auto-scaling
-	MaxCount *int32 `json:"maxCount,omitempty"`
+	MaxCount *int `json:"maxCount,omitempty"`
 
 	// Minimum number of nodes for auto-scaling
-	MinCount *int32 `json:"minCount,omitempty"`
+	MinCount *int `json:"minCount,omitempty"`
 
 	// Node labels - labels for all of the nodes present in node pool
-	NodeLabels map[string]*string `json:"nodeLabels,omitempty"`
+	NodeLabels map[string]string `json:"nodeLabels,omitempty"`
 
 	// NodeTaints specifies the taints for nodes present in this agent pool.
 	NodeTaints []string `json:"nodeTaints,omitempty"`
@@ -107,7 +112,7 @@ type AgentPoolSpec struct {
 	AvailabilityZones []string
 
 	// MaxPods specifies the kubelet --max-pods configuration for the agent pool.
-	MaxPods *int32 `json:"maxPods,omitempty"`
+	MaxPods *int `json:"maxPods,omitempty"`
 
 	// OsDiskType specifies the OS disk type for each node in the pool. Allowed values are 'Ephemeral' and 'Managed'.
 	OsDiskType *string `json:"osDiskType,omitempty"`
@@ -125,7 +130,7 @@ type AgentPoolSpec struct {
 	EnableNodePublicIP *bool `json:"enableNodePublicIP,omitempty"`
 
 	// NodePublicIPPrefixID specifies the public IP prefix resource ID which VM nodes should use IPs from.
-	NodePublicIPPrefixID *string `json:"nodePublicIPPrefixID,omitempty"`
+	NodePublicIPPrefixID string `json:"nodePublicIPPrefixID,omitempty"`
 
 	// ScaleSetPriority specifies the ScaleSetPriority for the node pool. Allowed values are 'Spot' and 'Regular'
 	ScaleSetPriority *string `json:"scaleSetPriority,omitempty"`
@@ -152,19 +157,14 @@ type AgentPoolSpec struct {
 	EnableFIPS *bool
 }
 
-// ResourceName returns the name of the agent pool.
-func (s *AgentPoolSpec) ResourceName() string {
-	return s.Name
-}
-
-// ResourceGroupName returns the name of the resource group.
-func (s *AgentPoolSpec) ResourceGroupName() string {
-	return s.ResourceGroup
-}
-
-// OwnerResourceName is a no-op for agent pools.
-func (s *AgentPoolSpec) OwnerResourceName() string {
-	return s.Cluster
+// ResourceRef implements azure.ASOResourceSpecGetter.
+func (s *AgentPoolSpec) ResourceRef() *asocontainerservicev1.ManagedClustersAgentPool {
+	return &asocontainerservicev1.ManagedClustersAgentPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      s.Name,
+			Namespace: s.Namespace,
+		},
+	}
 }
 
 // CustomHeaders returns custom headers to be added to the Azure API calls.
@@ -173,69 +173,59 @@ func (s *AgentPoolSpec) CustomHeaders() map[string]string {
 }
 
 // Parameters returns the parameters for the agent pool.
-func (s *AgentPoolSpec) Parameters(ctx context.Context, existing interface{}) (params interface{}, err error) {
+func (s *AgentPoolSpec) Parameters(ctx context.Context, existing *asocontainerservicev1.ManagedClustersAgentPool) (params *asocontainerservicev1.ManagedClustersAgentPool, err error) {
 	_, log, done := tele.StartSpanWithLogger(ctx, "agentpools.Service.Parameters")
 	defer done()
 
+	agentPool := &asocontainerservicev1.ManagedClustersAgentPool{}
+
 	nodeLabels := s.NodeLabels
 	if existing != nil {
-		existingPool, ok := existing.(armcontainerservice.AgentPool)
-		if !ok {
-			return nil, errors.Errorf("%T is not an armcontainerservice.AgentPool", existing)
-		}
-
 		// agent pool already exists
-		ps := *existingPool.Properties.ProvisioningState
-		if ps != string(infrav1.Canceled) && ps != string(infrav1.Failed) && ps != string(infrav1.Succeeded) {
-			msg := fmt.Sprintf("Unable to update existing agent pool in non terminal state. Agent pool must be in one of the following provisioning states: Canceled, Failed, or Succeeded. Actual state: %s", ps)
-			return nil, azure.WithTransientError(errors.New(msg), 20*time.Second)
-		}
+		agentPool = existing
+		existingPool := existing.Spec
 
 		// Normalize individual agent pools to diff in case we need to update
-		existingProfile := armcontainerservice.AgentPool{
-			Properties: &armcontainerservice.ManagedClusterAgentPoolProfileProperties{
-				Count:               existingPool.Properties.Count,
-				OrchestratorVersion: existingPool.Properties.OrchestratorVersion,
-				Mode:                existingPool.Properties.Mode,
-				EnableAutoScaling:   existingPool.Properties.EnableAutoScaling,
-				MinCount:            existingPool.Properties.MinCount,
-				MaxCount:            existingPool.Properties.MaxCount,
-				NodeLabels:          existingPool.Properties.NodeLabels,
-				NodeTaints:          existingPool.Properties.NodeTaints,
-				Tags:                existingPool.Properties.Tags,
-				ScaleDownMode:       existingPool.Properties.ScaleDownMode,
-				SpotMaxPrice:        existingPool.Properties.SpotMaxPrice,
-				KubeletConfig:       existingPool.Properties.KubeletConfig,
-			},
+		existingProfile := asocontainerservicev1.ManagedClusters_AgentPool_Spec{
+			Count:               existingPool.Count,
+			OrchestratorVersion: existingPool.OrchestratorVersion,
+			Mode:                existingPool.Mode,
+			EnableAutoScaling:   existingPool.EnableAutoScaling,
+			MinCount:            existingPool.MinCount,
+			MaxCount:            existingPool.MaxCount,
+			NodeLabels:          existingPool.NodeLabels,
+			NodeTaints:          existingPool.NodeTaints,
+			Tags:                existingPool.Tags,
+			ScaleDownMode:       existingPool.ScaleDownMode,
+			SpotMaxPrice:        existingPool.SpotMaxPrice,
+			KubeletConfig:       existingPool.KubeletConfig,
 		}
 
-		normalizedProfile := armcontainerservice.AgentPool{
-			Properties: &armcontainerservice.ManagedClusterAgentPoolProfileProperties{
-				Count:               &s.Replicas,
-				OrchestratorVersion: s.Version,
-				Mode:                azure.AliasOrNil[armcontainerservice.AgentPoolMode](&s.Mode),
-				EnableAutoScaling:   ptr.To(s.EnableAutoScaling),
-				MinCount:            s.MinCount,
-				MaxCount:            s.MaxCount,
-				NodeLabels:          s.NodeLabels,
-				NodeTaints:          azure.PtrSlice(&s.NodeTaints),
-				ScaleDownMode:       azure.AliasOrNil[armcontainerservice.ScaleDownMode](s.ScaleDownMode),
-				Tags:                converters.TagsToMap(s.AdditionalTags),
-			},
+		normalizedProfile := asocontainerservicev1.ManagedClusters_AgentPool_Spec{
+			Count:               ptr.To(s.Replicas),
+			OrchestratorVersion: s.Version,
+			Mode:                azure.AliasOrNil[asocontainerservicev1.AgentPoolMode](&s.Mode),
+			EnableAutoScaling:   ptr.To(s.EnableAutoScaling),
+			MinCount:            s.MinCount,
+			MaxCount:            s.MaxCount,
+			NodeLabels:          s.NodeLabels,
+			NodeTaints:          s.NodeTaints,
+			ScaleDownMode:       azure.AliasOrNil[asocontainerservicev1.ScaleDownMode](s.ScaleDownMode),
+			Tags:                s.AdditionalTags,
 		}
-		if len(normalizedProfile.Properties.NodeTaints) == 0 {
-			normalizedProfile.Properties.NodeTaints = nil
+		if len(normalizedProfile.NodeTaints) == 0 {
+			normalizedProfile.NodeTaints = nil
 		}
 
 		if s.SpotMaxPrice != nil {
-			normalizedProfile.Properties.SpotMaxPrice = ptr.To[float32](float32(s.SpotMaxPrice.AsApproximateFloat64()))
+			normalizedProfile.SpotMaxPrice = ptr.To(s.SpotMaxPrice.AsApproximateFloat64())
 		}
 
 		if s.KubeletConfig != nil {
-			normalizedProfile.Properties.KubeletConfig = &armcontainerservice.KubeletConfig{
-				CPUManagerPolicy:      s.KubeletConfig.CPUManagerPolicy,
-				CPUCfsQuota:           s.KubeletConfig.CPUCfsQuota,
-				CPUCfsQuotaPeriod:     s.KubeletConfig.CPUCfsQuotaPeriod,
+			normalizedProfile.KubeletConfig = &asocontainerservicev1.KubeletConfig{
+				CpuManagerPolicy:      s.KubeletConfig.CPUManagerPolicy,
+				CpuCfsQuota:           s.KubeletConfig.CPUCfsQuota,
+				CpuCfsQuotaPeriod:     s.KubeletConfig.CPUCfsQuotaPeriod,
 				ImageGcHighThreshold:  s.KubeletConfig.ImageGcHighThreshold,
 				ImageGcLowThreshold:   s.KubeletConfig.ImageGcLowThreshold,
 				TopologyManagerPolicy: s.KubeletConfig.TopologyManagerPolicy,
@@ -243,7 +233,7 @@ func (s *AgentPoolSpec) Parameters(ctx context.Context, existing interface{}) (p
 				ContainerLogMaxSizeMB: s.KubeletConfig.ContainerLogMaxSizeMB,
 				ContainerLogMaxFiles:  s.KubeletConfig.ContainerLogMaxFiles,
 				PodMaxPids:            s.KubeletConfig.PodMaxPids,
-				AllowedUnsafeSysctls:  azure.PtrSlice(s.KubeletConfig.AllowedUnsafeSysctls),
+				AllowedUnsafeSysctls:  s.KubeletConfig.AllowedUnsafeSysctls,
 			}
 		}
 
@@ -251,51 +241,54 @@ func (s *AgentPoolSpec) Parameters(ctx context.Context, existing interface{}) (p
 		// count present in MachinePool or AzureManagedMachinePool, hence we should not make an update API call based
 		// on difference in count.
 		if s.EnableAutoScaling {
-			normalizedProfile.Properties.Count = existingProfile.Properties.Count
+			normalizedProfile.Count = existingProfile.Count
 		}
 
 		// We do a just-in-time merge of existent kubernetes.azure.com-prefixed labels
 		// So that we don't unintentionally delete them
 		// See https://github.com/Azure/AKS/issues/3152
-		nodeLabels = mergeSystemNodeLabels(normalizedProfile.Properties.NodeLabels, existingPool.Properties.NodeLabels)
-		normalizedProfile.Properties.NodeLabels = nodeLabels
+		nodeLabels = mergeSystemNodeLabels(normalizedProfile.NodeLabels, existingPool.NodeLabels)
+		normalizedProfile.NodeLabels = nodeLabels
 
 		// Compute a diff to check if we require an update
 		diff := cmp.Diff(normalizedProfile, existingProfile)
 		if diff == "" {
 			// agent pool is up to date, nothing to do
 			log.V(4).Info("no changes found between user-updated spec and existing spec")
-			return nil, nil
+			return existing, nil
 		}
 		log.V(4).Info("found a diff between the desired spec and the existing agentpool", "difference", diff)
 	}
 
-	availabilityZones := azure.PtrSlice(&s.AvailabilityZones)
-	nodeTaints := azure.PtrSlice(&s.NodeTaints)
+	availabilityZones := s.AvailabilityZones
+	nodeTaints := s.NodeTaints
 	var sku *string
 	if s.SKU != "" {
 		sku = &s.SKU
 	}
-	var spotMaxPrice *float32
+	var spotMaxPrice *float64
 	if s.SpotMaxPrice != nil {
-		spotMaxPrice = ptr.To[float32](float32(s.SpotMaxPrice.AsApproximateFloat64()))
+		spotMaxPrice = ptr.To(s.SpotMaxPrice.AsApproximateFloat64())
 	}
-	tags := converters.TagsToMap(s.AdditionalTags)
-	if tags == nil {
-		// Make sure we send a non-nil, empty map if AdditionalTags are nil as this tells AKS to delete any existing tags.
-		tags = make(map[string]*string, 0)
+	var nodePublicIPPrefixRef *genruntime.ResourceReference
+	if s.NodePublicIPPrefixID != "" {
+		nodePublicIPPrefixRef = &genruntime.ResourceReference{
+			ARMID: s.NodePublicIPPrefixID,
+		}
 	}
-	var vnetSubnetID *string
+	var vnetSubnetRef *genruntime.ResourceReference
 	if s.VnetSubnetID != "" {
-		vnetSubnetID = &s.VnetSubnetID
+		vnetSubnetRef = &genruntime.ResourceReference{
+			ARMID: s.VnetSubnetID,
+		}
 	}
 
-	var kubeletConfig *armcontainerservice.KubeletConfig
+	var kubeletConfig *asocontainerservicev1.KubeletConfig
 	if s.KubeletConfig != nil {
-		kubeletConfig = &armcontainerservice.KubeletConfig{
-			CPUManagerPolicy:      s.KubeletConfig.CPUManagerPolicy,
-			CPUCfsQuota:           s.KubeletConfig.CPUCfsQuota,
-			CPUCfsQuotaPeriod:     s.KubeletConfig.CPUCfsQuotaPeriod,
+		kubeletConfig = &asocontainerservicev1.KubeletConfig{
+			CpuManagerPolicy:      s.KubeletConfig.CPUManagerPolicy,
+			CpuCfsQuota:           s.KubeletConfig.CPUCfsQuota,
+			CpuCfsQuotaPeriod:     s.KubeletConfig.CPUCfsQuotaPeriod,
 			ImageGcHighThreshold:  s.KubeletConfig.ImageGcHighThreshold,
 			ImageGcLowThreshold:   s.KubeletConfig.ImageGcLowThreshold,
 			TopologyManagerPolicy: s.KubeletConfig.TopologyManagerPolicy,
@@ -303,81 +296,83 @@ func (s *AgentPoolSpec) Parameters(ctx context.Context, existing interface{}) (p
 			ContainerLogMaxSizeMB: s.KubeletConfig.ContainerLogMaxSizeMB,
 			ContainerLogMaxFiles:  s.KubeletConfig.ContainerLogMaxFiles,
 			PodMaxPids:            s.KubeletConfig.PodMaxPids,
-			AllowedUnsafeSysctls:  azure.PtrSlice(s.KubeletConfig.AllowedUnsafeSysctls),
+			AllowedUnsafeSysctls:  s.KubeletConfig.AllowedUnsafeSysctls,
 		}
 	}
 
-	var linuxOSConfig *armcontainerservice.LinuxOSConfig
+	var linuxOSConfig *asocontainerservicev1.LinuxOSConfig
 	if s.LinuxOSConfig != nil {
-		linuxOSConfig = &armcontainerservice.LinuxOSConfig{
-			SwapFileSizeMB:             s.LinuxOSConfig.SwapFileSizeMB,
+		linuxOSConfig = &asocontainerservicev1.LinuxOSConfig{
+			SwapFileSizeMB:             pointers.ToUnsized(s.LinuxOSConfig.SwapFileSizeMB),
 			TransparentHugePageEnabled: (*string)(s.LinuxOSConfig.TransparentHugePageEnabled),
 			TransparentHugePageDefrag:  (*string)(s.LinuxOSConfig.TransparentHugePageDefrag),
 		}
 		if s.LinuxOSConfig.Sysctls != nil {
-			linuxOSConfig.Sysctls = &armcontainerservice.SysctlConfig{
-				FsAioMaxNr:                     s.LinuxOSConfig.Sysctls.FsAioMaxNr,
-				FsFileMax:                      s.LinuxOSConfig.Sysctls.FsFileMax,
-				FsInotifyMaxUserWatches:        s.LinuxOSConfig.Sysctls.FsInotifyMaxUserWatches,
-				FsNrOpen:                       s.LinuxOSConfig.Sysctls.FsNrOpen,
-				KernelThreadsMax:               s.LinuxOSConfig.Sysctls.KernelThreadsMax,
-				NetCoreNetdevMaxBacklog:        s.LinuxOSConfig.Sysctls.NetCoreNetdevMaxBacklog,
-				NetCoreOptmemMax:               s.LinuxOSConfig.Sysctls.NetCoreOptmemMax,
-				NetCoreRmemDefault:             s.LinuxOSConfig.Sysctls.NetCoreRmemDefault,
-				NetCoreRmemMax:                 s.LinuxOSConfig.Sysctls.NetCoreRmemMax,
-				NetCoreSomaxconn:               s.LinuxOSConfig.Sysctls.NetCoreSomaxconn,
-				NetCoreWmemDefault:             s.LinuxOSConfig.Sysctls.NetCoreWmemDefault,
-				NetCoreWmemMax:                 s.LinuxOSConfig.Sysctls.NetCoreWmemMax,
-				NetIPv4IPLocalPortRange:        s.LinuxOSConfig.Sysctls.NetIpv4IPLocalPortRange,
-				NetIPv4NeighDefaultGcThresh1:   s.LinuxOSConfig.Sysctls.NetIpv4NeighDefaultGcThresh1,
-				NetIPv4NeighDefaultGcThresh2:   s.LinuxOSConfig.Sysctls.NetIpv4NeighDefaultGcThresh2,
-				NetIPv4NeighDefaultGcThresh3:   s.LinuxOSConfig.Sysctls.NetIpv4NeighDefaultGcThresh3,
-				NetIPv4TCPFinTimeout:           s.LinuxOSConfig.Sysctls.NetIpv4TCPFinTimeout,
-				NetIPv4TCPKeepaliveProbes:      s.LinuxOSConfig.Sysctls.NetIpv4TCPKeepaliveProbes,
-				NetIPv4TCPKeepaliveTime:        s.LinuxOSConfig.Sysctls.NetIpv4TCPKeepaliveTime,
-				NetIPv4TCPMaxSynBacklog:        s.LinuxOSConfig.Sysctls.NetIpv4TCPMaxSynBacklog,
-				NetIPv4TCPMaxTwBuckets:         s.LinuxOSConfig.Sysctls.NetIpv4TCPMaxTwBuckets,
-				NetIPv4TCPTwReuse:              s.LinuxOSConfig.Sysctls.NetIpv4TCPTwReuse,
-				NetIPv4TcpkeepaliveIntvl:       s.LinuxOSConfig.Sysctls.NetIpv4TCPkeepaliveIntvl,
-				NetNetfilterNfConntrackBuckets: s.LinuxOSConfig.Sysctls.NetNetfilterNfConntrackBuckets,
-				NetNetfilterNfConntrackMax:     s.LinuxOSConfig.Sysctls.NetNetfilterNfConntrackMax,
-				VMMaxMapCount:                  s.LinuxOSConfig.Sysctls.VMMaxMapCount,
-				VMSwappiness:                   s.LinuxOSConfig.Sysctls.VMSwappiness,
-				VMVfsCachePressure:             s.LinuxOSConfig.Sysctls.VMVfsCachePressure,
+			linuxOSConfig.Sysctls = &asocontainerservicev1.SysctlConfig{
+				FsAioMaxNr:                     pointers.ToUnsized(s.LinuxOSConfig.Sysctls.FsAioMaxNr),
+				FsFileMax:                      pointers.ToUnsized(s.LinuxOSConfig.Sysctls.FsFileMax),
+				FsInotifyMaxUserWatches:        pointers.ToUnsized(s.LinuxOSConfig.Sysctls.FsInotifyMaxUserWatches),
+				FsNrOpen:                       pointers.ToUnsized(s.LinuxOSConfig.Sysctls.FsNrOpen),
+				KernelThreadsMax:               pointers.ToUnsized(s.LinuxOSConfig.Sysctls.KernelThreadsMax),
+				NetCoreNetdevMaxBacklog:        pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetCoreNetdevMaxBacklog),
+				NetCoreOptmemMax:               pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetCoreOptmemMax),
+				NetCoreRmemDefault:             pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetCoreRmemDefault),
+				NetCoreRmemMax:                 pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetCoreRmemMax),
+				NetCoreSomaxconn:               pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetCoreSomaxconn),
+				NetCoreWmemDefault:             pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetCoreWmemDefault),
+				NetCoreWmemMax:                 pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetCoreWmemMax),
+				NetIpv4IpLocalPortRange:        s.LinuxOSConfig.Sysctls.NetIpv4IPLocalPortRange,
+				NetIpv4NeighDefaultGcThresh1:   pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetIpv4NeighDefaultGcThresh1),
+				NetIpv4NeighDefaultGcThresh2:   pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetIpv4NeighDefaultGcThresh2),
+				NetIpv4NeighDefaultGcThresh3:   pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetIpv4NeighDefaultGcThresh3),
+				NetIpv4TcpFinTimeout:           pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetIpv4TCPFinTimeout),
+				NetIpv4TcpKeepaliveProbes:      pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetIpv4TCPKeepaliveProbes),
+				NetIpv4TcpKeepaliveTime:        pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetIpv4TCPKeepaliveTime),
+				NetIpv4TcpMaxSynBacklog:        pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetIpv4TCPMaxSynBacklog),
+				NetIpv4TcpMaxTwBuckets:         pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetIpv4TCPMaxTwBuckets),
+				NetIpv4TcpTwReuse:              s.LinuxOSConfig.Sysctls.NetIpv4TCPTwReuse,
+				NetIpv4TcpkeepaliveIntvl:       pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetIpv4TCPkeepaliveIntvl),
+				NetNetfilterNfConntrackBuckets: pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetNetfilterNfConntrackBuckets),
+				NetNetfilterNfConntrackMax:     pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetNetfilterNfConntrackMax),
+				VmMaxMapCount:                  pointers.ToUnsized(s.LinuxOSConfig.Sysctls.VMMaxMapCount),
+				VmSwappiness:                   pointers.ToUnsized(s.LinuxOSConfig.Sysctls.VMSwappiness),
+				VmVfsCachePressure:             pointers.ToUnsized(s.LinuxOSConfig.Sysctls.VMVfsCachePressure),
 			}
 		}
 	}
 
-	agentPool := armcontainerservice.AgentPool{
-		Properties: &armcontainerservice.ManagedClusterAgentPoolProfileProperties{
-			AvailabilityZones:    availabilityZones,
-			Count:                &s.Replicas,
-			EnableAutoScaling:    ptr.To(s.EnableAutoScaling),
-			EnableUltraSSD:       s.EnableUltraSSD,
-			KubeletConfig:        kubeletConfig,
-			KubeletDiskType:      azure.AliasOrNil[armcontainerservice.KubeletDiskType]((*string)(s.KubeletDiskType)),
-			MaxCount:             s.MaxCount,
-			MaxPods:              s.MaxPods,
-			MinCount:             s.MinCount,
-			Mode:                 ptr.To(armcontainerservice.AgentPoolMode(s.Mode)),
-			NodeLabels:           nodeLabels,
-			NodeTaints:           nodeTaints,
-			OrchestratorVersion:  s.Version,
-			OSDiskSizeGB:         &s.OSDiskSizeGB,
-			OSDiskType:           azure.AliasOrNil[armcontainerservice.OSDiskType](s.OsDiskType),
-			OSType:               azure.AliasOrNil[armcontainerservice.OSType](s.OSType),
-			ScaleSetPriority:     azure.AliasOrNil[armcontainerservice.ScaleSetPriority](s.ScaleSetPriority),
-			ScaleDownMode:        azure.AliasOrNil[armcontainerservice.ScaleDownMode](s.ScaleDownMode),
-			SpotMaxPrice:         spotMaxPrice,
-			Type:                 ptr.To(armcontainerservice.AgentPoolTypeVirtualMachineScaleSets),
-			VMSize:               sku,
-			VnetSubnetID:         vnetSubnetID,
-			EnableNodePublicIP:   s.EnableNodePublicIP,
-			NodePublicIPPrefixID: s.NodePublicIPPrefixID,
-			Tags:                 tags,
-			EnableFIPS:           s.EnableFIPS,
-			LinuxOSConfig:        linuxOSConfig,
+	agentPool.Spec = asocontainerservicev1.ManagedClusters_AgentPool_Spec{
+		AzureName: s.AzureName,
+		Owner: &genruntime.KnownResourceReference{
+			Name: s.Cluster,
 		},
+		AvailabilityZones:           availabilityZones,
+		Count:                       &s.Replicas,
+		EnableAutoScaling:           ptr.To(s.EnableAutoScaling),
+		EnableUltraSSD:              s.EnableUltraSSD,
+		KubeletConfig:               kubeletConfig,
+		KubeletDiskType:             azure.AliasOrNil[asocontainerservicev1.KubeletDiskType]((*string)(s.KubeletDiskType)),
+		MaxCount:                    s.MaxCount,
+		MaxPods:                     s.MaxPods,
+		MinCount:                    s.MinCount,
+		Mode:                        ptr.To(asocontainerservicev1.AgentPoolMode(s.Mode)),
+		NodeLabels:                  nodeLabels,
+		NodeTaints:                  nodeTaints,
+		OrchestratorVersion:         s.Version,
+		OsDiskSizeGB:                ptr.To(asocontainerservicev1.ContainerServiceOSDisk(s.OSDiskSizeGB)),
+		OsDiskType:                  azure.AliasOrNil[asocontainerservicev1.OSDiskType](s.OsDiskType),
+		OsType:                      azure.AliasOrNil[asocontainerservicev1.OSType](s.OSType),
+		ScaleSetPriority:            azure.AliasOrNil[asocontainerservicev1.ScaleSetPriority](s.ScaleSetPriority),
+		ScaleDownMode:               azure.AliasOrNil[asocontainerservicev1.ScaleDownMode](s.ScaleDownMode),
+		SpotMaxPrice:                spotMaxPrice,
+		Type:                        ptr.To(asocontainerservicev1.AgentPoolType_VirtualMachineScaleSets),
+		VmSize:                      sku,
+		VnetSubnetReference:         vnetSubnetRef,
+		EnableNodePublicIP:          s.EnableNodePublicIP,
+		NodePublicIPPrefixReference: nodePublicIPPrefixRef,
+		Tags:                        s.AdditionalTags,
+		EnableFIPS:                  s.EnableFIPS,
+		LinuxOSConfig:               linuxOSConfig,
 	}
 
 	return agentPool, nil
@@ -385,10 +380,10 @@ func (s *AgentPoolSpec) Parameters(ctx context.Context, existing interface{}) (p
 
 // mergeSystemNodeLabels appends any kubernetes.azure.com-prefixed labels from the AKS label set
 // into the local capz label set.
-func mergeSystemNodeLabels(capz, aks map[string]*string) map[string]*string {
+func mergeSystemNodeLabels(capz, aks map[string]string) map[string]string {
 	ret := capz
 	if ret == nil {
-		ret = make(map[string]*string)
+		ret = make(map[string]string)
 	}
 	// Look for labels returned from the AKS node pool API that begin with kubernetes.azure.com
 	for aksNodeLabelKey := range aks {
@@ -401,4 +396,9 @@ func mergeSystemNodeLabels(capz, aks map[string]*string) map[string]*string {
 		ret = nil
 	}
 	return ret
+}
+
+// WasManaged implements azure.ASOResourceSpecGetter.
+func (s *AgentPoolSpec) WasManaged(resource *asocontainerservicev1.ManagedClustersAgentPool) bool {
+	return true
 }

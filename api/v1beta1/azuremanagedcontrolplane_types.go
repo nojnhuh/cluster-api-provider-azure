@@ -155,7 +155,7 @@ type AzureManagedControlPlaneSpec struct {
 
 	// LoadBalancerSKU is the SKU of the loadBalancer to be provisioned.
 	// Immutable.
-	// +kubebuilder:validation:Enum=Basic;Standard
+	// +kubebuilder:validation:Enum=Basic;basic;Standard;standard
 	// +optional
 	LoadBalancerSKU *string `json:"loadBalancerSKU,omitempty"`
 

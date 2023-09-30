@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Kubernetes Authors.
+Copyright 2023 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,8 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Run go generate to regenerate this mock.
-//
-//go:generate ../../../../hack/tools/bin/mockgen -destination managedclusters_mock.go -package mock_managedclusters -source ../managedclusters.go ManagedClusterScope
-//go:generate /usr/bin/env bash -c "cat ../../../../hack/boilerplate/boilerplate.generatego.txt managedclusters_mock.go > _managedclusters_mock.go && mv _managedclusters_mock.go managedclusters_mock.go"
-package mock_managedclusters
+package pointers
+
+import "k8s.io/utils/ptr"
+
+// ToUnsized converts to an unsized int pointer.
+func ToUnsized(i *int32) *int {
+	if i == nil {
+		return nil
+	}
+	return ptr.To(int(*i))
+}

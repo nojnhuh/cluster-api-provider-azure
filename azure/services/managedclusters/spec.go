@@ -22,22 +22,29 @@ import (
 	"fmt"
 	"net"
 	"reflect"
-	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v4"
+	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20230201"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/converters"
+	"sigs.k8s.io/cluster-api-provider-azure/azure/services/agentpools"
+	"sigs.k8s.io/cluster-api-provider-azure/azure/services/aso"
 	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
+	"sigs.k8s.io/cluster-api/util/secret"
 )
 
 // ManagedClusterSpec contains properties to create a managed cluster.
 type ManagedClusterSpec struct {
 	// Name is the name of this AKS Cluster.
 	Name string
+
+	// Namespace is the namespace of the ASO ManagedCluster.
+	Namespace string
 
 	// ResourceGroup is the name of the Azure resource group for this AKS Cluster.
 	ResourceGroup string
@@ -79,7 +86,7 @@ type ManagedClusterSpec struct {
 	SSHPublicKey string
 
 	// GetAllAgentPools is a function that returns the list of agent pool specifications in this cluster.
-	GetAllAgentPools func() ([]azure.ResourceSpecGetter, error)
+	GetAllAgentPools func() ([]azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool], error)
 
 	// PodCIDR is the CIDR block for IP addresses distributed to pods
 	PodCIDR string
@@ -172,7 +179,7 @@ type LoadBalancerProfile struct {
 	// See https://learn.microsoft.com/azure/aks/load-balancer-standard#provide-your-own-outbound-public-ips-or-prefixes
 
 	// ManagedOutboundIPs are the desired managed outbound IPs for the cluster load balancer.
-	ManagedOutboundIPs *int32
+	ManagedOutboundIPs *int
 
 	// OutboundIPPrefixes are the desired outbound IP Prefix resources for the cluster load balancer.
 	OutboundIPPrefixes []string
@@ -181,10 +188,10 @@ type LoadBalancerProfile struct {
 	OutboundIPs []string
 
 	// AllocatedOutboundPorts are the desired number of allocated SNAT ports per VM. Allowed values must be in the range of 0 to 64000 (inclusive). The default value is 0 which results in Azure dynamically allocating ports.
-	AllocatedOutboundPorts *int32
+	AllocatedOutboundPorts *int
 
 	// IdleTimeoutInMinutes  are the desired outbound flow idle timeout in minutes. Allowed values must be in the range of 4 to 120 (inclusive). The default value is 30 minutes.
-	IdleTimeoutInMinutes *int32
+	IdleTimeoutInMinutes *int
 }
 
 // APIServerAccessProfile is the access profile for AKS API server.
@@ -243,21 +250,16 @@ type OIDCIssuerProfile struct {
 	Enabled *bool
 }
 
-var _ azure.ResourceSpecGetterWithHeaders = (*ManagedClusterSpec)(nil)
+var _ azure.ASOResourceSpecGetterWithHeaders[*asocontainerservicev1.ManagedCluster] = (*ManagedClusterSpec)(nil)
 
-// ResourceName returns the name of the AKS cluster.
-func (s *ManagedClusterSpec) ResourceName() string {
-	return s.Name
-}
-
-// ResourceGroupName returns the name of the resource group.
-func (s *ManagedClusterSpec) ResourceGroupName() string {
-	return s.ResourceGroup
-}
-
-// OwnerResourceName is a no-op for managed clusters.
-func (s *ManagedClusterSpec) OwnerResourceName() string {
-	return "" // not applicable
+// ResourceRef implements azure.ASOResourceSpecGetter.
+func (s *ManagedClusterSpec) ResourceRef() *asocontainerservicev1.ManagedCluster {
+	return &asocontainerservicev1.ManagedCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      s.Name,
+			Namespace: s.Namespace,
+		},
+	}
 }
 
 // CustomHeaders returns custom headers to be added to the Azure API calls.
@@ -266,12 +268,12 @@ func (s *ManagedClusterSpec) CustomHeaders() map[string]string {
 }
 
 // buildAutoScalerProfile builds the AutoScalerProfile for the ManagedClusterProperties.
-func buildAutoScalerProfile(autoScalerProfile *AutoScalerProfile) *armcontainerservice.ManagedClusterPropertiesAutoScalerProfile {
+func buildAutoScalerProfile(autoScalerProfile *AutoScalerProfile) *asocontainerservicev1.ManagedClusterProperties_AutoScalerProfile {
 	if autoScalerProfile == nil {
 		return nil
 	}
 
-	mcAutoScalerProfile := &armcontainerservice.ManagedClusterPropertiesAutoScalerProfile{
+	mcAutoScalerProfile := &asocontainerservicev1.ManagedClusterProperties_AutoScalerProfile{
 		BalanceSimilarNodeGroups:      autoScalerProfile.BalanceSimilarNodeGroups,
 		MaxEmptyBulkDelete:            autoScalerProfile.MaxEmptyBulkDelete,
 		MaxGracefulTerminationSec:     autoScalerProfile.MaxGracefulTerminationSec,
@@ -290,7 +292,7 @@ func buildAutoScalerProfile(autoScalerProfile *AutoScalerProfile) *armcontainers
 		SkipNodesWithSystemPods:       autoScalerProfile.SkipNodesWithSystemPods,
 	}
 	if autoScalerProfile.Expander != nil {
-		mcAutoScalerProfile.Expander = ptr.To(armcontainerservice.Expander(*autoScalerProfile.Expander))
+		mcAutoScalerProfile.Expander = ptr.To(asocontainerservicev1.ManagedClusterProperties_AutoScalerProfile_Expander(*autoScalerProfile.Expander))
 	}
 
 	return mcAutoScalerProfile
@@ -299,7 +301,7 @@ func buildAutoScalerProfile(autoScalerProfile *AutoScalerProfile) *armcontainers
 // Parameters returns the parameters for the managed clusters.
 //
 //nolint:gocyclo // Function requires a lot of nil checks that raise complexity.
-func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing interface{}) (params interface{}, err error) {
+func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontainerservicev1.ManagedCluster) (params *asocontainerservicev1.ManagedCluster, err error) {
 	ctx, log, done := tele.StartSpanWithLogger(ctx, "managedclusters.Service.Parameters")
 	defer done()
 
@@ -311,41 +313,50 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing interface{
 		}
 	}
 
-	managedCluster := armcontainerservice.ManagedCluster{
-		Identity: &armcontainerservice.ManagedClusterIdentity{
-			Type: ptr.To(armcontainerservice.ResourceIdentityTypeSystemAssigned),
+	managedCluster := asocontainerservicev1.ManagedCluster_Spec{
+		AzureName: s.Name,
+		Owner: &genruntime.KnownResourceReference{
+			Name: s.ResourceGroup,
+		},
+		Identity: &asocontainerservicev1.ManagedClusterIdentity{
+			Type: ptr.To(asocontainerservicev1.ManagedClusterIdentity_Type_SystemAssigned),
 		},
 		Location: &s.Location,
-		Tags: converters.TagsToMap(infrav1.Build(infrav1.BuildParams{
+		Tags: infrav1.Build(infrav1.BuildParams{
 			Lifecycle:   infrav1.ResourceLifecycleOwned,
 			ClusterName: s.ClusterName,
 			Name:        ptr.To(s.Name),
 			Role:        ptr.To(infrav1.CommonRole),
 			Additional:  s.Tags,
-		})),
-		Properties: &armcontainerservice.ManagedClusterProperties{
-			NodeResourceGroup: &s.NodeResourceGroup,
-			EnableRBAC:        ptr.To(true),
-			DNSPrefix:         &s.Name,
-			KubernetesVersion: &s.Version,
-
-			ServicePrincipalProfile: &armcontainerservice.ManagedClusterServicePrincipalProfile{
-				ClientID: ptr.To("msi"),
-			},
-			AgentPoolProfiles: []*armcontainerservice.ManagedClusterAgentPoolProfile{},
-			NetworkProfile: &armcontainerservice.NetworkProfile{
-				NetworkPlugin:   azure.AliasOrNil[armcontainerservice.NetworkPlugin](&s.NetworkPlugin),
-				LoadBalancerSKU: azure.AliasOrNil[armcontainerservice.LoadBalancerSKU](&s.LoadBalancerSKU),
-				NetworkPolicy:   azure.AliasOrNil[armcontainerservice.NetworkPolicy](&s.NetworkPolicy),
+		}),
+		NodeResourceGroup: &s.NodeResourceGroup,
+		EnableRBAC:        ptr.To(true),
+		DnsPrefix:         &s.Name,
+		KubernetesVersion: &s.Version,
+		ServicePrincipalProfile: &asocontainerservicev1.ManagedClusterServicePrincipalProfile{
+			ClientId: ptr.To("msi"),
+		},
+		AgentPoolProfiles: []asocontainerservicev1.ManagedClusterAgentPoolProfile{},
+		NetworkProfile: &asocontainerservicev1.ContainerServiceNetworkProfile{
+			NetworkPlugin:   azure.AliasOrNil[asocontainerservicev1.ContainerServiceNetworkProfile_NetworkPlugin](&s.NetworkPlugin),
+			LoadBalancerSku: azure.AliasOrNil[asocontainerservicev1.ContainerServiceNetworkProfile_LoadBalancerSku](&s.LoadBalancerSKU),
+			NetworkPolicy:   azure.AliasOrNil[asocontainerservicev1.ContainerServiceNetworkProfile_NetworkPolicy](&s.NetworkPolicy),
+		},
+		OperatorSpec: &asocontainerservicev1.ManagedClusterOperatorSpec{
+			Secrets: &asocontainerservicev1.ManagedClusterOperatorSecrets{
+				AdminCredentials: &genruntime.SecretDestination{
+					Name: secret.Name(s.ClusterName, secret.Kubeconfig),
+					Key:  secret.KubeconfigDataName,
+				},
 			},
 		},
 	}
 
 	if decodedSSHPublicKey != nil {
-		managedCluster.Properties.LinuxProfile = &armcontainerservice.LinuxProfile{
+		managedCluster.LinuxProfile = &asocontainerservicev1.ContainerServiceLinuxProfile{
 			AdminUsername: ptr.To(azure.DefaultAKSUserName),
-			SSH: &armcontainerservice.SSHConfiguration{
-				PublicKeys: []*armcontainerservice.SSHPublicKey{
+			Ssh: &asocontainerservicev1.ContainerServiceSshConfiguration{
+				PublicKeys: []asocontainerservicev1.ContainerServiceSshPublicKey{
 					{
 						KeyData: ptr.To(string(decodedSSHPublicKey)),
 					},
@@ -355,16 +366,16 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing interface{
 	}
 
 	if s.NetworkPluginMode != nil {
-		managedCluster.Properties.NetworkProfile.NetworkPluginMode = ptr.To(armcontainerservice.NetworkPluginMode(*s.NetworkPluginMode))
+		managedCluster.NetworkProfile.NetworkPluginMode = ptr.To(asocontainerservicev1.ContainerServiceNetworkProfile_NetworkPluginMode(*s.NetworkPluginMode))
 	}
 
 	if s.PodCIDR != "" {
-		managedCluster.Properties.NetworkProfile.PodCidr = &s.PodCIDR
+		managedCluster.NetworkProfile.PodCidr = &s.PodCIDR
 	}
 
 	if s.ServiceCIDR != "" {
 		if s.DNSServiceIP == nil {
-			managedCluster.Properties.NetworkProfile.ServiceCidr = &s.ServiceCIDR
+			managedCluster.NetworkProfile.ServiceCidr = &s.ServiceCIDR
 			ip, _, err := net.ParseCIDR(s.ServiceCIDR)
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse service cidr: %w", err)
@@ -375,63 +386,63 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing interface{
 			// https://golang.org/src/net/ip.go#L48
 			ip[15] = byte(10)
 			dnsIP := ip.String()
-			managedCluster.Properties.NetworkProfile.DNSServiceIP = &dnsIP
+			managedCluster.NetworkProfile.DnsServiceIP = &dnsIP
 		} else {
-			managedCluster.Properties.NetworkProfile.DNSServiceIP = s.DNSServiceIP
+			managedCluster.NetworkProfile.DnsServiceIP = s.DNSServiceIP
 		}
 	}
 
 	if s.AADProfile != nil {
-		managedCluster.Properties.AADProfile = &armcontainerservice.ManagedClusterAADProfile{
+		managedCluster.AadProfile = &asocontainerservicev1.ManagedClusterAADProfile{
 			Managed:             &s.AADProfile.Managed,
 			EnableAzureRBAC:     &s.AADProfile.EnableAzureRBAC,
-			AdminGroupObjectIDs: azure.PtrSlice[string](&s.AADProfile.AdminGroupObjectIDs),
+			AdminGroupObjectIDs: s.AADProfile.AdminGroupObjectIDs,
 		}
 	}
 
 	for i := range s.AddonProfiles {
-		if managedCluster.Properties.AddonProfiles == nil {
-			managedCluster.Properties.AddonProfiles = map[string]*armcontainerservice.ManagedClusterAddonProfile{}
+		if managedCluster.AddonProfiles == nil {
+			managedCluster.AddonProfiles = map[string]asocontainerservicev1.ManagedClusterAddonProfile{}
 		}
 		item := s.AddonProfiles[i]
-		addonProfile := &armcontainerservice.ManagedClusterAddonProfile{
+		addonProfile := asocontainerservicev1.ManagedClusterAddonProfile{
 			Enabled: &item.Enabled,
 		}
 		if item.Config != nil {
-			addonProfile.Config = azure.StringMapPtr(item.Config)
+			addonProfile.Config = item.Config
 		}
-		managedCluster.Properties.AddonProfiles[item.Name] = addonProfile
+		managedCluster.AddonProfiles[item.Name] = addonProfile
 	}
 
 	if s.SKU != nil {
-		tierName := armcontainerservice.ManagedClusterSKUTier(s.SKU.Tier)
-		managedCluster.SKU = &armcontainerservice.ManagedClusterSKU{
-			Name: ptr.To(armcontainerservice.ManagedClusterSKUName("Base")),
+		tierName := asocontainerservicev1.ManagedClusterSKU_Tier(s.SKU.Tier)
+		managedCluster.Sku = &asocontainerservicev1.ManagedClusterSKU{
+			Name: ptr.To(asocontainerservicev1.ManagedClusterSKU_Name("Base")),
 			Tier: ptr.To(tierName),
 		}
 	}
 
 	if s.LoadBalancerProfile != nil {
-		managedCluster.Properties.NetworkProfile.LoadBalancerProfile = s.GetLoadBalancerProfile()
+		managedCluster.NetworkProfile.LoadBalancerProfile = s.GetLoadBalancerProfile()
 	}
 
 	if s.APIServerAccessProfile != nil {
-		managedCluster.Properties.APIServerAccessProfile = &armcontainerservice.ManagedClusterAPIServerAccessProfile{
+		managedCluster.ApiServerAccessProfile = &asocontainerservicev1.ManagedClusterAPIServerAccessProfile{
 			EnablePrivateCluster:           s.APIServerAccessProfile.EnablePrivateCluster,
 			PrivateDNSZone:                 s.APIServerAccessProfile.PrivateDNSZone,
 			EnablePrivateClusterPublicFQDN: s.APIServerAccessProfile.EnablePrivateClusterPublicFQDN,
 		}
 
 		if s.APIServerAccessProfile.AuthorizedIPRanges != nil {
-			managedCluster.Properties.APIServerAccessProfile.AuthorizedIPRanges = azure.PtrSlice[string](&s.APIServerAccessProfile.AuthorizedIPRanges)
+			managedCluster.ApiServerAccessProfile.AuthorizedIPRanges = s.APIServerAccessProfile.AuthorizedIPRanges
 		}
 	}
 
 	if s.OutboundType != nil {
-		managedCluster.Properties.NetworkProfile.OutboundType = ptr.To(armcontainerservice.OutboundType(*s.OutboundType))
+		managedCluster.NetworkProfile.OutboundType = ptr.To(asocontainerservicev1.ContainerServiceNetworkProfile_OutboundType(*s.OutboundType))
 	}
 
-	managedCluster.Properties.AutoScalerProfile = buildAutoScalerProfile(s.AutoScalerProfile)
+	managedCluster.AutoScalerProfile = buildAutoScalerProfile(s.AutoScalerProfile)
 
 	if s.Identity != nil {
 		managedCluster.Identity, err = getIdentity(s.Identity)
@@ -441,72 +452,84 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing interface{
 	}
 
 	if s.KubeletUserAssignedIdentity != "" {
-		managedCluster.Properties.IdentityProfile = map[string]*armcontainerservice.UserAssignedIdentity{
+		managedCluster.IdentityProfile = map[string]asocontainerservicev1.UserAssignedIdentity{
 			kubeletIdentityKey: {
-				ResourceID: ptr.To(s.KubeletUserAssignedIdentity),
+				ResourceReference: &genruntime.ResourceReference{
+					ARMID: s.KubeletUserAssignedIdentity,
+				},
 			},
 		}
 	}
 
 	if s.HTTPProxyConfig != nil {
-		managedCluster.Properties.HTTPProxyConfig = &armcontainerservice.ManagedClusterHTTPProxyConfig{
-			HTTPProxy:  s.HTTPProxyConfig.HTTPProxy,
-			HTTPSProxy: s.HTTPProxyConfig.HTTPSProxy,
+		managedCluster.HttpProxyConfig = &asocontainerservicev1.ManagedClusterHTTPProxyConfig{
+			HttpProxy:  s.HTTPProxyConfig.HTTPProxy,
+			HttpsProxy: s.HTTPProxyConfig.HTTPSProxy,
 			TrustedCa:  s.HTTPProxyConfig.TrustedCA,
 		}
 
 		if s.HTTPProxyConfig.NoProxy != nil {
-			managedCluster.Properties.HTTPProxyConfig.NoProxy = azure.PtrSlice(&s.HTTPProxyConfig.NoProxy)
+			managedCluster.HttpProxyConfig.NoProxy = s.HTTPProxyConfig.NoProxy
 		}
 	}
 
 	if s.OIDCIssuerProfile != nil {
-		managedCluster.Properties.OidcIssuerProfile = &armcontainerservice.ManagedClusterOIDCIssuerProfile{
+		managedCluster.OidcIssuerProfile = &asocontainerservicev1.ManagedClusterOIDCIssuerProfile{
 			Enabled: s.OIDCIssuerProfile.Enabled,
 		}
 	}
 
+	mc := existing
 	if existing != nil {
-		existingMC, ok := existing.(armcontainerservice.ManagedCluster)
-		if !ok {
-			return nil, fmt.Errorf("%T is not an armcontainerservice.ManagedCluster", existing)
-		}
-		ps := *existingMC.Properties.ProvisioningState
-		if ps != string(infrav1.Canceled) && ps != string(infrav1.Failed) && ps != string(infrav1.Succeeded) {
-			return nil, azure.WithTransientError(errors.Errorf("Unable to update existing managed cluster in non-terminal state. Managed cluster must be in one of the following provisioning states: Canceled, Failed, or Succeeded. Actual state: %s", ps), 20*time.Second)
-		}
+		// DeepCopy to prevent changes from affecting `existing` which gets returned exactly as passed in when
+		// no changes are needed.
+		existingMC := existing.DeepCopy().Spec
 
 		// Normalize the LoadBalancerProfile so the diff below doesn't get thrown off by AKS added properties.
-		if managedCluster.Properties.NetworkProfile.LoadBalancerProfile == nil {
+		if managedCluster.NetworkProfile.LoadBalancerProfile == nil {
 			// If our LoadBalancerProfile generated by the spec is nil, then don't worry about what AKS has added.
-			existingMC.Properties.NetworkProfile.LoadBalancerProfile = nil
+			existingMC.NetworkProfile.LoadBalancerProfile = nil
 		} else {
 			// If our LoadBalancerProfile generated by the spec is not nil, then remove the effective outbound IPs from
 			// AKS.
-			existingMC.Properties.NetworkProfile.LoadBalancerProfile.EffectiveOutboundIPs = nil
+			if existingMC.NetworkProfile == nil {
+				existingMC.NetworkProfile = &asocontainerservicev1.ContainerServiceNetworkProfile{}
+			}
+			if existingMC.NetworkProfile.LoadBalancerProfile == nil {
+				existingMC.NetworkProfile.LoadBalancerProfile = &asocontainerservicev1.ManagedClusterLoadBalancerProfile{}
+			}
+			existingMC.NetworkProfile.LoadBalancerProfile.EffectiveOutboundIPs = nil
 		}
 
 		// Avoid changing agent pool profiles through AMCP and just use the existing agent pool profiles
 		// AgentPool changes are managed through AMMP.
-		managedCluster.Properties.AgentPoolProfiles = existingMC.Properties.AgentPoolProfiles
+		managedCluster.AgentPoolProfiles = existing.Spec.AgentPoolProfiles
 
 		// if the AuthorizedIPRanges is nil in the user-updated spec, but not nil in the existing spec, then
 		// we need to set the AuthorizedIPRanges to empty array ([]*string{}) once so that the Azure API will
 		// update the existing authorized IP ranges to nil.
 		if !isAuthIPRangesNilOrEmpty(existingMC) && isAuthIPRangesNilOrEmpty(managedCluster) {
 			log.V(4).Info("managed cluster spec has nil AuthorizedIPRanges, updating existing authorized IP ranges to an empty list")
-			managedCluster.Properties.APIServerAccessProfile = &armcontainerservice.ManagedClusterAPIServerAccessProfile{
-				AuthorizedIPRanges: []*string{},
+			managedCluster.ApiServerAccessProfile = &asocontainerservicev1.ManagedClusterAPIServerAccessProfile{
+				AuthorizedIPRanges: []string{},
 			}
 		}
 
 		diff := computeDiffOfNormalizedClusters(managedCluster, existingMC)
 		if diff == "" {
 			log.V(4).Info("no changes found between user-updated spec and existing spec")
-			return nil, nil
+			return existing, nil
 		}
 		log.V(4).Info("found a diff between the desired spec and the existing managed cluster", "difference", diff)
+
+		// Remove agent pool profiles from request once they've been created to let the
+		// AzureManagedMachinePool controller handle them. Otherwise changes to the AzureManagedControlPlane
+		// would overwrite changes made to the (AzureManaged)MachinePools.
+		if existing.Status.AgentPoolProfiles != nil {
+			managedCluster.AgentPoolProfiles = nil
+		}
 	} else {
+		mc = &asocontainerservicev1.ManagedCluster{}
 		// Add all agent pools to cluster spec that will be submitted to the API
 		agentPoolSpecs, err := s.GetAllAgentPools()
 		if err != nil {
@@ -514,226 +537,220 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing interface{
 		}
 
 		for _, spec := range agentPoolSpecs {
-			params, err := spec.Parameters(ctx, nil)
+			agentPool, err := spec.Parameters(ctx, nil)
 			if err != nil {
 				return nil, errors.Wrapf(err, "failed to get agent pool parameters for managed cluster %s", s.Name)
 			}
-			agentPool, ok := params.(armcontainerservice.AgentPool)
-			if !ok {
-				return nil, fmt.Errorf("%T is not an armcontainerservice.AgentPool", agentPool)
-			}
-			agentPool.Name = ptr.To(spec.ResourceName())
+			agentPoolSpec := spec.(*agentpools.AgentPoolSpec)
+			agentPool.Spec.AzureName = agentPoolSpec.AzureName
 			profile := converters.AgentPoolToManagedClusterAgentPoolProfile(agentPool)
-			managedCluster.Properties.AgentPoolProfiles = append(managedCluster.Properties.AgentPoolProfiles, &profile)
+			managedCluster.AgentPoolProfiles = append(managedCluster.AgentPoolProfiles, profile)
 		}
 	}
+	mc.Spec = managedCluster
 
-	return managedCluster, nil
+	return mc, nil
 }
 
-// GetLoadBalancerProfile returns an armcontainerservice.ManagedClusterLoadBalancerProfile from the
+// GetLoadBalancerProfile returns an asocontainerservicev1.ManagedClusterLoadBalancerProfile from the
 // information present in ManagedClusterSpec.LoadBalancerProfile.
-func (s *ManagedClusterSpec) GetLoadBalancerProfile() (loadBalancerProfile *armcontainerservice.ManagedClusterLoadBalancerProfile) {
-	loadBalancerProfile = &armcontainerservice.ManagedClusterLoadBalancerProfile{
+func (s *ManagedClusterSpec) GetLoadBalancerProfile() (loadBalancerProfile *asocontainerservicev1.ManagedClusterLoadBalancerProfile) {
+	loadBalancerProfile = &asocontainerservicev1.ManagedClusterLoadBalancerProfile{
 		AllocatedOutboundPorts: s.LoadBalancerProfile.AllocatedOutboundPorts,
 		IdleTimeoutInMinutes:   s.LoadBalancerProfile.IdleTimeoutInMinutes,
 	}
 	if s.LoadBalancerProfile.ManagedOutboundIPs != nil {
-		loadBalancerProfile.ManagedOutboundIPs = &armcontainerservice.ManagedClusterLoadBalancerProfileManagedOutboundIPs{Count: s.LoadBalancerProfile.ManagedOutboundIPs}
+		loadBalancerProfile.ManagedOutboundIPs = &asocontainerservicev1.ManagedClusterLoadBalancerProfile_ManagedOutboundIPs{Count: s.LoadBalancerProfile.ManagedOutboundIPs}
 	}
 	if len(s.LoadBalancerProfile.OutboundIPPrefixes) > 0 {
-		loadBalancerProfile.OutboundIPPrefixes = &armcontainerservice.ManagedClusterLoadBalancerProfileOutboundIPPrefixes{
+		loadBalancerProfile.OutboundIPPrefixes = &asocontainerservicev1.ManagedClusterLoadBalancerProfile_OutboundIPPrefixes{
 			PublicIPPrefixes: convertToResourceReferences(s.LoadBalancerProfile.OutboundIPPrefixes),
 		}
 	}
 	if len(s.LoadBalancerProfile.OutboundIPs) > 0 {
-		loadBalancerProfile.OutboundIPs = &armcontainerservice.ManagedClusterLoadBalancerProfileOutboundIPs{
+		loadBalancerProfile.OutboundIPs = &asocontainerservicev1.ManagedClusterLoadBalancerProfile_OutboundIPs{
 			PublicIPs: convertToResourceReferences(s.LoadBalancerProfile.OutboundIPs),
 		}
 	}
 	return
 }
 
-func convertToResourceReferences(resources []string) []*armcontainerservice.ResourceReference {
-	resourceReferences := make([]*armcontainerservice.ResourceReference, len(resources))
+func convertToResourceReferences(resources []string) []asocontainerservicev1.ResourceReference {
+	resourceReferences := make([]asocontainerservicev1.ResourceReference, len(resources))
 	for i := range resources {
-		resourceReferences[i] = &armcontainerservice.ResourceReference{ID: &resources[i]}
+		resourceReferences[i] = asocontainerservicev1.ResourceReference{
+			Reference: &genruntime.ResourceReference{
+				ARMID: resources[i],
+			},
+		}
 	}
 	return resourceReferences
 }
 
-func computeDiffOfNormalizedClusters(managedCluster armcontainerservice.ManagedCluster, existingMC armcontainerservice.ManagedCluster) string {
+func computeDiffOfNormalizedClusters(managedCluster asocontainerservicev1.ManagedCluster_Spec, existingMC asocontainerservicev1.ManagedCluster_Spec) string {
 	// Normalize properties for the desired (CR spec) and existing managed
 	// cluster, so that we check only those fields that were specified in
 	// the initial CreateOrUpdate request and that can be modified.
 	// Without comparing to normalized properties, we would always get a
 	// difference in desired and existing, which would result in sending
 	// unnecessary Azure API requests.
-	propertiesNormalized := &armcontainerservice.ManagedClusterProperties{
-		KubernetesVersion: managedCluster.Properties.KubernetesVersion,
-		NetworkProfile:    &armcontainerservice.NetworkProfile{},
-		AutoScalerProfile: &armcontainerservice.ManagedClusterPropertiesAutoScalerProfile{},
+	propertiesNormalized := asocontainerservicev1.ManagedCluster_Spec{
+		KubernetesVersion: managedCluster.KubernetesVersion,
+		NetworkProfile:    &asocontainerservicev1.ContainerServiceNetworkProfile{},
+		AutoScalerProfile: &asocontainerservicev1.ManagedClusterProperties_AutoScalerProfile{},
 	}
 
-	existingMCPropertiesNormalized := &armcontainerservice.ManagedClusterProperties{
-		KubernetesVersion: existingMC.Properties.KubernetesVersion,
-		NetworkProfile:    &armcontainerservice.NetworkProfile{},
-		AutoScalerProfile: &armcontainerservice.ManagedClusterPropertiesAutoScalerProfile{},
+	existingMCPropertiesNormalized := asocontainerservicev1.ManagedCluster_Spec{
+		KubernetesVersion: existingMC.KubernetesVersion,
+		NetworkProfile:    &asocontainerservicev1.ContainerServiceNetworkProfile{},
+		AutoScalerProfile: &asocontainerservicev1.ManagedClusterProperties_AutoScalerProfile{},
 	}
 
-	if managedCluster.Properties.AADProfile != nil {
-		propertiesNormalized.AADProfile = &armcontainerservice.ManagedClusterAADProfile{
-			Managed:             managedCluster.Properties.AADProfile.Managed,
-			EnableAzureRBAC:     managedCluster.Properties.AADProfile.EnableAzureRBAC,
-			AdminGroupObjectIDs: managedCluster.Properties.AADProfile.AdminGroupObjectIDs,
+	if managedCluster.AadProfile != nil {
+		propertiesNormalized.AadProfile = &asocontainerservicev1.ManagedClusterAADProfile{
+			Managed:             managedCluster.AadProfile.Managed,
+			EnableAzureRBAC:     managedCluster.AadProfile.EnableAzureRBAC,
+			AdminGroupObjectIDs: managedCluster.AadProfile.AdminGroupObjectIDs,
 		}
 	}
 
-	if existingMC.Properties.AADProfile != nil {
-		existingMCPropertiesNormalized.AADProfile = &armcontainerservice.ManagedClusterAADProfile{
-			Managed:             existingMC.Properties.AADProfile.Managed,
-			EnableAzureRBAC:     existingMC.Properties.AADProfile.EnableAzureRBAC,
-			AdminGroupObjectIDs: existingMC.Properties.AADProfile.AdminGroupObjectIDs,
+	if existingMC.AadProfile != nil {
+		existingMCPropertiesNormalized.AadProfile = &asocontainerservicev1.ManagedClusterAADProfile{
+			Managed:             existingMC.AadProfile.Managed,
+			EnableAzureRBAC:     existingMC.AadProfile.EnableAzureRBAC,
+			AdminGroupObjectIDs: existingMC.AadProfile.AdminGroupObjectIDs,
 		}
 	}
 
-	if existingMC.Properties.NetworkProfile != nil {
-		existingMCPropertiesNormalized.NetworkProfile.LoadBalancerProfile = existingMC.Properties.NetworkProfile.LoadBalancerProfile
+	if existingMC.NetworkProfile != nil {
+		existingMCPropertiesNormalized.NetworkProfile.LoadBalancerProfile = existingMC.NetworkProfile.LoadBalancerProfile
 
-		existingMCPropertiesNormalized.NetworkProfile.NetworkPluginMode = existingMC.Properties.NetworkProfile.NetworkPluginMode
+		existingMCPropertiesNormalized.NetworkProfile.NetworkPluginMode = existingMC.NetworkProfile.NetworkPluginMode
 	}
-	if managedCluster.Properties.NetworkProfile != nil {
-		propertiesNormalized.NetworkProfile.LoadBalancerProfile = managedCluster.Properties.NetworkProfile.LoadBalancerProfile
+	if managedCluster.NetworkProfile != nil {
+		propertiesNormalized.NetworkProfile.LoadBalancerProfile = managedCluster.NetworkProfile.LoadBalancerProfile
 
-		propertiesNormalized.NetworkProfile.NetworkPluginMode = managedCluster.Properties.NetworkProfile.NetworkPluginMode
+		propertiesNormalized.NetworkProfile.NetworkPluginMode = managedCluster.NetworkProfile.NetworkPluginMode
 		if propertiesNormalized.NetworkProfile.NetworkPluginMode == nil {
 			propertiesNormalized.NetworkProfile.NetworkPluginMode = existingMCPropertiesNormalized.NetworkProfile.NetworkPluginMode
 		}
 	}
 
-	if managedCluster.Properties.APIServerAccessProfile != nil {
-		propertiesNormalized.APIServerAccessProfile = &armcontainerservice.ManagedClusterAPIServerAccessProfile{
-			AuthorizedIPRanges: managedCluster.Properties.APIServerAccessProfile.AuthorizedIPRanges,
+	if managedCluster.ApiServerAccessProfile != nil {
+		propertiesNormalized.ApiServerAccessProfile = &asocontainerservicev1.ManagedClusterAPIServerAccessProfile{
+			AuthorizedIPRanges: managedCluster.ApiServerAccessProfile.AuthorizedIPRanges,
 		}
 	}
 
-	if existingMC.Properties.APIServerAccessProfile != nil {
-		existingMCPropertiesNormalized.APIServerAccessProfile = &armcontainerservice.ManagedClusterAPIServerAccessProfile{
-			AuthorizedIPRanges: existingMC.Properties.APIServerAccessProfile.AuthorizedIPRanges,
+	if existingMC.ApiServerAccessProfile != nil {
+		existingMCPropertiesNormalized.ApiServerAccessProfile = &asocontainerservicev1.ManagedClusterAPIServerAccessProfile{
+			AuthorizedIPRanges: existingMC.ApiServerAccessProfile.AuthorizedIPRanges,
 		}
 	}
 
-	if managedCluster.Properties.AutoScalerProfile != nil {
-		propertiesNormalized.AutoScalerProfile = &armcontainerservice.ManagedClusterPropertiesAutoScalerProfile{
-			BalanceSimilarNodeGroups:      managedCluster.Properties.AutoScalerProfile.BalanceSimilarNodeGroups,
-			Expander:                      managedCluster.Properties.AutoScalerProfile.Expander,
-			MaxEmptyBulkDelete:            managedCluster.Properties.AutoScalerProfile.MaxEmptyBulkDelete,
-			MaxGracefulTerminationSec:     managedCluster.Properties.AutoScalerProfile.MaxGracefulTerminationSec,
-			MaxNodeProvisionTime:          managedCluster.Properties.AutoScalerProfile.MaxNodeProvisionTime,
-			MaxTotalUnreadyPercentage:     managedCluster.Properties.AutoScalerProfile.MaxTotalUnreadyPercentage,
-			NewPodScaleUpDelay:            managedCluster.Properties.AutoScalerProfile.NewPodScaleUpDelay,
-			OkTotalUnreadyCount:           managedCluster.Properties.AutoScalerProfile.OkTotalUnreadyCount,
-			ScanInterval:                  managedCluster.Properties.AutoScalerProfile.ScanInterval,
-			ScaleDownDelayAfterAdd:        managedCluster.Properties.AutoScalerProfile.ScaleDownDelayAfterAdd,
-			ScaleDownDelayAfterDelete:     managedCluster.Properties.AutoScalerProfile.ScaleDownDelayAfterDelete,
-			ScaleDownDelayAfterFailure:    managedCluster.Properties.AutoScalerProfile.ScaleDownDelayAfterFailure,
-			ScaleDownUnneededTime:         managedCluster.Properties.AutoScalerProfile.ScaleDownUnneededTime,
-			ScaleDownUnreadyTime:          managedCluster.Properties.AutoScalerProfile.ScaleDownUnreadyTime,
-			ScaleDownUtilizationThreshold: managedCluster.Properties.AutoScalerProfile.ScaleDownUtilizationThreshold,
-			SkipNodesWithLocalStorage:     managedCluster.Properties.AutoScalerProfile.SkipNodesWithLocalStorage,
-			SkipNodesWithSystemPods:       managedCluster.Properties.AutoScalerProfile.SkipNodesWithSystemPods,
+	if managedCluster.AutoScalerProfile != nil {
+		propertiesNormalized.AutoScalerProfile = &asocontainerservicev1.ManagedClusterProperties_AutoScalerProfile{
+			BalanceSimilarNodeGroups:      managedCluster.AutoScalerProfile.BalanceSimilarNodeGroups,
+			Expander:                      managedCluster.AutoScalerProfile.Expander,
+			MaxEmptyBulkDelete:            managedCluster.AutoScalerProfile.MaxEmptyBulkDelete,
+			MaxGracefulTerminationSec:     managedCluster.AutoScalerProfile.MaxGracefulTerminationSec,
+			MaxNodeProvisionTime:          managedCluster.AutoScalerProfile.MaxNodeProvisionTime,
+			MaxTotalUnreadyPercentage:     managedCluster.AutoScalerProfile.MaxTotalUnreadyPercentage,
+			NewPodScaleUpDelay:            managedCluster.AutoScalerProfile.NewPodScaleUpDelay,
+			OkTotalUnreadyCount:           managedCluster.AutoScalerProfile.OkTotalUnreadyCount,
+			ScanInterval:                  managedCluster.AutoScalerProfile.ScanInterval,
+			ScaleDownDelayAfterAdd:        managedCluster.AutoScalerProfile.ScaleDownDelayAfterAdd,
+			ScaleDownDelayAfterDelete:     managedCluster.AutoScalerProfile.ScaleDownDelayAfterDelete,
+			ScaleDownDelayAfterFailure:    managedCluster.AutoScalerProfile.ScaleDownDelayAfterFailure,
+			ScaleDownUnneededTime:         managedCluster.AutoScalerProfile.ScaleDownUnneededTime,
+			ScaleDownUnreadyTime:          managedCluster.AutoScalerProfile.ScaleDownUnreadyTime,
+			ScaleDownUtilizationThreshold: managedCluster.AutoScalerProfile.ScaleDownUtilizationThreshold,
+			SkipNodesWithLocalStorage:     managedCluster.AutoScalerProfile.SkipNodesWithLocalStorage,
+			SkipNodesWithSystemPods:       managedCluster.AutoScalerProfile.SkipNodesWithSystemPods,
 		}
 	}
 
-	if existingMC.Properties.AutoScalerProfile != nil {
-		existingMCPropertiesNormalized.AutoScalerProfile = &armcontainerservice.ManagedClusterPropertiesAutoScalerProfile{
-			BalanceSimilarNodeGroups:      existingMC.Properties.AutoScalerProfile.BalanceSimilarNodeGroups,
-			Expander:                      existingMC.Properties.AutoScalerProfile.Expander,
-			MaxEmptyBulkDelete:            existingMC.Properties.AutoScalerProfile.MaxEmptyBulkDelete,
-			MaxGracefulTerminationSec:     existingMC.Properties.AutoScalerProfile.MaxGracefulTerminationSec,
-			MaxNodeProvisionTime:          existingMC.Properties.AutoScalerProfile.MaxNodeProvisionTime,
-			MaxTotalUnreadyPercentage:     existingMC.Properties.AutoScalerProfile.MaxTotalUnreadyPercentage,
-			NewPodScaleUpDelay:            existingMC.Properties.AutoScalerProfile.NewPodScaleUpDelay,
-			OkTotalUnreadyCount:           existingMC.Properties.AutoScalerProfile.OkTotalUnreadyCount,
-			ScanInterval:                  existingMC.Properties.AutoScalerProfile.ScanInterval,
-			ScaleDownDelayAfterAdd:        existingMC.Properties.AutoScalerProfile.ScaleDownDelayAfterAdd,
-			ScaleDownDelayAfterDelete:     existingMC.Properties.AutoScalerProfile.ScaleDownDelayAfterDelete,
-			ScaleDownDelayAfterFailure:    existingMC.Properties.AutoScalerProfile.ScaleDownDelayAfterFailure,
-			ScaleDownUnneededTime:         existingMC.Properties.AutoScalerProfile.ScaleDownUnneededTime,
-			ScaleDownUnreadyTime:          existingMC.Properties.AutoScalerProfile.ScaleDownUnreadyTime,
-			ScaleDownUtilizationThreshold: existingMC.Properties.AutoScalerProfile.ScaleDownUtilizationThreshold,
-			SkipNodesWithLocalStorage:     existingMC.Properties.AutoScalerProfile.SkipNodesWithLocalStorage,
-			SkipNodesWithSystemPods:       existingMC.Properties.AutoScalerProfile.SkipNodesWithSystemPods,
+	if existingMC.AutoScalerProfile != nil {
+		existingMCPropertiesNormalized.AutoScalerProfile = &asocontainerservicev1.ManagedClusterProperties_AutoScalerProfile{
+			BalanceSimilarNodeGroups:      existingMC.AutoScalerProfile.BalanceSimilarNodeGroups,
+			Expander:                      existingMC.AutoScalerProfile.Expander,
+			MaxEmptyBulkDelete:            existingMC.AutoScalerProfile.MaxEmptyBulkDelete,
+			MaxGracefulTerminationSec:     existingMC.AutoScalerProfile.MaxGracefulTerminationSec,
+			MaxNodeProvisionTime:          existingMC.AutoScalerProfile.MaxNodeProvisionTime,
+			MaxTotalUnreadyPercentage:     existingMC.AutoScalerProfile.MaxTotalUnreadyPercentage,
+			NewPodScaleUpDelay:            existingMC.AutoScalerProfile.NewPodScaleUpDelay,
+			OkTotalUnreadyCount:           existingMC.AutoScalerProfile.OkTotalUnreadyCount,
+			ScanInterval:                  existingMC.AutoScalerProfile.ScanInterval,
+			ScaleDownDelayAfterAdd:        existingMC.AutoScalerProfile.ScaleDownDelayAfterAdd,
+			ScaleDownDelayAfterDelete:     existingMC.AutoScalerProfile.ScaleDownDelayAfterDelete,
+			ScaleDownDelayAfterFailure:    existingMC.AutoScalerProfile.ScaleDownDelayAfterFailure,
+			ScaleDownUnneededTime:         existingMC.AutoScalerProfile.ScaleDownUnneededTime,
+			ScaleDownUnreadyTime:          existingMC.AutoScalerProfile.ScaleDownUnreadyTime,
+			ScaleDownUtilizationThreshold: existingMC.AutoScalerProfile.ScaleDownUtilizationThreshold,
+			SkipNodesWithLocalStorage:     existingMC.AutoScalerProfile.SkipNodesWithLocalStorage,
+			SkipNodesWithSystemPods:       existingMC.AutoScalerProfile.SkipNodesWithSystemPods,
 		}
 	}
 
-	if managedCluster.Properties.IdentityProfile != nil {
-		propertiesNormalized.IdentityProfile = map[string]*armcontainerservice.UserAssignedIdentity{
+	if managedCluster.IdentityProfile != nil {
+		propertiesNormalized.IdentityProfile = map[string]asocontainerservicev1.UserAssignedIdentity{
 			kubeletIdentityKey: {
-				ResourceID: managedCluster.Properties.IdentityProfile[kubeletIdentityKey].ResourceID,
+				ResourceReference: &genruntime.ResourceReference{
+					ARMID: managedCluster.IdentityProfile[kubeletIdentityKey].ResourceReference.ARMID,
+				},
 			},
 		}
 	}
 
-	if existingMC.Properties.IdentityProfile != nil {
-		existingMCPropertiesNormalized.IdentityProfile = map[string]*armcontainerservice.UserAssignedIdentity{
+	if existingMC.IdentityProfile != nil {
+		existingMCPropertiesNormalized.IdentityProfile = map[string]asocontainerservicev1.UserAssignedIdentity{
 			kubeletIdentityKey: {
-				ResourceID: existingMC.Properties.IdentityProfile[kubeletIdentityKey].ResourceID,
+				ResourceReference: &genruntime.ResourceReference{
+					ARMID: existingMC.IdentityProfile[kubeletIdentityKey].ResourceReference.ARMID,
+				},
 			},
 		}
 	}
 
 	// Once the AKS autoscaler has been updated it will always return values so we need to
 	// respect those values even though the settings are now not being explicitly set by CAPZ.
-	if existingMC.Properties.AutoScalerProfile != nil && managedCluster.Properties.AutoScalerProfile == nil {
+	if existingMC.AutoScalerProfile != nil && managedCluster.AutoScalerProfile == nil {
 		existingMCPropertiesNormalized.AutoScalerProfile = nil
 		propertiesNormalized.AutoScalerProfile = nil
 	}
 
-	clusterNormalized := &armcontainerservice.ManagedCluster{
-		Properties: propertiesNormalized,
-	}
-	existingMCClusterNormalized := &armcontainerservice.ManagedCluster{
-		Properties: existingMCPropertiesNormalized,
-	}
+	clusterNormalized := propertiesNormalized
+	existingMCClusterNormalized := existingMCPropertiesNormalized
 
 	if managedCluster.Identity != nil {
-		clusterNormalized.Identity = &armcontainerservice.ManagedClusterIdentity{
+		clusterNormalized.Identity = &asocontainerservicev1.ManagedClusterIdentity{
 			Type:                   managedCluster.Identity.Type,
 			UserAssignedIdentities: managedCluster.Identity.UserAssignedIdentities,
 		}
 	}
 
 	if existingMC.Identity != nil {
-		existingMCClusterNormalized.Identity = &armcontainerservice.ManagedClusterIdentity{
+		existingMCClusterNormalized.Identity = &asocontainerservicev1.ManagedClusterIdentity{
 			Type:                   existingMC.Identity.Type,
 			UserAssignedIdentities: existingMC.Identity.UserAssignedIdentities,
 		}
+	}
 
-		// ClientID and PrincipalID are read-only and should not trigger a diff.
-		for _, id := range existingMCClusterNormalized.Identity.UserAssignedIdentities {
-			if id != nil {
-				id.ClientID = nil
-				id.PrincipalID = nil
-			}
+	if managedCluster.Sku != nil {
+		clusterNormalized.Sku = managedCluster.Sku
+	}
+	if existingMC.Sku != nil {
+		existingMCClusterNormalized.Sku = existingMC.Sku
+	}
+
+	if managedCluster.OidcIssuerProfile != nil {
+		clusterNormalized.OidcIssuerProfile = &asocontainerservicev1.ManagedClusterOIDCIssuerProfile{
+			Enabled: managedCluster.OidcIssuerProfile.Enabled,
 		}
 	}
-
-	if managedCluster.SKU != nil {
-		clusterNormalized.SKU = managedCluster.SKU
-	}
-	if existingMC.SKU != nil {
-		existingMCClusterNormalized.SKU = existingMC.SKU
-	}
-
-	if managedCluster.Properties.OidcIssuerProfile != nil {
-		clusterNormalized.Properties.OidcIssuerProfile = &armcontainerservice.ManagedClusterOIDCIssuerProfile{
-			Enabled: managedCluster.Properties.OidcIssuerProfile.Enabled,
-		}
-	}
-	if existingMC.Properties.OidcIssuerProfile != nil {
-		existingMCClusterNormalized.Properties.OidcIssuerProfile = &armcontainerservice.ManagedClusterOIDCIssuerProfile{
-			Enabled: existingMC.Properties.OidcIssuerProfile.Enabled,
+	if existingMC.OidcIssuerProfile != nil {
+		existingMCClusterNormalized.OidcIssuerProfile = &asocontainerservicev1.ManagedClusterOIDCIssuerProfile{
+			Enabled: existingMC.OidcIssuerProfile.Enabled,
 		}
 	}
 
@@ -741,29 +758,60 @@ func computeDiffOfNormalizedClusters(managedCluster armcontainerservice.ManagedC
 	return diff
 }
 
-func getIdentity(identity *infrav1.Identity) (managedClusterIdentity *armcontainerservice.ManagedClusterIdentity, err error) {
+func getIdentity(identity *infrav1.Identity) (managedClusterIdentity *asocontainerservicev1.ManagedClusterIdentity, err error) {
 	if identity.Type == "" {
 		return
 	}
 
-	managedClusterIdentity = &armcontainerservice.ManagedClusterIdentity{
-		Type: ptr.To(armcontainerservice.ResourceIdentityType(identity.Type)),
+	managedClusterIdentity = &asocontainerservicev1.ManagedClusterIdentity{
+		Type: ptr.To(asocontainerservicev1.ManagedClusterIdentity_Type(identity.Type)),
 	}
-	if ptr.Deref(managedClusterIdentity.Type, "") == armcontainerservice.ResourceIdentityTypeUserAssigned {
+	if ptr.Deref(managedClusterIdentity.Type, "") == asocontainerservicev1.ManagedClusterIdentity_Type_UserAssigned {
 		if identity.UserAssignedIdentityResourceID == "" {
 			err = errors.Errorf("Identity is set to \"UserAssigned\" but no UserAssignedIdentityResourceID is present")
 			return
 		}
-		managedClusterIdentity.UserAssignedIdentities = map[string]*armcontainerservice.ManagedServiceIdentityUserAssignedIdentitiesValue{
-			identity.UserAssignedIdentityResourceID: {},
+		managedClusterIdentity.UserAssignedIdentities = []asocontainerservicev1.UserAssignedIdentityDetails{
+			{
+				Reference: genruntime.ResourceReference{
+					ARMID: identity.UserAssignedIdentityResourceID,
+				},
+			},
 		}
 	}
 	return
 }
 
 // isAuthIPRangesNilOrEmpty returns true if the managed cluster's APIServerAccessProfile or AuthorizedIPRanges is nil or if AuthorizedIPRanges is empty.
-func isAuthIPRangesNilOrEmpty(managedCluster armcontainerservice.ManagedCluster) bool {
-	return managedCluster.Properties.APIServerAccessProfile == nil ||
-		managedCluster.Properties.APIServerAccessProfile.AuthorizedIPRanges == nil ||
-		reflect.DeepEqual(managedCluster.Properties.APIServerAccessProfile.AuthorizedIPRanges, []*string{})
+func isAuthIPRangesNilOrEmpty(managedCluster asocontainerservicev1.ManagedCluster_Spec) bool {
+	return managedCluster.ApiServerAccessProfile == nil ||
+		managedCluster.ApiServerAccessProfile.AuthorizedIPRanges == nil ||
+		reflect.DeepEqual(managedCluster.ApiServerAccessProfile.AuthorizedIPRanges, []string{})
+}
+
+// WasManaged implements azure.ASOResourceSpecGetter.
+func (s *ManagedClusterSpec) WasManaged(resource *asocontainerservicev1.ManagedCluster) bool {
+	return true
+}
+
+var _ aso.TagsGetterSetter[*asocontainerservicev1.ManagedCluster] = (*ManagedClusterSpec)(nil)
+
+// GetAdditionalTags implements aso.TagsGetterSetter.
+func (s *ManagedClusterSpec) GetAdditionalTags() infrav1.Tags {
+	return s.Tags
+}
+
+// GetDesiredTags implements aso.TagsGetterSetter.
+func (*ManagedClusterSpec) GetDesiredTags(resource *asocontainerservicev1.ManagedCluster) infrav1.Tags {
+	return resource.Spec.Tags
+}
+
+// GetActualTags implements aso.TagsGetterSetter.
+func (*ManagedClusterSpec) GetActualTags(resource *asocontainerservicev1.ManagedCluster) infrav1.Tags {
+	return resource.Status.Tags
+}
+
+// SetTags implements aso.TagsGetterSetter.
+func (*ManagedClusterSpec) SetTags(resource *asocontainerservicev1.ManagedCluster, tags infrav1.Tags) {
+	resource.Spec.Tags = tags
 }

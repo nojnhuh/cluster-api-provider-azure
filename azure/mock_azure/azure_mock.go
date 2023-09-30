@@ -2022,3 +2022,83 @@ func (mr *MockASOResourceSpecGetterMockRecorder[T]) WasManaged(arg0 any) *gomock
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WasManaged", reflect.TypeOf((*MockASOResourceSpecGetter[T])(nil).WasManaged), arg0)
 }
+
+// MockASOResourceSpecGetterWithHeaders is a mock of ASOResourceSpecGetterWithHeaders interface.
+type MockASOResourceSpecGetterWithHeaders[T genruntime.MetaObject] struct {
+	ctrl     *gomock.Controller
+	recorder *MockASOResourceSpecGetterWithHeadersMockRecorder[T]
+}
+
+// MockASOResourceSpecGetterWithHeadersMockRecorder is the mock recorder for MockASOResourceSpecGetterWithHeaders.
+type MockASOResourceSpecGetterWithHeadersMockRecorder[T genruntime.MetaObject] struct {
+	mock *MockASOResourceSpecGetterWithHeaders[T]
+}
+
+// NewMockASOResourceSpecGetterWithHeaders creates a new mock instance.
+func NewMockASOResourceSpecGetterWithHeaders[T genruntime.MetaObject](ctrl *gomock.Controller) *MockASOResourceSpecGetterWithHeaders[T] {
+	mock := &MockASOResourceSpecGetterWithHeaders[T]{ctrl: ctrl}
+	mock.recorder = &MockASOResourceSpecGetterWithHeadersMockRecorder[T]{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockASOResourceSpecGetterWithHeaders[T]) EXPECT() *MockASOResourceSpecGetterWithHeadersMockRecorder[T] {
+	return m.recorder
+}
+
+// CustomHeaders mocks base method.
+func (m *MockASOResourceSpecGetterWithHeaders[T]) CustomHeaders() map[string]string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CustomHeaders")
+	ret0, _ := ret[0].(map[string]string)
+	return ret0
+}
+
+// CustomHeaders indicates an expected call of CustomHeaders.
+func (mr *MockASOResourceSpecGetterWithHeadersMockRecorder[T]) CustomHeaders() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CustomHeaders", reflect.TypeOf((*MockASOResourceSpecGetterWithHeaders[T])(nil).CustomHeaders))
+}
+
+// Parameters mocks base method.
+func (m *MockASOResourceSpecGetterWithHeaders[T]) Parameters(ctx context.Context, existing T) (T, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Parameters", ctx, existing)
+	ret0, _ := ret[0].(T)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Parameters indicates an expected call of Parameters.
+func (mr *MockASOResourceSpecGetterWithHeadersMockRecorder[T]) Parameters(ctx, existing any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Parameters", reflect.TypeOf((*MockASOResourceSpecGetterWithHeaders[T])(nil).Parameters), ctx, existing)
+}
+
+// ResourceRef mocks base method.
+func (m *MockASOResourceSpecGetterWithHeaders[T]) ResourceRef() T {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResourceRef")
+	ret0, _ := ret[0].(T)
+	return ret0
+}
+
+// ResourceRef indicates an expected call of ResourceRef.
+func (mr *MockASOResourceSpecGetterWithHeadersMockRecorder[T]) ResourceRef() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResourceRef", reflect.TypeOf((*MockASOResourceSpecGetterWithHeaders[T])(nil).ResourceRef))
+}
+
+// WasManaged mocks base method.
+func (m *MockASOResourceSpecGetterWithHeaders[T]) WasManaged(arg0 T) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WasManaged", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// WasManaged indicates an expected call of WasManaged.
+func (mr *MockASOResourceSpecGetterWithHeadersMockRecorder[T]) WasManaged(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WasManaged", reflect.TypeOf((*MockASOResourceSpecGetterWithHeaders[T])(nil).WasManaged), arg0)
+}
