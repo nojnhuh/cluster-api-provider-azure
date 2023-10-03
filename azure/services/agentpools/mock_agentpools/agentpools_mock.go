@@ -74,20 +74,6 @@ func (mr *MockAgentPoolScopeMockRecorder) AdditionalTags() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AdditionalTags", reflect.TypeOf((*MockAgentPoolScope)(nil).AdditionalTags))
 }
 
-// AgentPoolAnnotations mocks base method.
-func (m *MockAgentPoolScope) AgentPoolAnnotations() map[string]string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AgentPoolAnnotations")
-	ret0, _ := ret[0].(map[string]string)
-	return ret0
-}
-
-// AgentPoolAnnotations indicates an expected call of AgentPoolAnnotations.
-func (mr *MockAgentPoolScopeMockRecorder) AgentPoolAnnotations() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AgentPoolAnnotations", reflect.TypeOf((*MockAgentPoolScope)(nil).AgentPoolAnnotations))
-}
-
 // AgentPoolSpec mocks base method.
 func (m *MockAgentPoolScope) AgentPoolSpec() azure.ASOResourceSpecGetter[*v1api20230201.ManagedClustersAgentPool] {
 	m.ctrl.T.Helper()
