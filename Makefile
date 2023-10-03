@@ -305,7 +305,7 @@ create-management-cluster: $(KUSTOMIZE) $(ENVSUBST) $(KUBECTL) $(KIND) ## Create
 
 	# Deploy CAPZ
 	$(KIND) load docker-image $(CONTROLLER_IMG)-$(ARCH):$(TAG) --name=$(KIND_CLUSTER_NAME)
-	$(KUSTOMIZE) build config/default | $(ENVSUBST) | $(KUBECTL) apply -f -
+	$(KUSTOMIZE) build config/default | $(ENVSUBST) | $(KUBECTL) apply -f - --server-side=true
 
 	# Wait for CAPI deployments
 	$(KUBECTL) wait --for=condition=Available --timeout=5m -n capi-system deployment -l cluster.x-k8s.io/provider=cluster-api
