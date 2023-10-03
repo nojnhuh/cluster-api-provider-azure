@@ -19,7 +19,6 @@ package v1beta1
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -32,7 +31,6 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/cluster-api-provider-azure/feature"
 	azureutil "sigs.k8s.io/cluster-api-provider-azure/util/azure"
-	"sigs.k8s.io/cluster-api-provider-azure/util/maps"
 	webhookutils "sigs.k8s.io/cluster-api-provider-azure/util/webhook"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	capifeature "sigs.k8s.io/cluster-api/feature"
@@ -180,17 +178,6 @@ func (mw *azureManagedMachinePoolWebhook) ValidateUpdate(ctx context.Context, ol
 		old.Spec.EnableFIPS,
 		m.Spec.EnableFIPS); err != nil && old.Spec.EnableFIPS != nil {
 		allErrs = append(allErrs, err)
-	}
-
-	// custom headers are immutable
-	oldCustomHeaders := maps.FilterByKeyPrefix(old.ObjectMeta.Annotations, CustomHeaderPrefix)
-	newCustomHeaders := maps.FilterByKeyPrefix(m.ObjectMeta.Annotations, CustomHeaderPrefix)
-	if !reflect.DeepEqual(oldCustomHeaders, newCustomHeaders) {
-		allErrs = append(allErrs,
-			field.Invalid(
-				field.NewPath("metadata", "annotations"),
-				m.ObjectMeta.Annotations,
-				fmt.Sprintf("annotations with '%s' prefix are immutable", CustomHeaderPrefix)))
 	}
 
 	if !webhookutils.EnsureStringSlicesAreEquivalent(m.Spec.AvailabilityZones, old.Spec.AvailabilityZones) {

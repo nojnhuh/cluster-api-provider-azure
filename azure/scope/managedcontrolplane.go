@@ -37,7 +37,6 @@ import (
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/subnets"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/virtualnetworks"
 	"sigs.k8s.io/cluster-api-provider-azure/util/futures"
-	"sigs.k8s.io/cluster-api-provider-azure/util/maps"
 	"sigs.k8s.io/cluster-api-provider-azure/util/pointers"
 	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -459,11 +458,6 @@ func (s *ManagedControlPlaneScope) FailureDomains() []*string {
 	return []*string{}
 }
 
-// ManagedClusterAnnotations returns the annotations for the managed cluster.
-func (s *ManagedControlPlaneScope) ManagedClusterAnnotations() map[string]string {
-	return s.ControlPlane.Annotations
-}
-
 // ManagedClusterSpec returns the managed cluster spec.
 func (s *ManagedControlPlaneScope) ManagedClusterSpec() azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedCluster] {
 	managedClusterSpec := managedclusters.ManagedClusterSpec{
@@ -474,7 +468,6 @@ func (s *ManagedControlPlaneScope) ManagedClusterSpec() azure.ASOResourceSpecGet
 		ClusterName:       s.ClusterName(),
 		Location:          s.ControlPlane.Spec.Location,
 		Tags:              s.ControlPlane.Spec.AdditionalTags,
-		Headers:           maps.FilterByKeyPrefix(s.ManagedClusterAnnotations(), infrav1.CustomHeaderPrefix),
 		Version:           strings.TrimPrefix(s.ControlPlane.Spec.Version, "v"),
 		DNSServiceIP:      s.ControlPlane.Spec.DNSServiceIP,
 		VnetSubnetID: azure.SubnetID(
@@ -614,7 +607,7 @@ func (s *ManagedControlPlaneScope) GetAllAgentPoolSpecs() ([]azure.ASOResourceSp
 			foundSystemPool = true
 		}
 
-		ammp := buildAgentPoolSpec(s.ControlPlane, pool.MachinePool, pool.InfraMachinePool, pool.InfraMachinePool.Annotations)
+		ammp := buildAgentPoolSpec(s.ControlPlane, pool.MachinePool, pool.InfraMachinePool)
 		ammps = append(ammps, ammp)
 	}
 

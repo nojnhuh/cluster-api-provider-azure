@@ -28,7 +28,6 @@ import (
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/agentpools"
 	"sigs.k8s.io/cluster-api-provider-azure/util/futures"
-	"sigs.k8s.io/cluster-api-provider-azure/util/maps"
 	"sigs.k8s.io/cluster-api-provider-azure/util/pointers"
 	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -131,11 +130,6 @@ func (s *ManagedMachinePoolScope) GetClient() client.Client {
 	return s.Client
 }
 
-// AgentPoolAnnotations returns a map of annotations for the infra machine pool.
-func (s *ManagedMachinePoolScope) AgentPoolAnnotations() map[string]string {
-	return s.InfraMachinePool.Annotations
-}
-
 // Name returns the name of the infra machine pool.
 func (s *ManagedMachinePoolScope) Name() string {
 	return s.InfraMachinePool.Name
@@ -148,7 +142,7 @@ func (s *ManagedMachinePoolScope) SetSubnetName() {
 
 // AgentPoolSpec returns an azure.ResourceSpecGetter for currently reconciled AzureManagedMachinePool.
 func (s *ManagedMachinePoolScope) AgentPoolSpec() azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool] {
-	return buildAgentPoolSpec(s.ControlPlane, s.MachinePool, s.InfraMachinePool, s.AgentPoolAnnotations())
+	return buildAgentPoolSpec(s.ControlPlane, s.MachinePool, s.InfraMachinePool)
 }
 
 func getAgentPoolSubnet(controlPlane *infrav1.AzureManagedControlPlane, infraMachinePool *infrav1.AzureManagedMachinePool) *string {
@@ -160,8 +154,7 @@ func getAgentPoolSubnet(controlPlane *infrav1.AzureManagedControlPlane, infraMac
 
 func buildAgentPoolSpec(managedControlPlane *infrav1.AzureManagedControlPlane,
 	machinePool *expv1.MachinePool,
-	managedMachinePool *infrav1.AzureManagedMachinePool,
-	agentPoolAnnotations map[string]string) azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool] {
+	managedMachinePool *infrav1.AzureManagedMachinePool) azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool] {
 	var normalizedVersion *string
 	if machinePool.Spec.Template.Spec.Version != nil {
 		v := strings.TrimPrefix(*machinePool.Spec.Template.Spec.Version, "v")
@@ -194,7 +187,6 @@ func buildAgentPoolSpec(managedControlPlane *infrav1.AzureManagedControlPlane,
 		AvailabilityZones:    managedMachinePool.Spec.AvailabilityZones,
 		OsDiskType:           managedMachinePool.Spec.OsDiskType,
 		EnableUltraSSD:       managedMachinePool.Spec.EnableUltraSSD,
-		Headers:              maps.FilterByKeyPrefix(agentPoolAnnotations, infrav1.CustomHeaderPrefix),
 		EnableNodePublicIP:   managedMachinePool.Spec.EnableNodePublicIP,
 		NodePublicIPPrefixID: ptr.Deref(managedMachinePool.Spec.NodePublicIPPrefixID, ""),
 		ScaleSetPriority:     managedMachinePool.Spec.ScaleSetPriority,

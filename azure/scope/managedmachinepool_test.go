@@ -78,7 +78,6 @@ func TestManagedMachinePoolScope_Autoscaling(t *testing.T) {
 				Mode:         "System",
 				Cluster:      "cluster1",
 				VnetSubnetID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups//providers/Microsoft.Network/virtualNetworks//subnets/",
-				Headers:      map[string]string{},
 			},
 		},
 		{
@@ -116,7 +115,6 @@ func TestManagedMachinePoolScope_Autoscaling(t *testing.T) {
 				MinCount:          ptr.To(2),
 				MaxCount:          ptr.To(10),
 				VnetSubnetID:      "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups//providers/Microsoft.Network/virtualNetworks//subnets/",
-				Headers:           map[string]string{},
 			},
 		},
 	}
@@ -179,7 +177,6 @@ func TestManagedMachinePoolScope_NodeLabels(t *testing.T) {
 				Mode:         "System",
 				Cluster:      "cluster1",
 				VnetSubnetID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups//providers/Microsoft.Network/virtualNetworks//subnets/",
-				Headers:      map[string]string{},
 			},
 		},
 		{
@@ -219,7 +216,6 @@ func TestManagedMachinePoolScope_NodeLabels(t *testing.T) {
 					"custom": "default",
 				},
 				VnetSubnetID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups//providers/Microsoft.Network/virtualNetworks//subnets/",
-				Headers:      map[string]string{},
 			},
 		},
 	}
@@ -282,7 +278,6 @@ func TestManagedMachinePoolScope_AdditionalTags(t *testing.T) {
 				Mode:         "System",
 				Cluster:      "cluster1",
 				VnetSubnetID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups//providers/Microsoft.Network/virtualNetworks//subnets/",
-				Headers:      map[string]string{},
 			},
 		},
 		{
@@ -322,7 +317,6 @@ func TestManagedMachinePoolScope_AdditionalTags(t *testing.T) {
 					"environment": "production",
 				},
 				VnetSubnetID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups//providers/Microsoft.Network/virtualNetworks//subnets/",
-				Headers:      map[string]string{},
 			},
 		},
 	}
@@ -385,7 +379,6 @@ func TestManagedMachinePoolScope_MaxPods(t *testing.T) {
 				Mode:         "System",
 				Cluster:      "cluster1",
 				VnetSubnetID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups//providers/Microsoft.Network/virtualNetworks//subnets/",
-				Headers:      map[string]string{},
 			},
 		},
 		{
@@ -421,7 +414,6 @@ func TestManagedMachinePoolScope_MaxPods(t *testing.T) {
 				Replicas:     1,
 				MaxPods:      ptr.To(12),
 				VnetSubnetID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups//providers/Microsoft.Network/virtualNetworks//subnets/",
-				Headers:      map[string]string{},
 			},
 		},
 	}
@@ -485,7 +477,6 @@ func TestManagedMachinePoolScope_Taints(t *testing.T) {
 				Mode:         "System",
 				Cluster:      "cluster1",
 				VnetSubnetID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups//providers/Microsoft.Network/virtualNetworks//subnets/",
-				Headers:      map[string]string{},
 			},
 		},
 		{
@@ -527,7 +518,6 @@ func TestManagedMachinePoolScope_Taints(t *testing.T) {
 				Replicas:     1,
 				NodeTaints:   []string{"key1=value1:NoSchedule"},
 				VnetSubnetID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups//providers/Microsoft.Network/virtualNetworks//subnets/",
-				Headers:      map[string]string{},
 			},
 		},
 	}
@@ -590,7 +580,6 @@ func TestManagedMachinePoolScope_OSDiskType(t *testing.T) {
 				Mode:         "System",
 				Cluster:      "cluster1",
 				VnetSubnetID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups//providers/Microsoft.Network/virtualNetworks//subnets/",
-				Headers:      map[string]string{},
 			},
 		},
 		{
@@ -626,7 +615,6 @@ func TestManagedMachinePoolScope_OSDiskType(t *testing.T) {
 				Replicas:     1,
 				OsDiskType:   ptr.To(string(asocontainerservicev1.OSDiskType_Ephemeral)),
 				VnetSubnetID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups//providers/Microsoft.Network/virtualNetworks//subnets/",
-				Headers:      map[string]string{},
 			},
 		},
 	}
@@ -689,7 +677,6 @@ func TestManagedMachinePoolScope_SubnetName(t *testing.T) {
 				Mode:         "System",
 				Cluster:      "cluster1",
 				VnetSubnetID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups//providers/Microsoft.Network/virtualNetworks//subnets/",
-				Headers:      map[string]string{},
 			},
 		},
 		{
@@ -731,7 +718,6 @@ func TestManagedMachinePoolScope_SubnetName(t *testing.T) {
 				Cluster:      "cluster1",
 				Replicas:     1,
 				VnetSubnetID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.Network/virtualNetworks/my-vnet/subnets/my-vnet-subnet",
-				Headers:      map[string]string{},
 			},
 		},
 		{
@@ -773,7 +759,6 @@ func TestManagedMachinePoolScope_SubnetName(t *testing.T) {
 				Cluster:      "cluster1",
 				Replicas:     1,
 				VnetSubnetID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.Network/virtualNetworks/my-vnet/subnets/my-subnet",
-				Headers:      map[string]string{},
 			},
 		},
 	}
@@ -837,7 +822,6 @@ func TestManagedMachinePoolScope_KubeletDiskType(t *testing.T) {
 				Mode:         "System",
 				Cluster:      "cluster1",
 				VnetSubnetID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups//providers/Microsoft.Network/virtualNetworks//subnets/",
-				Headers:      map[string]string{},
 			},
 		},
 		{
@@ -873,7 +857,6 @@ func TestManagedMachinePoolScope_KubeletDiskType(t *testing.T) {
 				Replicas:        1,
 				KubeletDiskType: (*infrav1.KubeletDiskType)(ptr.To("Temporary")),
 				VnetSubnetID:    "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups//providers/Microsoft.Network/virtualNetworks//subnets/",
-				Headers:         map[string]string{},
 			},
 		},
 	}

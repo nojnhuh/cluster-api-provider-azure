@@ -325,7 +325,6 @@ func fakeAgentPool(changes ...func(*agentpools.AgentPoolSpec)) agentpools.AgentP
 		SKU:               "fake-sku",
 		Version:           ptr.To("fake-version"),
 		VnetSubnetID:      "fake-vnet-subnet-id",
-		Headers:           map[string]string{"fake-header": "fake-value"},
 		AdditionalTags:    infrav1.Tags{"fake": "tag"},
 	}
 

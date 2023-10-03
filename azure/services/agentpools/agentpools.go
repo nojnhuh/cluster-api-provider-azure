@@ -34,7 +34,6 @@ type AgentPoolScope interface {
 
 	Name() string
 	NodeResourceGroup() string
-	AgentPoolAnnotations() map[string]string
 	AgentPoolSpec() azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool]
 	SetAgentPoolProviderIDList([]string)
 	SetAgentPoolReplicas(int32)

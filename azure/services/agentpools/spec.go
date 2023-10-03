@@ -123,9 +123,6 @@ type AgentPoolSpec struct {
 	// OSType specifies the operating system for the node pool. Allowed values are 'Linux' and 'Windows'
 	OSType *string `json:"osType,omitempty"`
 
-	// Headers is the list of headers to add to the HTTP requests to update this resource.
-	Headers map[string]string
-
 	// EnableNodePublicIP controls whether or not nodes in the agent pool each have a public IP address.
 	EnableNodePublicIP *bool `json:"enableNodePublicIP,omitempty"`
 
@@ -165,11 +162,6 @@ func (s *AgentPoolSpec) ResourceRef() *asocontainerservicev1.ManagedClustersAgen
 			Namespace: s.Namespace,
 		},
 	}
-}
-
-// CustomHeaders returns custom headers to be added to the Azure API calls.
-func (s *AgentPoolSpec) CustomHeaders() map[string]string {
-	return s.Headers
 }
 
 // Parameters returns the parameters for the agent pool.

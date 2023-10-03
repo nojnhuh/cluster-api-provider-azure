@@ -148,10 +148,3 @@ type ASOResourceSpecGetter[T genruntime.MetaObject] interface {
 	// non-ASO-backed CAPZ and should be considered eligible for adoption.
 	WasManaged(T) bool
 }
-
-// ASOResourceSpecGetterWithHeaders is a ResourceSpecGetter that can return custom headers to be added to API calls.
-type ASOResourceSpecGetterWithHeaders[T genruntime.MetaObject] interface {
-	ASOResourceSpecGetter[T]
-	// CustomHeaders returns the headers that should be added to Azure API calls.
-	CustomHeaders() map[string]string
-}

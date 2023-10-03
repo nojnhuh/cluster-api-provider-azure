@@ -112,9 +112,6 @@ type ManagedClusterSpec struct {
 	// APIServerAccessProfile is the access profile for AKS API server.
 	APIServerAccessProfile *APIServerAccessProfile
 
-	// Headers is the list of headers to add to the HTTP requests to update this resource.
-	Headers map[string]string
-
 	// AutoScalerProfile is the parameters to be applied to the cluster-autoscaler when enabled.
 	AutoScalerProfile *AutoScalerProfile
 
@@ -250,8 +247,6 @@ type OIDCIssuerProfile struct {
 	Enabled *bool
 }
 
-var _ azure.ASOResourceSpecGetterWithHeaders[*asocontainerservicev1.ManagedCluster] = (*ManagedClusterSpec)(nil)
-
 // ResourceRef implements azure.ASOResourceSpecGetter.
 func (s *ManagedClusterSpec) ResourceRef() *asocontainerservicev1.ManagedCluster {
 	return &asocontainerservicev1.ManagedCluster{
@@ -260,11 +255,6 @@ func (s *ManagedClusterSpec) ResourceRef() *asocontainerservicev1.ManagedCluster
 			Namespace: s.Namespace,
 		},
 	}
-}
-
-// CustomHeaders returns custom headers to be added to the Azure API calls.
-func (s *ManagedClusterSpec) CustomHeaders() map[string]string {
-	return s.Headers
 }
 
 // buildAutoScalerProfile builds the AutoScalerProfile for the ManagedClusterProperties.
