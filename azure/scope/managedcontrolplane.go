@@ -24,7 +24,6 @@ import (
 
 	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20230201"
 	asoresourcesv1 "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
-	"github.com/Azure/go-autorest/autorest"
 	"github.com/pkg/errors"
 	"golang.org/x/mod/semver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -203,11 +202,6 @@ func (s *ManagedControlPlaneScope) SubscriptionID() string {
 // BaseURI returns the Azure ResourceManagerEndpoint.
 func (s *ManagedControlPlaneScope) BaseURI() string {
 	return s.AzureClients.ResourceManagerEndpoint
-}
-
-// Authorizer returns the Azure client Authorizer.
-func (s *ManagedControlPlaneScope) Authorizer() autorest.Authorizer {
-	return s.AzureClients.Authorizer
 }
 
 // PatchObject persists the cluster configuration and status.

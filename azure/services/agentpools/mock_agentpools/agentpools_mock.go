@@ -29,7 +29,6 @@ import (
 
 	azcore "github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	v1api20230201 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20230201"
-	autorest "github.com/Azure/go-autorest/autorest"
 	gomock "go.uber.org/mock/gomock"
 	v1beta1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	azure "sigs.k8s.io/cluster-api-provider-azure/azure"
@@ -86,20 +85,6 @@ func (m *MockAgentPoolScope) AgentPoolSpec() azure.ASOResourceSpecGetter[*v1api2
 func (mr *MockAgentPoolScopeMockRecorder) AgentPoolSpec() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AgentPoolSpec", reflect.TypeOf((*MockAgentPoolScope)(nil).AgentPoolSpec))
-}
-
-// Authorizer mocks base method.
-func (m *MockAgentPoolScope) Authorizer() autorest.Authorizer {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Authorizer")
-	ret0, _ := ret[0].(autorest.Authorizer)
-	return ret0
-}
-
-// Authorizer indicates an expected call of Authorizer.
-func (mr *MockAgentPoolScopeMockRecorder) Authorizer() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Authorizer", reflect.TypeOf((*MockAgentPoolScope)(nil).Authorizer))
 }
 
 // AvailabilitySetEnabled mocks base method.

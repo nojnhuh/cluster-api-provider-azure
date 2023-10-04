@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/ptr"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
+	azureutil "sigs.k8s.io/cluster-api-provider-azure/util/azure"
 )
 
 func fakeAgentPool(changes ...func(*AgentPoolSpec)) AgentPoolSpec {
@@ -142,6 +143,12 @@ func sdkWithScaleDownMode(scaleDownMode asocontainerservicev1.ScaleDownMode) fun
 func sdkWithSpotMaxPrice(spotMaxPrice float64) func(*asocontainerservicev1.ManagedClustersAgentPool) {
 	return func(pool *asocontainerservicev1.ManagedClustersAgentPool) {
 		pool.Spec.SpotMaxPrice = &spotMaxPrice
+	}
+}
+
+func sdkWithNodeTaints(nodeTaints []string) func(*asocontainerservicev1.ManagedClustersAgentPool) {
+	return func(pool *asocontainerservicev1.ManagedClustersAgentPool) {
+		pool.Spec.NodeTaints = nodeTaints
 	}
 }
 
@@ -299,6 +306,32 @@ func TestParameters(t *testing.T) {
 						"kubernetes.azure.com/scalesetpriority": "spot",
 					}
 				},
+			),
+			expectNoChange: true,
+			expectedError:  nil,
+		},
+		{
+			name: "difference in non-system node taints with empty taints should trigger update",
+			spec: fakeAgentPool(
+				func(pool *AgentPoolSpec) {
+					pool.NodeTaints = nil
+				},
+			),
+			existing: sdkFakeAgentPool(
+				sdkWithNodeTaints([]string{"fake-taint"}),
+			),
+			expected:      sdkFakeAgentPool(sdkWithNodeTaints(nil)),
+			expectedError: nil,
+		},
+		{
+			name: "difference in system node taints with empty taints shouldn't trigger update",
+			spec: fakeAgentPool(
+				func(pool *AgentPoolSpec) {
+					pool.NodeTaints = nil
+				},
+			),
+			existing: sdkFakeAgentPool(
+				sdkWithNodeTaints([]string{azureutil.AzureSystemNodeLabelPrefix + "-fake-taint"}),
 			),
 			expectNoChange: true,
 			expectedError:  nil,
