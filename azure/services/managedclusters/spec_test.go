@@ -569,7 +569,6 @@ func getSampleManagedCluster() *asocontainerservicev1.ManagedCluster {
 			AzureName:         "test-managedcluster",
 			Owner:             &genruntime.KnownResourceReference{Name: "test-rg"},
 			KubernetesVersion: ptr.To("v1.22.0"),
-			DnsPrefix:         ptr.To("test-managedcluster"),
 			AgentPoolProfiles: []asocontainerservicev1.ManagedClusterAgentPoolProfile{
 				{
 					Name:         ptr.To("test-agentpool-0"),
