@@ -290,8 +290,6 @@ func buildAutoScalerProfile(autoScalerProfile *AutoScalerProfile) *asocontainers
 }
 
 // Parameters returns the parameters for the managed clusters.
-//
-//nolint:gocyclo // Function requires a lot of nil checks that raise complexity.
 func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontainerservicev1.ManagedCluster) (params *asocontainerservicev1.ManagedCluster, err error) {
 	ctx, _, done := tele.StartSpanWithLogger(ctx, "managedclusters.Service.Parameters")
 	defer done()
