@@ -87,17 +87,17 @@ func sdkFakeAgentPool(changes ...func(*asocontainerservicev1.ManagedClustersAgen
 		Spec: asocontainerservicev1.ManagedClusters_AgentPool_Spec{
 			AvailabilityZones:   []string{"fake-zone"},
 			AzureName:           "fakename",
-			Count:               ptr.To(1),    // updates if changed
-			EnableAutoScaling:   ptr.To(true), // updates if changed
+			Count:               ptr.To(1),
+			EnableAutoScaling:   ptr.To(true),
 			EnableUltraSSD:      ptr.To(true),
 			KubeletDiskType:     ptr.To(asocontainerservicev1.KubeletDiskType("fake-kubelet-disk-type")),
-			MaxCount:            ptr.To(5), // updates if changed
+			MaxCount:            ptr.To(5),
 			MaxPods:             ptr.To(10),
-			MinCount:            ptr.To(1),                                                // updates if changed
-			Mode:                ptr.To(asocontainerservicev1.AgentPoolMode("fake-mode")), // updates if changed
-			NodeLabels:          map[string]string{"fake-label": "fake-value"},            // updates if changed
-			NodeTaints:          []string{"fake-taint"},                                   // updates if changed
-			OrchestratorVersion: ptr.To("fake-version"),                                   // updates if changed
+			MinCount:            ptr.To(1),
+			Mode:                ptr.To(asocontainerservicev1.AgentPoolMode("fake-mode")),
+			NodeLabels:          map[string]string{"fake-label": "fake-value"},
+			NodeTaints:          []string{"fake-taint"},
+			OrchestratorVersion: ptr.To("fake-version"),
 			OsDiskSizeGB:        ptr.To[asocontainerservicev1.ContainerServiceOSDisk](2),
 			OsDiskType:          ptr.To(asocontainerservicev1.OSDiskType("fake-os-disk-type")),
 			OsType:              ptr.To(asocontainerservicev1.OSType("fake-os-type")),
@@ -394,93 +394,6 @@ func TestParameters(t *testing.T) {
 			if !reflect.DeepEqual(result, tc.expected) {
 				t.Errorf("Got difference between expected result and computed result:\n%s", cmp.Diff(tc.expected, result))
 			}
-		})
-	}
-}
-
-func TestMergeSystemNodeLabels(t *testing.T) {
-	testcases := []struct {
-		name       string
-		capzLabels map[string]string
-		aksLabels  map[string]string
-		expected   map[string]string
-	}{
-		{
-			name: "update an existing label",
-			capzLabels: map[string]string{
-				"foo": "bar",
-			},
-			aksLabels: map[string]string{
-				"foo": "baz",
-			},
-			expected: map[string]string{
-				"foo": "bar",
-			},
-		},
-		{
-			name:       "delete labels",
-			capzLabels: map[string]string{},
-			aksLabels: map[string]string{
-				"foo":   "bar",
-				"hello": "world",
-			},
-			expected: map[string]string{},
-		},
-		{
-			name:       "delete labels from nil",
-			capzLabels: nil,
-			aksLabels: map[string]string{
-				"foo":   "bar",
-				"hello": "world",
-			},
-			expected: nil,
-		},
-		{
-			name: "delete one label",
-			capzLabels: map[string]string{
-				"foo": "bar",
-			},
-			aksLabels: map[string]string{
-				"foo":   "bar",
-				"hello": "world",
-			},
-			expected: map[string]string{
-				"foo": "bar",
-			},
-		},
-		{
-			name: "retain system label during update",
-			capzLabels: map[string]string{
-				"foo": "bar",
-			},
-			aksLabels: map[string]string{
-				"kubernetes.azure.com/scalesetpriority": "spot",
-			},
-			expected: map[string]string{
-				"foo":                                   "bar",
-				"kubernetes.azure.com/scalesetpriority": "spot",
-			},
-		},
-		{
-			name:       "retain system label during delete",
-			capzLabels: map[string]string{},
-			aksLabels: map[string]string{
-				"kubernetes.azure.com/scalesetpriority": "spot",
-			},
-			expected: map[string]string{
-				"kubernetes.azure.com/scalesetpriority": "spot",
-			},
-		},
-	}
-
-	for _, tc := range testcases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			g := NewWithT(t)
-			t.Parallel()
-
-			ret := mergeSystemNodeLabels(tc.capzLabels, tc.aksLabels)
-			g.Expect(ret).To(Equal(tc.expected))
 		})
 	}
 }

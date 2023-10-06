@@ -138,18 +138,6 @@ func (mr *MockManagedClusterScopeMockRecorder) SetControlPlaneEndpoint(arg0 any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetControlPlaneEndpoint", reflect.TypeOf((*MockManagedClusterScope)(nil).SetControlPlaneEndpoint), arg0)
 }
 
-// SetKubeletIdentity mocks base method.
-func (m *MockManagedClusterScope) SetKubeletIdentity(arg0 string) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetKubeletIdentity", arg0)
-}
-
-// SetKubeletIdentity indicates an expected call of SetKubeletIdentity.
-func (mr *MockManagedClusterScopeMockRecorder) SetKubeletIdentity(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetKubeletIdentity", reflect.TypeOf((*MockManagedClusterScope)(nil).SetKubeletIdentity), arg0)
-}
-
 // SetLongRunningOperationState mocks base method.
 func (m *MockManagedClusterScope) SetLongRunningOperationState(arg0 *v1beta1.Future) {
 	m.ctrl.T.Helper()

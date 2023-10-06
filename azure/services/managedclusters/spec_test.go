@@ -50,9 +50,6 @@ func TestParameters(t *testing.T) {
 				NodeResourceGroup: "test-node-rg",
 				ClusterName:       "test-cluster",
 				Location:          "test-location",
-				Tags: map[string]string{
-					"test-tag": "test-value",
-				},
 				Version:           "v1.22.0",
 				LoadBalancerSKU:   "standard",
 				SSHPublicKey:      base64.StdEncoding.EncodeToString([]byte("test-ssh-key")),
@@ -98,12 +95,9 @@ func TestParameters(t *testing.T) {
 			name:     "managedcluster exists, no update needed",
 			existing: getExistingCluster(),
 			spec: &ManagedClusterSpec{
-				Name:          "test-managedcluster",
-				ResourceGroup: "test-rg",
-				Location:      "test-location",
-				Tags: map[string]string{
-					"test-tag": "test-value",
-				},
+				Name:            "test-managedcluster",
+				ResourceGroup:   "test-rg",
+				Location:        "test-location",
 				Version:         "v1.22.0",
 				LoadBalancerSKU: "standard",
 				OIDCIssuerProfile: &OIDCIssuerProfile{
@@ -118,12 +112,9 @@ func TestParameters(t *testing.T) {
 			name:     "managedcluster exists and an update is needed",
 			existing: getExistingCluster(),
 			spec: &ManagedClusterSpec{
-				Name:          "test-managedcluster",
-				ResourceGroup: "test-rg",
-				Location:      "test-location",
-				Tags: map[string]string{
-					"test-tag": "test-value",
-				},
+				Name:            "test-managedcluster",
+				ResourceGroup:   "test-rg",
+				Location:        "test-location",
 				Version:         "v1.22.99",
 				LoadBalancerSKU: "standard",
 				Identity: &infrav1.Identity{
@@ -140,33 +131,12 @@ func TestParameters(t *testing.T) {
 			},
 		},
 		{
-			name:     "delete all tags",
-			existing: getExistingCluster(),
-			spec: &ManagedClusterSpec{
-				Name:            "test-managedcluster",
-				ResourceGroup:   "test-rg",
-				Location:        "test-location",
-				Tags:            nil,
-				Version:         "v1.22.0",
-				LoadBalancerSKU: "standard",
-				OIDCIssuerProfile: &OIDCIssuerProfile{
-					Enabled: ptr.To(true),
-				},
-			},
-			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
-				// Additional tags are handled by azure/services/tags, so a diff
-				// here shouldn't trigger an update on the managed cluster resource.
-				g.Expect(result).To(Equal(getExistingCluster()))
-			},
-		},
-		{
 			name:     "set Linux profile if SSH key is set",
 			existing: nil,
 			spec: &ManagedClusterSpec{
 				Name:            "test-managedcluster",
 				ResourceGroup:   "test-rg",
 				Location:        "test-location",
-				Tags:            nil,
 				Version:         "v1.22.0",
 				LoadBalancerSKU: "standard",
 				OIDCIssuerProfile: &OIDCIssuerProfile{
@@ -199,7 +169,6 @@ func TestParameters(t *testing.T) {
 				Name:            "test-managedcluster",
 				ResourceGroup:   "test-rg",
 				Location:        "test-location",
-				Tags:            nil,
 				Version:         "v1.22.0",
 				LoadBalancerSKU: "standard",
 				OIDCIssuerProfile: &OIDCIssuerProfile{
@@ -225,7 +194,6 @@ func TestParameters(t *testing.T) {
 				Name:            "test-managedcluster",
 				ResourceGroup:   "test-rg",
 				Location:        "test-location",
-				Tags:            nil,
 				Version:         "v1.22.0",
 				LoadBalancerSKU: "standard",
 				OIDCIssuerProfile: &OIDCIssuerProfile{
@@ -250,7 +218,6 @@ func TestParameters(t *testing.T) {
 				Name:            "test-managedcluster",
 				ResourceGroup:   "test-rg",
 				Location:        "test-location",
-				Tags:            nil,
 				Version:         "v1.22.0",
 				LoadBalancerSKU: "standard",
 				OIDCIssuerProfile: &OIDCIssuerProfile{
@@ -279,22 +246,16 @@ func TestParameters(t *testing.T) {
 			name:     "no update needed if both clusters have no authorized IP ranges",
 			existing: getExistingClusterWithAPIServerAccessProfile(),
 			spec: &ManagedClusterSpec{
-				Name:          "test-managedcluster",
-				ResourceGroup: "test-rg",
-				Location:      "test-location",
-				Tags: map[string]string{
-					"test-tag": "test-value",
-				},
+				Name:            "test-managedcluster",
+				ResourceGroup:   "test-rg",
+				Location:        "test-location",
 				Version:         "v1.22.0",
 				LoadBalancerSKU: "standard",
 				OIDCIssuerProfile: &OIDCIssuerProfile{
 					Enabled: ptr.To(true),
 				},
 				APIServerAccessProfile: &APIServerAccessProfile{
-					AuthorizedIPRanges: func() []string {
-						var arr []string
-						return arr
-					}(),
+					EnablePrivateCluster: ptr.To(false),
 				},
 			},
 			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
@@ -305,16 +266,16 @@ func TestParameters(t *testing.T) {
 			name:     "update authorized IP ranges with empty struct if spec does not have authorized IP ranges but existing cluster has authorized IP ranges",
 			existing: getExistingClusterWithAuthorizedIPRanges(),
 			spec: &ManagedClusterSpec{
-				Name:          "test-managedcluster",
-				ResourceGroup: "test-rg",
-				Location:      "test-location",
-				Tags: map[string]string{
-					"test-tag": "test-value",
-				},
+				Name:            "test-managedcluster",
+				ResourceGroup:   "test-rg",
+				Location:        "test-location",
 				Version:         "v1.22.0",
 				LoadBalancerSKU: "standard",
 				OIDCIssuerProfile: &OIDCIssuerProfile{
 					Enabled: ptr.To(true),
+				},
+				APIServerAccessProfile: &APIServerAccessProfile{
+					AuthorizedIPRanges: []string{},
 				},
 			},
 			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
@@ -326,12 +287,9 @@ func TestParameters(t *testing.T) {
 			name:     "update authorized IP ranges with authorized IPs spec has authorized IP ranges but existing cluster does not have authorized IP ranges",
 			existing: getExistingCluster(),
 			spec: &ManagedClusterSpec{
-				Name:          "test-managedcluster",
-				ResourceGroup: "test-rg",
-				Location:      "test-location",
-				Tags: map[string]string{
-					"test-tag": "test-value",
-				},
+				Name:            "test-managedcluster",
+				ResourceGroup:   "test-rg",
+				Location:        "test-location",
 				Version:         "v1.22.0",
 				LoadBalancerSKU: "standard",
 				OIDCIssuerProfile: &OIDCIssuerProfile{
@@ -350,12 +308,9 @@ func TestParameters(t *testing.T) {
 			name:     "no update needed when authorized IP ranges when both clusters have the same authorized IP ranges",
 			existing: getExistingClusterWithAuthorizedIPRanges(),
 			spec: &ManagedClusterSpec{
-				Name:          "test-managedcluster",
-				ResourceGroup: "test-rg",
-				Location:      "test-location",
-				Tags: map[string]string{
-					"test-tag": "test-value",
-				},
+				Name:            "test-managedcluster",
+				ResourceGroup:   "test-rg",
+				Location:        "test-location",
 				Version:         "v1.22.0",
 				LoadBalancerSKU: "standard",
 				OIDCIssuerProfile: &OIDCIssuerProfile{
@@ -373,12 +328,9 @@ func TestParameters(t *testing.T) {
 			name:     "managedcluster exists with UserAssigned identity, no update needed",
 			existing: getExistingClusterWithUserAssignedIdentity(),
 			spec: &ManagedClusterSpec{
-				Name:          "test-managedcluster",
-				ResourceGroup: "test-rg",
-				Location:      "test-location",
-				Tags: map[string]string{
-					"test-tag": "test-value",
-				},
+				Name:            "test-managedcluster",
+				ResourceGroup:   "test-rg",
+				Location:        "test-location",
 				Version:         "v1.22.0",
 				LoadBalancerSKU: "standard",
 				OIDCIssuerProfile: &OIDCIssuerProfile{
@@ -401,12 +353,9 @@ func TestParameters(t *testing.T) {
 				return c
 			}(),
 			spec: &ManagedClusterSpec{
-				Name:          "test-managedcluster",
-				ResourceGroup: "test-rg",
-				Location:      "test-location",
-				Tags: map[string]string{
-					"test-tag": "test-value",
-				},
+				Name:            "test-managedcluster",
+				ResourceGroup:   "test-rg",
+				Location:        "test-location",
 				Version:         "v1.22.0",
 				LoadBalancerSKU: "standard",
 				OIDCIssuerProfile: &OIDCIssuerProfile{
@@ -423,12 +372,9 @@ func TestParameters(t *testing.T) {
 			name:     "setting networkPluginMode from \"overlay\" to nil doesn't require update",
 			existing: getExistingCluster(),
 			spec: &ManagedClusterSpec{
-				Name:          "test-managedcluster",
-				ResourceGroup: "test-rg",
-				Location:      "test-location",
-				Tags: map[string]string{
-					"test-tag": "test-value",
-				},
+				Name:            "test-managedcluster",
+				ResourceGroup:   "test-rg",
+				Location:        "test-location",
 				Version:         "v1.22.0",
 				LoadBalancerSKU: "standard",
 				OIDCIssuerProfile: &OIDCIssuerProfile{
@@ -444,12 +390,9 @@ func TestParameters(t *testing.T) {
 			name:     "update needed when oidc issuer profile enabled changes",
 			existing: getExistingCluster(),
 			spec: &ManagedClusterSpec{
-				Name:          "test-managedcluster",
-				ResourceGroup: "test-rg",
-				Location:      "test-location",
-				Tags: map[string]string{
-					"test-tag": "test-value",
-				},
+				Name:            "test-managedcluster",
+				ResourceGroup:   "test-rg",
+				Location:        "test-location",
 				Version:         "v1.22.0",
 				LoadBalancerSKU: "standard",
 				OIDCIssuerProfile: &OIDCIssuerProfile{
@@ -544,11 +487,23 @@ func getExistingClusterWithAPIServerAccessProfile() *asocontainerservicev1.Manag
 func getExistingCluster() *asocontainerservicev1.ManagedCluster {
 	mc := getSampleManagedCluster()
 	mc.Status.Id = ptr.To("test-id")
+
+	mc.Spec.LinuxProfile = nil
+	mc.Spec.NetworkProfile.NetworkPluginMode = nil
+	mc.Spec.NodeResourceGroup = ptr.To("")
+	mc.Spec.OperatorSpec.Secrets.AdminCredentials.Name = "-kubeconfig"
+	mc.Spec.Tags[infrav1.ClusterTagKey("")] = mc.Spec.Tags[infrav1.ClusterTagKey("test-cluster")]
+	delete(mc.Spec.Tags, infrav1.ClusterTagKey("test-cluster"))
+
+	mc.Spec.AgentPoolProfiles = nil
+	// only nil vs. non-nil matters here
+	mc.Status.AgentPoolProfiles = []asocontainerservicev1.ManagedClusterAgentPoolProfile_STATUS{}
+
 	return mc
 }
 
 func getExistingClusterWithUserAssignedIdentity() *asocontainerservicev1.ManagedCluster {
-	mc := getSampleManagedCluster()
+	mc := getExistingCluster()
 	mc.Status.Id = ptr.To("test-id")
 	mc.Spec.Identity = &asocontainerservicev1.ManagedClusterIdentity{
 		Type: ptr.To(asocontainerservicev1.ManagedClusterIdentity_Type_UserAssigned),
@@ -637,9 +592,6 @@ func getSampleManagedCluster() *asocontainerservicev1.ManagedCluster {
 				ClusterName: "test-cluster",
 				Name:        ptr.To("test-managedcluster"),
 				Role:        ptr.To(infrav1.CommonRole),
-				Additional: infrav1.Tags{
-					"test-tag": "test-value",
-				},
 			}),
 		},
 	}

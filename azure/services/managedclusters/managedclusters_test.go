@@ -44,7 +44,6 @@ func TestPostCreateOrUpdateResourceHook(t *testing.T) {
 			Host: "fdqn",
 			Port: 443,
 		})
-		scope.EXPECT().SetKubeletIdentity("kubelet-id")
 		scope.EXPECT().SetOIDCIssuerProfileStatus(gomock.Nil())
 		scope.EXPECT().SetOIDCIssuerProfileStatus(&infrav1.OIDCIssuerProfileStatus{
 			IssuerURL: ptr.To("oidc"),
@@ -53,11 +52,6 @@ func TestPostCreateOrUpdateResourceHook(t *testing.T) {
 		managedCluster := &asocontainerservicev1.ManagedCluster{
 			Status: asocontainerservicev1.ManagedCluster_STATUS{
 				Fqdn: ptr.To("fdqn"),
-				IdentityProfile: map[string]asocontainerservicev1.UserAssignedIdentity_STATUS{
-					kubeletIdentityKey: {
-						ResourceId: ptr.To("kubelet-id"),
-					},
-				},
 				OidcIssuerProfile: &asocontainerservicev1.ManagedClusterOIDCIssuerProfile_STATUS{
 					IssuerURL: ptr.To("oidc"),
 				},

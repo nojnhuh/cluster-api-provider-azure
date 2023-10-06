@@ -34,7 +34,6 @@ type ManagedClusterScope interface {
 	aso.Scope
 	ManagedClusterSpec() azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedCluster]
 	SetControlPlaneEndpoint(clusterv1.APIEndpoint)
-	SetKubeletIdentity(string)
 	SetOIDCIssuerProfileStatus(*infrav1.OIDCIssuerProfileStatus)
 }
 
@@ -72,12 +71,6 @@ func postCreateOrUpdateResourceHook(scope ManagedClusterScope, managedCluster *a
 		Port: 443,
 	}
 	scope.SetControlPlaneEndpoint(endpoint)
-
-	// This field gets populated by AKS when not set by the user. Persist AKS's value so for future diffs,
-	// the "before" reflects the correct value.
-	if id := managedCluster.Status.IdentityProfile[kubeletIdentityKey]; id.ResourceId != nil {
-		scope.SetKubeletIdentity(*id.ResourceId)
-	}
 
 	scope.SetOIDCIssuerProfileStatus(nil)
 	if managedCluster.Status.OidcIssuerProfile != nil && managedCluster.Status.OidcIssuerProfile.IssuerURL != nil {

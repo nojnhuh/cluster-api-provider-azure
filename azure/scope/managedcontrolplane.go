@@ -619,11 +619,6 @@ func (s *ManagedControlPlaneScope) SetControlPlaneEndpoint(endpoint clusterv1.AP
 	s.ControlPlane.Spec.ControlPlaneEndpoint.Port = endpoint.Port
 }
 
-// SetKubeletIdentity sets the ID of the user-assigned identity for kubelet if not already set.
-func (s *ManagedControlPlaneScope) SetKubeletIdentity(id string) {
-	s.ControlPlane.Spec.KubeletUserAssignedIdentity = id
-}
-
 // SetLongRunningOperationState will set the future on the AzureManagedControlPlane status to allow the resource to continue
 // in the next reconciliation.
 func (s *ManagedControlPlaneScope) SetLongRunningOperationState(future *infrav1.Future) {
