@@ -164,7 +164,7 @@ func (s *AgentPoolSpec) ResourceRef() *asocontainerservicev1.ManagedClustersAgen
 
 // Parameters returns the parameters for the agent pool.
 func (s *AgentPoolSpec) Parameters(ctx context.Context, existing *asocontainerservicev1.ManagedClustersAgentPool) (params *asocontainerservicev1.ManagedClustersAgentPool, err error) {
-	ctx, _, done := tele.StartSpanWithLogger(ctx, "agentpools.Service.Parameters")
+	_, _, done := tele.StartSpanWithLogger(ctx, "agentpools.Service.Parameters")
 	defer done()
 
 	agentPool := existing
