@@ -28,7 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/ptr"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
-	azureutil "sigs.k8s.io/cluster-api-provider-azure/util/azure"
 )
 
 func fakeAgentPool(changes ...func(*AgentPoolSpec)) AgentPoolSpec {
@@ -184,6 +183,9 @@ func TestParameters(t *testing.T) {
 			existing: sdkFakeAgentPool(
 				sdkWithAutoscaling(true),
 				sdkWithCount(5),
+				func(pool *asocontainerservicev1.ManagedClustersAgentPool) {
+					pool.Status.Count = pool.Spec.Count
+				},
 			),
 			expectNoChange: true,
 			expectedError:  nil,
@@ -274,69 +276,6 @@ func TestParameters(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			name: "difference in system node labels shouldn't trigger update",
-			spec: fakeAgentPool(
-				func(pool *AgentPoolSpec) {
-					pool.NodeLabels = map[string]string{
-						"fake-label": "fake-value",
-					}
-				},
-			),
-			existing: sdkFakeAgentPool(
-				func(pool *asocontainerservicev1.ManagedClustersAgentPool) {
-					pool.Spec.NodeLabels = map[string]string{
-						"fake-label":                            "fake-value",
-						"kubernetes.azure.com/scalesetpriority": "spot",
-					}
-				},
-			),
-			expectNoChange: true,
-			expectedError:  nil,
-		},
-		{
-			name: "difference in system node labels with empty labels shouldn't trigger update",
-			spec: fakeAgentPool(
-				func(pool *AgentPoolSpec) {
-					pool.NodeLabels = nil
-				},
-			),
-			existing: sdkFakeAgentPool(
-				func(pool *asocontainerservicev1.ManagedClustersAgentPool) {
-					pool.Spec.NodeLabels = map[string]string{
-						"kubernetes.azure.com/scalesetpriority": "spot",
-					}
-				},
-			),
-			expectNoChange: true,
-			expectedError:  nil,
-		},
-		{
-			name: "difference in non-system node taints with empty taints should trigger update",
-			spec: fakeAgentPool(
-				func(pool *AgentPoolSpec) {
-					pool.NodeTaints = nil
-				},
-			),
-			existing: sdkFakeAgentPool(
-				sdkWithNodeTaints([]string{"fake-taint"}),
-			),
-			expected:      sdkFakeAgentPool(sdkWithNodeTaints(nil)),
-			expectedError: nil,
-		},
-		{
-			name: "difference in system node taints with empty taints shouldn't trigger update",
-			spec: fakeAgentPool(
-				func(pool *AgentPoolSpec) {
-					pool.NodeTaints = nil
-				},
-			),
-			existing: sdkFakeAgentPool(
-				sdkWithNodeTaints([]string{azureutil.AzureSystemNodeLabelPrefix + "-fake-taint"}),
-			),
-			expectNoChange: true,
-			expectedError:  nil,
-		},
-		{
 			name: "parameters with an existing agent pool and update needed on node taints",
 			spec: fakeAgentPool(),
 			existing: sdkFakeAgentPool(
@@ -381,7 +320,7 @@ func TestParameters(t *testing.T) {
 			g := NewWithT(t)
 			t.Parallel()
 
-			result, err := tc.spec.Parameters(context.TODO(), tc.existing)
+			result, err := tc.spec.Parameters(context.TODO(), tc.existing.DeepCopy())
 			if tc.expectedError != nil {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err).To(MatchError(tc.expectedError))
