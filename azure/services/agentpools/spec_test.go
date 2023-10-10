@@ -145,12 +145,6 @@ func sdkWithSpotMaxPrice(spotMaxPrice float64) func(*asocontainerservicev1.Manag
 	}
 }
 
-func sdkWithNodeTaints(nodeTaints []string) func(*asocontainerservicev1.ManagedClustersAgentPool) {
-	return func(pool *asocontainerservicev1.ManagedClustersAgentPool) {
-		pool.Spec.NodeTaints = nodeTaints
-	}
-}
-
 func TestParameters(t *testing.T) {
 	testcases := []struct {
 		name           string
