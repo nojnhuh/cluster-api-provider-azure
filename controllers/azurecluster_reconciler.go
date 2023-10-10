@@ -81,10 +81,6 @@ func newAzureClusterService(scope *scope.ClusterScope) (*azureClusterService, er
 	if err != nil {
 		return nil, err
 	}
-	subnetsSvc, err := subnets.New(scope)
-	if err != nil {
-		return nil, err
-	}
 	virtualNetworksSvc, err := virtualnetworks.New(scope)
 	if err != nil {
 		return nil, err
@@ -106,7 +102,7 @@ func newAzureClusterService(scope *scope.ClusterScope) (*azureClusterService, er
 			routeTablesSvc,
 			publicIPsSvc,
 			natgateways.New(scope),
-			subnetsSvc,
+			subnets.New(scope),
 			vnetPeeringsSvc,
 			loadbalancersSvc,
 			privateDNSSvc,

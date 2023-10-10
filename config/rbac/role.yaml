@@ -306,6 +306,7 @@ rules:
   - network.azure.com
   resources:
   - natgateways
+  - virtualnetworkssubnets
   verbs:
   - create
   - delete
@@ -318,6 +319,27 @@ rules:
   - network.azure.com
   resources:
   - natgateways/status
+  - virtualnetworkssubnets/status
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - network.azure.com
+  resources:
+  - virtualnetworkssubnets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - network.azure.com
+  resources:
+  - virtualnetworkssubnets/status
   verbs:
   - get
   - list

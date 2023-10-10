@@ -24,6 +24,7 @@ import (
 	"time"
 
 	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20230201"
+	asonetworkv1 "github.com/Azure/azure-service-operator/v2/api/network/v1api20201101"
 	asoresourcesv1 "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
 	"github.com/pkg/errors"
 	"golang.org/x/mod/semver"
@@ -305,10 +306,11 @@ func (s *ManagedControlPlaneScope) NodeNatGateway() infrav1.NatGateway {
 }
 
 // SubnetSpecs returns the subnets specs.
-func (s *ManagedControlPlaneScope) SubnetSpecs() []azure.ResourceSpecGetter {
-	return []azure.ResourceSpecGetter{
+func (s *ManagedControlPlaneScope) SubnetSpecs() []azure.ASOResourceSpecGetter[*asonetworkv1.VirtualNetworksSubnet] {
+	return []azure.ASOResourceSpecGetter[*asonetworkv1.VirtualNetworksSubnet]{
 		&subnets.SubnetSpec{
 			Name:              s.NodeSubnet().Name,
+			Namespace:         s.ControlPlane.Namespace,
 			ResourceGroup:     s.ResourceGroup(),
 			SubscriptionID:    s.SubscriptionID(),
 			CIDRs:             s.NodeSubnet().CIDRBlocks,

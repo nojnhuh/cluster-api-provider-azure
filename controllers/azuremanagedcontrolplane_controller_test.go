@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20230201"
+	asonetworkv1 "github.com/Azure/azure-service-operator/v2/api/network/v1api20201101"
 	asoresourcesv1 "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -100,6 +101,7 @@ func TestAzureManagedControlPlaneReconcilePaused(t *testing.T) {
 		infrav1.AddToScheme,
 		asoresourcesv1.AddToScheme,
 		asocontainerservicev1.AddToScheme,
+		asonetworkv1.AddToScheme,
 	)
 	s := runtime.NewScheme()
 	g.Expect(sb.AddToScheme(s)).To(Succeed())
@@ -165,6 +167,14 @@ func TestAzureManagedControlPlaneReconcilePaused(t *testing.T) {
 		},
 	}
 	g.Expect(c.Create(ctx, mc)).To(Succeed())
+
+	subnet := &asonetworkv1.VirtualNetworksSubnet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+	g.Expect(c.Create(ctx, subnet)).To(Succeed())
 
 	result, err := reconciler.Reconcile(context.Background(), ctrl.Request{
 		NamespacedName: client.ObjectKey{

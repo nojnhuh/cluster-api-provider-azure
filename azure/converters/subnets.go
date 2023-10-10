@@ -18,6 +18,7 @@ package converters
 
 import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
+	asonetworkv1 "github.com/Azure/azure-service-operator/v2/api/network/v1api20201101"
 	"k8s.io/utils/ptr"
 )
 
@@ -32,6 +33,17 @@ func GetSubnetAddresses(subnet *armnetwork.Subnet) []string {
 				addresses = append(addresses, *address)
 			}
 		}
+	}
+	return addresses
+}
+
+// GetASOSubnetAddresses returns the address prefixes contained in an ASO subnet.
+func GetASOSubnetAddresses(subnet *asonetworkv1.VirtualNetworksSubnet) []string {
+	var addresses []string
+	if subnet.Status.AddressPrefix != nil {
+		addresses = []string{ptr.Deref(subnet.Status.AddressPrefix, "")}
+	} else if subnet.Status.AddressPrefixes != nil {
+		addresses = append(addresses, subnet.Status.AddressPrefixes...)
 	}
 	return addresses
 }

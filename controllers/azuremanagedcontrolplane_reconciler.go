@@ -53,10 +53,6 @@ func newAzureManagedControlPlaneReconciler(scope *scope.ManagedControlPlaneScope
 	if err != nil {
 		return nil, err
 	}
-	subnetsSvc, err := subnets.New(scope)
-	if err != nil {
-		return nil, err
-	}
 	virtualNetworksSvc, err := virtualnetworks.New(scope)
 	if err != nil {
 		return nil, err
@@ -67,7 +63,7 @@ func newAzureManagedControlPlaneReconciler(scope *scope.ManagedControlPlaneScope
 		services: []azure.ServiceReconciler{
 			groups.New(scope),
 			virtualNetworksSvc,
-			subnetsSvc,
+			subnets.New(scope),
 			managedclusters.New(scope),
 			privateEndpointsSvc,
 			resourceHealthSvc,
