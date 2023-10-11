@@ -296,44 +296,46 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontai
 
 	managedCluster := existing
 	if managedCluster == nil {
-		managedCluster = &asocontainerservicev1.ManagedCluster{}
+		managedCluster = &asocontainerservicev1.ManagedCluster{
+			Spec: asocontainerservicev1.ManagedCluster_Spec{
+				Tags: infrav1.Build(infrav1.BuildParams{
+					Lifecycle:   infrav1.ResourceLifecycleOwned,
+					ClusterName: s.ClusterName,
+					Name:        ptr.To(s.Name),
+					Role:        ptr.To(infrav1.CommonRole),
+					// Additional tags managed separately
+				}),
+			},
+		}
 	}
 
-	managedCluster.Spec = asocontainerservicev1.ManagedCluster_Spec{
-		AzureName: s.Name,
-		Owner: &genruntime.KnownResourceReference{
-			Name: s.ResourceGroup,
-		},
-		Identity: &asocontainerservicev1.ManagedClusterIdentity{
-			Type: ptr.To(asocontainerservicev1.ManagedClusterIdentity_Type_SystemAssigned),
-		},
-		Location: &s.Location,
-		Tags: infrav1.Build(infrav1.BuildParams{
-			Lifecycle:   infrav1.ResourceLifecycleOwned,
-			ClusterName: s.ClusterName,
-			Name:        ptr.To(s.Name),
-			Role:        ptr.To(infrav1.CommonRole),
-			// Additional tags managed separately
-		}),
-		NodeResourceGroup: &s.NodeResourceGroup,
-		EnableRBAC:        ptr.To(true),
-		DnsPrefix:         s.DNSPrefix,
-		KubernetesVersion: &s.Version,
-		ServicePrincipalProfile: &asocontainerservicev1.ManagedClusterServicePrincipalProfile{
-			ClientId: ptr.To("msi"),
-		},
-		NetworkProfile: &asocontainerservicev1.ContainerServiceNetworkProfile{
-			NetworkPlugin:   azure.AliasOrNil[asocontainerservicev1.ContainerServiceNetworkProfile_NetworkPlugin](&s.NetworkPlugin),
-			LoadBalancerSku: azure.AliasOrNil[asocontainerservicev1.ContainerServiceNetworkProfile_LoadBalancerSku](&s.LoadBalancerSKU),
-			NetworkPolicy:   azure.AliasOrNil[asocontainerservicev1.ContainerServiceNetworkProfile_NetworkPolicy](&s.NetworkPolicy),
-		},
-		AutoScalerProfile: buildAutoScalerProfile(s.AutoScalerProfile),
-		OperatorSpec: &asocontainerservicev1.ManagedClusterOperatorSpec{
-			Secrets: &asocontainerservicev1.ManagedClusterOperatorSecrets{
-				AdminCredentials: &genruntime.SecretDestination{
-					Name: secret.Name(s.ClusterName, secret.Kubeconfig),
-					Key:  secret.KubeconfigDataName,
-				},
+	spec := &managedCluster.Spec
+	spec.AzureName = s.Name
+	spec.Owner = &genruntime.KnownResourceReference{
+		Name: s.ResourceGroup,
+	}
+	spec.Identity = &asocontainerservicev1.ManagedClusterIdentity{
+		Type: ptr.To(asocontainerservicev1.ManagedClusterIdentity_Type_SystemAssigned),
+	}
+	spec.Location = &s.Location
+	spec.NodeResourceGroup = &s.NodeResourceGroup
+	spec.EnableRBAC = ptr.To(true)
+	spec.DnsPrefix = s.DNSPrefix
+	spec.KubernetesVersion = &s.Version
+	spec.ServicePrincipalProfile = &asocontainerservicev1.ManagedClusterServicePrincipalProfile{
+		ClientId: ptr.To("msi"),
+	}
+	spec.NetworkProfile = &asocontainerservicev1.ContainerServiceNetworkProfile{
+		NetworkPlugin:   azure.AliasOrNil[asocontainerservicev1.ContainerServiceNetworkProfile_NetworkPlugin](&s.NetworkPlugin),
+		LoadBalancerSku: azure.AliasOrNil[asocontainerservicev1.ContainerServiceNetworkProfile_LoadBalancerSku](&s.LoadBalancerSKU),
+		NetworkPolicy:   azure.AliasOrNil[asocontainerservicev1.ContainerServiceNetworkProfile_NetworkPolicy](&s.NetworkPolicy),
+	}
+	spec.AutoScalerProfile = buildAutoScalerProfile(s.AutoScalerProfile)
+	spec.OperatorSpec = &asocontainerservicev1.ManagedClusterOperatorSpec{
+		Secrets: &asocontainerservicev1.ManagedClusterOperatorSecrets{
+			AdminCredentials: &genruntime.SecretDestination{
+				Name: secret.Name(s.ClusterName, secret.Kubeconfig),
+				Key:  secret.KubeconfigDataName,
 			},
 		},
 	}
@@ -346,7 +348,7 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontai
 		}
 	}
 	if decodedSSHPublicKey != nil {
-		managedCluster.Spec.LinuxProfile = &asocontainerservicev1.ContainerServiceLinuxProfile{
+		spec.LinuxProfile = &asocontainerservicev1.ContainerServiceLinuxProfile{
 			AdminUsername: ptr.To(azure.DefaultAKSUserName),
 			Ssh: &asocontainerservicev1.ContainerServiceSshConfiguration{
 				PublicKeys: []asocontainerservicev1.ContainerServiceSshPublicKey{
@@ -359,16 +361,16 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontai
 	}
 
 	if s.NetworkPluginMode != nil {
-		managedCluster.Spec.NetworkProfile.NetworkPluginMode = ptr.To(asocontainerservicev1.ContainerServiceNetworkProfile_NetworkPluginMode(*s.NetworkPluginMode))
+		spec.NetworkProfile.NetworkPluginMode = ptr.To(asocontainerservicev1.ContainerServiceNetworkProfile_NetworkPluginMode(*s.NetworkPluginMode))
 	}
 
 	if s.PodCIDR != "" {
-		managedCluster.Spec.NetworkProfile.PodCidr = &s.PodCIDR
+		spec.NetworkProfile.PodCidr = &s.PodCIDR
 	}
 
 	if s.ServiceCIDR != "" {
 		if s.DNSServiceIP == nil {
-			managedCluster.Spec.NetworkProfile.ServiceCidr = &s.ServiceCIDR
+			spec.NetworkProfile.ServiceCidr = &s.ServiceCIDR
 			ip, _, err := net.ParseCIDR(s.ServiceCIDR)
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse service cidr: %w", err)
@@ -379,14 +381,14 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontai
 			// https://golang.org/src/net/ip.go#L48
 			ip[15] = byte(10)
 			dnsIP := ip.String()
-			managedCluster.Spec.NetworkProfile.DnsServiceIP = &dnsIP
+			spec.NetworkProfile.DnsServiceIP = &dnsIP
 		} else {
-			managedCluster.Spec.NetworkProfile.DnsServiceIP = s.DNSServiceIP
+			spec.NetworkProfile.DnsServiceIP = s.DNSServiceIP
 		}
 	}
 
 	if s.AADProfile != nil {
-		managedCluster.Spec.AadProfile = &asocontainerservicev1.ManagedClusterAADProfile{
+		spec.AadProfile = &asocontainerservicev1.ManagedClusterAADProfile{
 			Managed:             &s.AADProfile.Managed,
 			EnableAzureRBAC:     &s.AADProfile.EnableAzureRBAC,
 			AdminGroupObjectIDs: s.AADProfile.AdminGroupObjectIDs,
@@ -394,8 +396,8 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontai
 	}
 
 	for i := range s.AddonProfiles {
-		if managedCluster.Spec.AddonProfiles == nil {
-			managedCluster.Spec.AddonProfiles = map[string]asocontainerservicev1.ManagedClusterAddonProfile{}
+		if spec.AddonProfiles == nil {
+			spec.AddonProfiles = map[string]asocontainerservicev1.ManagedClusterAddonProfile{}
 		}
 		item := s.AddonProfiles[i]
 		addonProfile := asocontainerservicev1.ManagedClusterAddonProfile{
@@ -404,46 +406,46 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontai
 		if item.Config != nil {
 			addonProfile.Config = item.Config
 		}
-		managedCluster.Spec.AddonProfiles[item.Name] = addonProfile
+		spec.AddonProfiles[item.Name] = addonProfile
 	}
 
 	if s.SKU != nil {
 		tierName := asocontainerservicev1.ManagedClusterSKU_Tier(s.SKU.Tier)
-		managedCluster.Spec.Sku = &asocontainerservicev1.ManagedClusterSKU{
+		spec.Sku = &asocontainerservicev1.ManagedClusterSKU{
 			Name: ptr.To(asocontainerservicev1.ManagedClusterSKU_Name("Base")),
 			Tier: ptr.To(tierName),
 		}
 	}
 
 	if s.LoadBalancerProfile != nil {
-		managedCluster.Spec.NetworkProfile.LoadBalancerProfile = s.GetLoadBalancerProfile()
+		spec.NetworkProfile.LoadBalancerProfile = s.GetLoadBalancerProfile()
 	}
 
 	if s.APIServerAccessProfile != nil {
-		managedCluster.Spec.ApiServerAccessProfile = &asocontainerservicev1.ManagedClusterAPIServerAccessProfile{
+		spec.ApiServerAccessProfile = &asocontainerservicev1.ManagedClusterAPIServerAccessProfile{
 			EnablePrivateCluster:           s.APIServerAccessProfile.EnablePrivateCluster,
 			PrivateDNSZone:                 s.APIServerAccessProfile.PrivateDNSZone,
 			EnablePrivateClusterPublicFQDN: s.APIServerAccessProfile.EnablePrivateClusterPublicFQDN,
 		}
 
 		if s.APIServerAccessProfile.AuthorizedIPRanges != nil {
-			managedCluster.Spec.ApiServerAccessProfile.AuthorizedIPRanges = s.APIServerAccessProfile.AuthorizedIPRanges
+			spec.ApiServerAccessProfile.AuthorizedIPRanges = s.APIServerAccessProfile.AuthorizedIPRanges
 		}
 	}
 
 	if s.OutboundType != nil {
-		managedCluster.Spec.NetworkProfile.OutboundType = ptr.To(asocontainerservicev1.ContainerServiceNetworkProfile_OutboundType(*s.OutboundType))
+		spec.NetworkProfile.OutboundType = ptr.To(asocontainerservicev1.ContainerServiceNetworkProfile_OutboundType(*s.OutboundType))
 	}
 
 	if s.Identity != nil {
-		managedCluster.Spec.Identity, err = getIdentity(s.Identity)
+		spec.Identity, err = getIdentity(s.Identity)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Identity is not valid: %s", err)
 		}
 	}
 
 	if s.KubeletUserAssignedIdentity != "" {
-		managedCluster.Spec.IdentityProfile = map[string]asocontainerservicev1.UserAssignedIdentity{
+		spec.IdentityProfile = map[string]asocontainerservicev1.UserAssignedIdentity{
 			kubeletIdentityKey: {
 				ResourceReference: &genruntime.ResourceReference{
 					ARMID: s.KubeletUserAssignedIdentity,
@@ -453,19 +455,19 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontai
 	}
 
 	if s.HTTPProxyConfig != nil {
-		managedCluster.Spec.HttpProxyConfig = &asocontainerservicev1.ManagedClusterHTTPProxyConfig{
+		spec.HttpProxyConfig = &asocontainerservicev1.ManagedClusterHTTPProxyConfig{
 			HttpProxy:  s.HTTPProxyConfig.HTTPProxy,
 			HttpsProxy: s.HTTPProxyConfig.HTTPSProxy,
 			TrustedCa:  s.HTTPProxyConfig.TrustedCA,
 		}
 
 		if s.HTTPProxyConfig.NoProxy != nil {
-			managedCluster.Spec.HttpProxyConfig.NoProxy = s.HTTPProxyConfig.NoProxy
+			spec.HttpProxyConfig.NoProxy = s.HTTPProxyConfig.NoProxy
 		}
 	}
 
 	if s.OIDCIssuerProfile != nil {
-		managedCluster.Spec.OidcIssuerProfile = &asocontainerservicev1.ManagedClusterOIDCIssuerProfile{
+		spec.OidcIssuerProfile = &asocontainerservicev1.ManagedClusterOIDCIssuerProfile{
 			Enabled: s.OIDCIssuerProfile.Enabled,
 		}
 	}

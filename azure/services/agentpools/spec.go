@@ -171,36 +171,35 @@ func (s *AgentPoolSpec) Parameters(ctx context.Context, existing *asocontainerse
 		agentPool = &asocontainerservicev1.ManagedClustersAgentPool{}
 	}
 
-	agentPool.Spec = asocontainerservicev1.ManagedClusters_AgentPool_Spec{
-		AzureName: s.AzureName,
-		Owner: &genruntime.KnownResourceReference{
-			Name: s.Cluster,
-		},
-		AvailabilityZones:   s.AvailabilityZones,
-		Count:               &s.Replicas,
-		EnableAutoScaling:   ptr.To(s.EnableAutoScaling),
-		EnableUltraSSD:      s.EnableUltraSSD,
-		KubeletDiskType:     azure.AliasOrNil[asocontainerservicev1.KubeletDiskType]((*string)(s.KubeletDiskType)),
-		MaxCount:            s.MaxCount,
-		MaxPods:             s.MaxPods,
-		MinCount:            s.MinCount,
-		Mode:                ptr.To(asocontainerservicev1.AgentPoolMode(s.Mode)),
-		NodeLabels:          s.NodeLabels,
-		NodeTaints:          s.NodeTaints,
-		OrchestratorVersion: s.Version,
-		OsDiskSizeGB:        ptr.To(asocontainerservicev1.ContainerServiceOSDisk(s.OSDiskSizeGB)),
-		OsDiskType:          azure.AliasOrNil[asocontainerservicev1.OSDiskType](s.OsDiskType),
-		OsType:              azure.AliasOrNil[asocontainerservicev1.OSType](s.OSType),
-		ScaleSetPriority:    azure.AliasOrNil[asocontainerservicev1.ScaleSetPriority](s.ScaleSetPriority),
-		ScaleDownMode:       azure.AliasOrNil[asocontainerservicev1.ScaleDownMode](s.ScaleDownMode),
-		Type:                ptr.To(asocontainerservicev1.AgentPoolType_VirtualMachineScaleSets),
-		EnableNodePublicIP:  s.EnableNodePublicIP,
-		Tags:                s.AdditionalTags,
-		EnableFIPS:          s.EnableFIPS,
+	spec := &agentPool.Spec
+	spec.AzureName = s.AzureName
+	spec.Owner = &genruntime.KnownResourceReference{
+		Name: s.Cluster,
 	}
+	spec.AvailabilityZones = s.AvailabilityZones
+	spec.Count = &s.Replicas
+	spec.EnableAutoScaling = ptr.To(s.EnableAutoScaling)
+	spec.EnableUltraSSD = s.EnableUltraSSD
+	spec.KubeletDiskType = azure.AliasOrNil[asocontainerservicev1.KubeletDiskType]((*string)(s.KubeletDiskType))
+	spec.MaxCount = s.MaxCount
+	spec.MaxPods = s.MaxPods
+	spec.MinCount = s.MinCount
+	spec.Mode = ptr.To(asocontainerservicev1.AgentPoolMode(s.Mode))
+	spec.NodeLabels = s.NodeLabels
+	spec.NodeTaints = s.NodeTaints
+	spec.OrchestratorVersion = s.Version
+	spec.OsDiskSizeGB = ptr.To(asocontainerservicev1.ContainerServiceOSDisk(s.OSDiskSizeGB))
+	spec.OsDiskType = azure.AliasOrNil[asocontainerservicev1.OSDiskType](s.OsDiskType)
+	spec.OsType = azure.AliasOrNil[asocontainerservicev1.OSType](s.OSType)
+	spec.ScaleSetPriority = azure.AliasOrNil[asocontainerservicev1.ScaleSetPriority](s.ScaleSetPriority)
+	spec.ScaleDownMode = azure.AliasOrNil[asocontainerservicev1.ScaleDownMode](s.ScaleDownMode)
+	spec.Type = ptr.To(asocontainerservicev1.AgentPoolType_VirtualMachineScaleSets)
+	spec.EnableNodePublicIP = s.EnableNodePublicIP
+	spec.Tags = s.AdditionalTags
+	spec.EnableFIPS = s.EnableFIPS
 
 	if s.KubeletConfig != nil {
-		agentPool.Spec.KubeletConfig = &asocontainerservicev1.KubeletConfig{
+		spec.KubeletConfig = &asocontainerservicev1.KubeletConfig{
 			CpuManagerPolicy:      s.KubeletConfig.CPUManagerPolicy,
 			CpuCfsQuota:           s.KubeletConfig.CPUCfsQuota,
 			CpuCfsQuotaPeriod:     s.KubeletConfig.CPUCfsQuotaPeriod,
@@ -216,33 +215,33 @@ func (s *AgentPoolSpec) Parameters(ctx context.Context, existing *asocontainerse
 	}
 
 	if s.SKU != "" {
-		agentPool.Spec.VmSize = &s.SKU
+		spec.VmSize = &s.SKU
 	}
 
 	if s.SpotMaxPrice != nil {
-		agentPool.Spec.SpotMaxPrice = ptr.To(s.SpotMaxPrice.AsApproximateFloat64())
+		spec.SpotMaxPrice = ptr.To(s.SpotMaxPrice.AsApproximateFloat64())
 	}
 
 	if s.VnetSubnetID != "" {
-		agentPool.Spec.VnetSubnetReference = &genruntime.ResourceReference{
+		spec.VnetSubnetReference = &genruntime.ResourceReference{
 			ARMID: s.VnetSubnetID,
 		}
 	}
 
 	if s.NodePublicIPPrefixID != "" {
-		agentPool.Spec.NodePublicIPPrefixReference = &genruntime.ResourceReference{
+		spec.NodePublicIPPrefixReference = &genruntime.ResourceReference{
 			ARMID: s.NodePublicIPPrefixID,
 		}
 	}
 
 	if s.LinuxOSConfig != nil {
-		agentPool.Spec.LinuxOSConfig = &asocontainerservicev1.LinuxOSConfig{
+		spec.LinuxOSConfig = &asocontainerservicev1.LinuxOSConfig{
 			SwapFileSizeMB:             s.LinuxOSConfig.SwapFileSizeMB,
 			TransparentHugePageEnabled: (*string)(s.LinuxOSConfig.TransparentHugePageEnabled),
 			TransparentHugePageDefrag:  (*string)(s.LinuxOSConfig.TransparentHugePageDefrag),
 		}
 		if s.LinuxOSConfig.Sysctls != nil {
-			agentPool.Spec.LinuxOSConfig.Sysctls = &asocontainerservicev1.SysctlConfig{
+			spec.LinuxOSConfig.Sysctls = &asocontainerservicev1.SysctlConfig{
 				FsAioMaxNr:                     s.LinuxOSConfig.Sysctls.FsAioMaxNr,
 				FsFileMax:                      s.LinuxOSConfig.Sysctls.FsFileMax,
 				FsInotifyMaxUserWatches:        s.LinuxOSConfig.Sysctls.FsInotifyMaxUserWatches,
@@ -279,7 +278,7 @@ func (s *AgentPoolSpec) Parameters(ctx context.Context, existing *asocontainerse
 	// count present in MachinePool or AzureManagedMachinePool, hence we should not make an update API call based
 	// on difference in count.
 	if s.EnableAutoScaling && agentPool.Status.Count != nil {
-		agentPool.Spec.Count = agentPool.Status.Count
+		spec.Count = agentPool.Status.Count
 	}
 
 	return agentPool, nil

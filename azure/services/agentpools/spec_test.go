@@ -204,15 +204,6 @@ func TestParameters(t *testing.T) {
 		},
 		{
 			name: "parameters with an existing agent pool and update needed on spot max price",
-			spec: fakeAgentPool(),
-			existing: sdkFakeAgentPool(
-				sdkWithSpotMaxPrice(123.456),
-			),
-			expected:      sdkFakeAgentPool(),
-			expectedError: nil,
-		},
-		{
-			name: "parameters with an existing agent pool and update needed on spot max price",
 			spec: fakeAgentPool(
 				withSpotMaxPrice("789.12345"),
 			),
@@ -306,6 +297,25 @@ func TestParameters(t *testing.T) {
 			),
 			expectNoChange: true,
 			expectedError:  nil,
+		},
+		{
+			name: "user-supplied spec values persist",
+			spec: fakeAgentPool(),
+			existing: sdkFakeAgentPool(
+				func(pool *asocontainerservicev1.ManagedClustersAgentPool) {
+					pool.Spec.PowerState = &asocontainerservicev1.PowerState{
+						Code: ptr.To[asocontainerservicev1.PowerState_Code]("some value"),
+					}
+				},
+			),
+			expected: sdkFakeAgentPool(
+				func(pool *asocontainerservicev1.ManagedClustersAgentPool) {
+					pool.Spec.PowerState = &asocontainerservicev1.PowerState{
+						Code: ptr.To[asocontainerservicev1.PowerState_Code]("some value"),
+					}
+				},
+			),
+			expectedError: nil,
 		},
 	}
 	for _, tc := range testcases {

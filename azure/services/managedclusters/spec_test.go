@@ -495,6 +495,9 @@ func getExistingCluster() *asocontainerservicev1.ManagedCluster {
 	mc.Spec.Tags[infrav1.ClusterTagKey("")] = mc.Spec.Tags[infrav1.ClusterTagKey("test-cluster")]
 	delete(mc.Spec.Tags, infrav1.ClusterTagKey("test-cluster"))
 
+	// field that CAPZ does not manage, simulating user-supplied value
+	mc.Spec.EnablePodSecurityPolicy = ptr.To(true)
+
 	mc.Spec.AgentPoolProfiles = nil
 	// only nil vs. non-nil matters here
 	mc.Status.AgentPoolProfiles = []asocontainerservicev1.ManagedClusterAgentPoolProfile_STATUS{}
