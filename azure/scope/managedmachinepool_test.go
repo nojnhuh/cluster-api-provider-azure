@@ -901,18 +901,18 @@ func getAzureMachinePool(name string, mode infrav1.NodePoolMode) *infrav1.AzureM
 	}
 }
 
-func getAzureMachinePoolWithScaling(name string, min, max int32) *infrav1.AzureManagedMachinePool {
+func getAzureMachinePoolWithScaling(name string, min, max int) *infrav1.AzureManagedMachinePool {
 	managedPool := getAzureMachinePool(name, infrav1.NodePoolModeUser)
 	managedPool.Spec.Scaling = &infrav1.ManagedMachinePoolScaling{
-		MinSize: ptr.To[int32](min),
-		MaxSize: ptr.To[int32](max),
+		MinSize: ptr.To(min),
+		MaxSize: ptr.To(max),
 	}
 	return managedPool
 }
 
-func getAzureMachinePoolWithMaxPods(name string, maxPods int32) *infrav1.AzureManagedMachinePool {
+func getAzureMachinePoolWithMaxPods(name string, maxPods int) *infrav1.AzureManagedMachinePool {
 	managedPool := getAzureMachinePool(name, infrav1.NodePoolModeSystem)
-	managedPool.Spec.MaxPods = ptr.To[int32](maxPods)
+	managedPool.Spec.MaxPods = ptr.To(maxPods)
 	return managedPool
 }
 

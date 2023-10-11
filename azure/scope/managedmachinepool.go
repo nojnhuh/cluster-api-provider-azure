@@ -28,7 +28,6 @@ import (
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/agentpools"
 	"sigs.k8s.io/cluster-api-provider-azure/util/futures"
-	"sigs.k8s.io/cluster-api-provider-azure/util/pointers"
 	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	expv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
@@ -183,7 +182,7 @@ func buildAgentPoolSpec(managedControlPlane *infrav1.AzureManagedControlPlane,
 			ptr.Deref(getAgentPoolSubnet(managedControlPlane, managedMachinePool), ""),
 		),
 		Mode:                 managedMachinePool.Spec.Mode,
-		MaxPods:              pointers.ToUnsized(managedMachinePool.Spec.MaxPods),
+		MaxPods:              managedMachinePool.Spec.MaxPods,
 		AvailabilityZones:    managedMachinePool.Spec.AvailabilityZones,
 		OsDiskType:           managedMachinePool.Spec.OsDiskType,
 		EnableUltraSSD:       managedMachinePool.Spec.EnableUltraSSD,
@@ -212,8 +211,8 @@ func buildAgentPoolSpec(managedControlPlane *infrav1.AzureManagedControlPlane,
 
 	if managedMachinePool.Spec.Scaling != nil {
 		agentPoolSpec.EnableAutoScaling = true
-		agentPoolSpec.MaxCount = pointers.ToUnsized(managedMachinePool.Spec.Scaling.MaxSize)
-		agentPoolSpec.MinCount = pointers.ToUnsized(managedMachinePool.Spec.Scaling.MinSize)
+		agentPoolSpec.MaxCount = managedMachinePool.Spec.Scaling.MaxSize
+		agentPoolSpec.MinCount = managedMachinePool.Spec.Scaling.MinSize
 	}
 
 	if len(managedMachinePool.Spec.NodeLabels) > 0 {
@@ -225,13 +224,13 @@ func buildAgentPoolSpec(managedControlPlane *infrav1.AzureManagedControlPlane,
 			CPUManagerPolicy:      (*string)(managedMachinePool.Spec.KubeletConfig.CPUManagerPolicy),
 			CPUCfsQuota:           managedMachinePool.Spec.KubeletConfig.CPUCfsQuota,
 			CPUCfsQuotaPeriod:     managedMachinePool.Spec.KubeletConfig.CPUCfsQuotaPeriod,
-			ImageGcHighThreshold:  pointers.ToUnsized(managedMachinePool.Spec.KubeletConfig.ImageGcHighThreshold),
-			ImageGcLowThreshold:   pointers.ToUnsized(managedMachinePool.Spec.KubeletConfig.ImageGcLowThreshold),
+			ImageGcHighThreshold:  managedMachinePool.Spec.KubeletConfig.ImageGcHighThreshold,
+			ImageGcLowThreshold:   managedMachinePool.Spec.KubeletConfig.ImageGcLowThreshold,
 			TopologyManagerPolicy: (*string)(managedMachinePool.Spec.KubeletConfig.TopologyManagerPolicy),
 			FailSwapOn:            managedMachinePool.Spec.KubeletConfig.FailSwapOn,
-			ContainerLogMaxSizeMB: pointers.ToUnsized(managedMachinePool.Spec.KubeletConfig.ContainerLogMaxSizeMB),
-			ContainerLogMaxFiles:  pointers.ToUnsized(managedMachinePool.Spec.KubeletConfig.ContainerLogMaxFiles),
-			PodMaxPids:            pointers.ToUnsized(managedMachinePool.Spec.KubeletConfig.PodMaxPids),
+			ContainerLogMaxSizeMB: managedMachinePool.Spec.KubeletConfig.ContainerLogMaxSizeMB,
+			ContainerLogMaxFiles:  managedMachinePool.Spec.KubeletConfig.ContainerLogMaxFiles,
+			PodMaxPids:            managedMachinePool.Spec.KubeletConfig.PodMaxPids,
 		}
 		if len(managedMachinePool.Spec.KubeletConfig.AllowedUnsafeSysctls) > 0 {
 			agentPoolSpec.KubeletConfig.AllowedUnsafeSysctls = managedMachinePool.Spec.KubeletConfig.AllowedUnsafeSysctls

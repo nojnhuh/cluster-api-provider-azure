@@ -36,7 +36,6 @@ import (
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/subnets"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/virtualnetworks"
 	"sigs.k8s.io/cluster-api-provider-azure/util/futures"
-	"sigs.k8s.io/cluster-api-provider-azure/util/pointers"
 	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
@@ -526,11 +525,11 @@ func (s *ManagedControlPlaneScope) ManagedClusterSpec() azure.ASOResourceSpecGet
 
 	if s.ControlPlane.Spec.LoadBalancerProfile != nil {
 		managedClusterSpec.LoadBalancerProfile = &managedclusters.LoadBalancerProfile{
-			ManagedOutboundIPs:     pointers.ToUnsized(s.ControlPlane.Spec.LoadBalancerProfile.ManagedOutboundIPs),
+			ManagedOutboundIPs:     s.ControlPlane.Spec.LoadBalancerProfile.ManagedOutboundIPs,
 			OutboundIPPrefixes:     s.ControlPlane.Spec.LoadBalancerProfile.OutboundIPPrefixes,
 			OutboundIPs:            s.ControlPlane.Spec.LoadBalancerProfile.OutboundIPs,
-			AllocatedOutboundPorts: pointers.ToUnsized(s.ControlPlane.Spec.LoadBalancerProfile.AllocatedOutboundPorts),
-			IdleTimeoutInMinutes:   pointers.ToUnsized(s.ControlPlane.Spec.LoadBalancerProfile.IdleTimeoutInMinutes),
+			AllocatedOutboundPorts: s.ControlPlane.Spec.LoadBalancerProfile.AllocatedOutboundPorts,
+			IdleTimeoutInMinutes:   s.ControlPlane.Spec.LoadBalancerProfile.IdleTimeoutInMinutes,
 		}
 	}
 

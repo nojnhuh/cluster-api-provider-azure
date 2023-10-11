@@ -248,7 +248,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 					Mode:         "System",
 					SKU:          "StandardD2S_V3",
 					OSDiskSizeGB: ptr.To[int32](512),
-					MaxPods:      ptr.To[int32](24),
+					MaxPods:      ptr.To(24),
 				},
 			},
 			old: &AzureManagedMachinePool{
@@ -256,7 +256,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 					Mode:         "System",
 					SKU:          "StandardD2S_V3",
 					OSDiskSizeGB: ptr.To[int32](512),
-					MaxPods:      ptr.To[int32](25),
+					MaxPods:      ptr.To(25),
 				},
 			},
 			wantErr: true,
@@ -268,7 +268,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 					Mode:         "System",
 					SKU:          "StandardD2S_V3",
 					OSDiskSizeGB: ptr.To[int32](512),
-					MaxPods:      ptr.To[int32](30),
+					MaxPods:      ptr.To(30),
 				},
 			},
 			old: &AzureManagedMachinePool{
@@ -276,7 +276,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 					Mode:         "System",
 					SKU:          "StandardD2S_V3",
 					OSDiskSizeGB: ptr.To[int32](512),
-					MaxPods:      ptr.To[int32](30),
+					MaxPods:      ptr.To(30),
 				},
 			},
 			wantErr: false,
@@ -288,7 +288,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 					Mode:         "System",
 					SKU:          "StandardD2S_V3",
 					OSDiskSizeGB: ptr.To[int32](512),
-					MaxPods:      ptr.To[int32](24),
+					MaxPods:      ptr.To(24),
 					OsDiskType:   ptr.To(string(asocontainerservicev1.OSDiskType_Ephemeral)),
 				},
 			},
@@ -297,7 +297,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 					Mode:         "System",
 					SKU:          "StandardD2S_V3",
 					OSDiskSizeGB: ptr.To[int32](512),
-					MaxPods:      ptr.To[int32](24),
+					MaxPods:      ptr.To(24),
 					OsDiskType:   ptr.To(string(asocontainerservicev1.OSDiskType_Managed)),
 				},
 			},
@@ -310,7 +310,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 					Mode:         "System",
 					SKU:          "StandardD2S_V3",
 					OSDiskSizeGB: ptr.To[int32](512),
-					MaxPods:      ptr.To[int32](30),
+					MaxPods:      ptr.To(30),
 					OsDiskType:   ptr.To(string(asocontainerservicev1.OSDiskType_Managed)),
 				},
 			},
@@ -319,7 +319,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 					Mode:         "System",
 					SKU:          "StandardD2S_V3",
 					OSDiskSizeGB: ptr.To[int32](512),
-					MaxPods:      ptr.To[int32](30),
+					MaxPods:      ptr.To(30),
 					OsDiskType:   ptr.To(string(asocontainerservicev1.OSDiskType_Managed)),
 				},
 			},
@@ -449,14 +449,14 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 			new: &AzureManagedMachinePool{
 				Spec: AzureManagedMachinePoolSpec{
 					LinuxOSConfig: &LinuxOSConfig{
-						SwapFileSizeMB: ptr.To[int32](10),
+						SwapFileSizeMB: ptr.To(10),
 					},
 				},
 			},
 			old: &AzureManagedMachinePool{
 				Spec: AzureManagedMachinePoolSpec{
 					LinuxOSConfig: &LinuxOSConfig{
-						SwapFileSizeMB: ptr.To[int32](5),
+						SwapFileSizeMB: ptr.To(5),
 					},
 				},
 			},
@@ -556,7 +556,7 @@ func TestAzureManagedMachinePool_ValidateCreate(t *testing.T) {
 			name: "another valid permutation",
 			ammp: &AzureManagedMachinePool{
 				Spec: AzureManagedMachinePoolSpec{
-					MaxPods:    ptr.To[int32](249),
+					MaxPods:    ptr.To(249),
 					OsDiskType: ptr.To(string(asocontainerservicev1.OSDiskType_Managed)),
 				},
 			},
@@ -573,7 +573,7 @@ func TestAzureManagedMachinePool_ValidateCreate(t *testing.T) {
 			name: "too many MaxPods",
 			ammp: &AzureManagedMachinePool{
 				Spec: AzureManagedMachinePoolSpec{
-					MaxPods: ptr.To[int32](251),
+					MaxPods: ptr.To(251),
 				},
 			},
 			wantErr:  true,
@@ -689,7 +689,7 @@ func TestAzureManagedMachinePool_ValidateCreate(t *testing.T) {
 			name: "too few MaxPods",
 			ammp: &AzureManagedMachinePool{
 				Spec: AzureManagedMachinePoolSpec{
-					MaxPods: ptr.To[int32](9),
+					MaxPods: ptr.To(9),
 				},
 			},
 			wantErr:  true,
@@ -876,8 +876,8 @@ func TestAzureManagedMachinePool_ValidateCreate(t *testing.T) {
 			ammp: &AzureManagedMachinePool{
 				Spec: AzureManagedMachinePoolSpec{
 					KubeletConfig: &KubeletConfig{
-						ImageGcLowThreshold:  ptr.To[int32](100),
-						ImageGcHighThreshold: ptr.To[int32](99),
+						ImageGcLowThreshold:  ptr.To(100),
+						ImageGcHighThreshold: ptr.To(99),
 					},
 				},
 			},
@@ -889,8 +889,8 @@ func TestAzureManagedMachinePool_ValidateCreate(t *testing.T) {
 			ammp: &AzureManagedMachinePool{
 				Spec: AzureManagedMachinePoolSpec{
 					KubeletConfig: &KubeletConfig{
-						ImageGcLowThreshold:  ptr.To[int32](99),
-						ImageGcHighThreshold: ptr.To[int32](100),
+						ImageGcLowThreshold:  ptr.To(99),
+						ImageGcHighThreshold: ptr.To(100),
 					},
 				},
 			},
@@ -1040,7 +1040,7 @@ func TestAzureManagedMachinePool_ValidateCreate(t *testing.T) {
 						FailSwapOn: ptr.To(false),
 					},
 					LinuxOSConfig: &LinuxOSConfig{
-						SwapFileSizeMB: ptr.To[int32](1500),
+						SwapFileSizeMB: ptr.To(1500),
 					},
 				},
 			},
@@ -1054,7 +1054,7 @@ func TestAzureManagedMachinePool_ValidateCreate(t *testing.T) {
 						FailSwapOn: ptr.To(true),
 					},
 					LinuxOSConfig: &LinuxOSConfig{
-						SwapFileSizeMB: ptr.To[int32](1500),
+						SwapFileSizeMB: ptr.To(1500),
 					},
 				},
 			},
@@ -1066,7 +1066,7 @@ func TestAzureManagedMachinePool_ValidateCreate(t *testing.T) {
 			ammp: &AzureManagedMachinePool{
 				Spec: AzureManagedMachinePoolSpec{
 					LinuxOSConfig: &LinuxOSConfig{
-						SwapFileSizeMB: ptr.To[int32](1500),
+						SwapFileSizeMB: ptr.To(1500),
 					},
 				},
 			},
@@ -1210,7 +1210,7 @@ func TestAzureManagedMachinePool_validateLastSystemNodePool(t *testing.T) {
 func getKnownValidAzureManagedMachinePool() *AzureManagedMachinePool {
 	return &AzureManagedMachinePool{
 		Spec: AzureManagedMachinePoolSpec{
-			MaxPods:    ptr.To[int32](30),
+			MaxPods:    ptr.To(30),
 			OsDiskType: ptr.To(string(asocontainerservicev1.OSDiskType_Ephemeral)),
 		},
 	}

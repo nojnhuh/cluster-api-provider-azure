@@ -294,7 +294,7 @@ type AKSSku struct {
 type LoadBalancerProfile struct {
 	// ManagedOutboundIPs - Desired managed outbound IPs for the cluster load balancer.
 	// +optional
-	ManagedOutboundIPs *int32 `json:"managedOutboundIPs,omitempty"`
+	ManagedOutboundIPs *int `json:"managedOutboundIPs,omitempty"`
 
 	// OutboundIPPrefixes - Desired outbound IP Prefix resources for the cluster load balancer.
 	// +optional
@@ -306,11 +306,11 @@ type LoadBalancerProfile struct {
 
 	// AllocatedOutboundPorts - Desired number of allocated SNAT ports per VM. Allowed values must be in the range of 0 to 64000 (inclusive). The default value is 0 which results in Azure dynamically allocating ports.
 	// +optional
-	AllocatedOutboundPorts *int32 `json:"allocatedOutboundPorts,omitempty"`
+	AllocatedOutboundPorts *int `json:"allocatedOutboundPorts,omitempty"`
 
 	// IdleTimeoutInMinutes - Desired outbound flow idle timeout in minutes. Allowed values must be in the range of 4 to 120 (inclusive). The default value is 30 minutes.
 	// +optional
-	IdleTimeoutInMinutes *int32 `json:"idleTimeoutInMinutes,omitempty"`
+	IdleTimeoutInMinutes *int `json:"idleTimeoutInMinutes,omitempty"`
 }
 
 // APIServerAccessProfile tunes the accessibility of the cluster's control plane.

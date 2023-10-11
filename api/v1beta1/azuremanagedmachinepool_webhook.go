@@ -327,7 +327,7 @@ func (m *AzureManagedMachinePool) validateLastSystemNodePool(cli client.Client) 
 
 func (m *AzureManagedMachinePool) validateMaxPods() error {
 	if m.Spec.MaxPods != nil {
-		if ptr.Deref[int32](m.Spec.MaxPods, 0) < 10 || ptr.Deref[int32](m.Spec.MaxPods, 0) > 250 {
+		if ptr.Deref(m.Spec.MaxPods, 0) < 10 || ptr.Deref(m.Spec.MaxPods, 0) > 250 {
 			return field.Invalid(
 				field.NewPath("Spec", "MaxPods"),
 				m.Spec.MaxPods,
@@ -473,12 +473,12 @@ func (m *AzureManagedMachinePool) validateKubeletConfig() error {
 			}
 		}
 		if m.Spec.KubeletConfig.ImageGcHighThreshold != nil && m.Spec.KubeletConfig.ImageGcLowThreshold != nil {
-			if ptr.Deref[int32](m.Spec.KubeletConfig.ImageGcLowThreshold, 0) > ptr.Deref[int32](m.Spec.KubeletConfig.ImageGcHighThreshold, 0) {
+			if ptr.Deref(m.Spec.KubeletConfig.ImageGcLowThreshold, 0) > ptr.Deref(m.Spec.KubeletConfig.ImageGcHighThreshold, 0) {
 				return field.Invalid(
 					field.NewPath("Spec", "KubeletConfig", "ImageGcLowThreshold"),
 					m.Spec.KubeletConfig.ImageGcLowThreshold,
 					fmt.Sprintf("must not be greater than ImageGcHighThreshold, ImageGcLowThreshold=%d, ImageGcHighThreshold=%d",
-						ptr.Deref[int32](m.Spec.KubeletConfig.ImageGcLowThreshold, 0), ptr.Deref[int32](m.Spec.KubeletConfig.ImageGcHighThreshold, 0)))
+						ptr.Deref(m.Spec.KubeletConfig.ImageGcLowThreshold, 0), ptr.Deref(m.Spec.KubeletConfig.ImageGcHighThreshold, 0)))
 			}
 		}
 		for _, val := range m.Spec.KubeletConfig.AllowedUnsafeSysctls {

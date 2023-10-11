@@ -233,9 +233,9 @@ func TestValidatingWebhook(t *testing.T) {
 				Spec: AzureManagedControlPlaneSpec{
 					Version: "v1.21.2",
 					LoadBalancerProfile: &LoadBalancerProfile{
-						ManagedOutboundIPs:     ptr.To[int32](10),
-						AllocatedOutboundPorts: ptr.To[int32](1000),
-						IdleTimeoutInMinutes:   ptr.To[int32](60),
+						ManagedOutboundIPs:     ptr.To(10),
+						AllocatedOutboundPorts: ptr.To(1000),
+						IdleTimeoutInMinutes:   ptr.To(60),
 					},
 				},
 			},
@@ -248,7 +248,7 @@ func TestValidatingWebhook(t *testing.T) {
 				Spec: AzureManagedControlPlaneSpec{
 					Version: "v1.21.2",
 					LoadBalancerProfile: &LoadBalancerProfile{
-						ManagedOutboundIPs: ptr.To[int32](200),
+						ManagedOutboundIPs: ptr.To(200),
 					},
 				},
 			},
@@ -261,7 +261,7 @@ func TestValidatingWebhook(t *testing.T) {
 				Spec: AzureManagedControlPlaneSpec{
 					Version: "v1.21.2",
 					LoadBalancerProfile: &LoadBalancerProfile{
-						AllocatedOutboundPorts: ptr.To[int32](80000),
+						AllocatedOutboundPorts: ptr.To(80000),
 					},
 				},
 			},
@@ -274,7 +274,7 @@ func TestValidatingWebhook(t *testing.T) {
 				Spec: AzureManagedControlPlaneSpec{
 					Version: "v1.21.2",
 					LoadBalancerProfile: &LoadBalancerProfile{
-						IdleTimeoutInMinutes: ptr.To[int32](600),
+						IdleTimeoutInMinutes: ptr.To(600),
 					},
 				},
 			},
@@ -287,7 +287,7 @@ func TestValidatingWebhook(t *testing.T) {
 				Spec: AzureManagedControlPlaneSpec{
 					Version: "v1.21.2",
 					LoadBalancerProfile: &LoadBalancerProfile{
-						ManagedOutboundIPs: ptr.To[int32](1),
+						ManagedOutboundIPs: ptr.To(1),
 						OutboundIPs: []string{
 							"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/foo-bar/providers/Microsoft.Network/publicIPAddresses/my-public-ip",
 						},

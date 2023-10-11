@@ -26,7 +26,6 @@ import (
 	"k8s.io/utils/ptr"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
-	"sigs.k8s.io/cluster-api-provider-azure/util/pointers"
 	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
 )
 
@@ -238,40 +237,40 @@ func (s *AgentPoolSpec) Parameters(ctx context.Context, existing *asocontainerse
 
 	if s.LinuxOSConfig != nil {
 		agentPool.Spec.LinuxOSConfig = &asocontainerservicev1.LinuxOSConfig{
-			SwapFileSizeMB:             pointers.ToUnsized(s.LinuxOSConfig.SwapFileSizeMB),
+			SwapFileSizeMB:             s.LinuxOSConfig.SwapFileSizeMB,
 			TransparentHugePageEnabled: (*string)(s.LinuxOSConfig.TransparentHugePageEnabled),
 			TransparentHugePageDefrag:  (*string)(s.LinuxOSConfig.TransparentHugePageDefrag),
 		}
 		if s.LinuxOSConfig.Sysctls != nil {
 			agentPool.Spec.LinuxOSConfig.Sysctls = &asocontainerservicev1.SysctlConfig{
-				FsAioMaxNr:                     pointers.ToUnsized(s.LinuxOSConfig.Sysctls.FsAioMaxNr),
-				FsFileMax:                      pointers.ToUnsized(s.LinuxOSConfig.Sysctls.FsFileMax),
-				FsInotifyMaxUserWatches:        pointers.ToUnsized(s.LinuxOSConfig.Sysctls.FsInotifyMaxUserWatches),
-				FsNrOpen:                       pointers.ToUnsized(s.LinuxOSConfig.Sysctls.FsNrOpen),
-				KernelThreadsMax:               pointers.ToUnsized(s.LinuxOSConfig.Sysctls.KernelThreadsMax),
-				NetCoreNetdevMaxBacklog:        pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetCoreNetdevMaxBacklog),
-				NetCoreOptmemMax:               pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetCoreOptmemMax),
-				NetCoreRmemDefault:             pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetCoreRmemDefault),
-				NetCoreRmemMax:                 pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetCoreRmemMax),
-				NetCoreSomaxconn:               pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetCoreSomaxconn),
-				NetCoreWmemDefault:             pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetCoreWmemDefault),
-				NetCoreWmemMax:                 pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetCoreWmemMax),
+				FsAioMaxNr:                     s.LinuxOSConfig.Sysctls.FsAioMaxNr,
+				FsFileMax:                      s.LinuxOSConfig.Sysctls.FsFileMax,
+				FsInotifyMaxUserWatches:        s.LinuxOSConfig.Sysctls.FsInotifyMaxUserWatches,
+				FsNrOpen:                       s.LinuxOSConfig.Sysctls.FsNrOpen,
+				KernelThreadsMax:               s.LinuxOSConfig.Sysctls.KernelThreadsMax,
+				NetCoreNetdevMaxBacklog:        s.LinuxOSConfig.Sysctls.NetCoreNetdevMaxBacklog,
+				NetCoreOptmemMax:               s.LinuxOSConfig.Sysctls.NetCoreOptmemMax,
+				NetCoreRmemDefault:             s.LinuxOSConfig.Sysctls.NetCoreRmemDefault,
+				NetCoreRmemMax:                 s.LinuxOSConfig.Sysctls.NetCoreRmemMax,
+				NetCoreSomaxconn:               s.LinuxOSConfig.Sysctls.NetCoreSomaxconn,
+				NetCoreWmemDefault:             s.LinuxOSConfig.Sysctls.NetCoreWmemDefault,
+				NetCoreWmemMax:                 s.LinuxOSConfig.Sysctls.NetCoreWmemMax,
 				NetIpv4IpLocalPortRange:        s.LinuxOSConfig.Sysctls.NetIpv4IPLocalPortRange,
-				NetIpv4NeighDefaultGcThresh1:   pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetIpv4NeighDefaultGcThresh1),
-				NetIpv4NeighDefaultGcThresh2:   pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetIpv4NeighDefaultGcThresh2),
-				NetIpv4NeighDefaultGcThresh3:   pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetIpv4NeighDefaultGcThresh3),
-				NetIpv4TcpFinTimeout:           pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetIpv4TCPFinTimeout),
-				NetIpv4TcpKeepaliveProbes:      pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetIpv4TCPKeepaliveProbes),
-				NetIpv4TcpKeepaliveTime:        pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetIpv4TCPKeepaliveTime),
-				NetIpv4TcpMaxSynBacklog:        pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetIpv4TCPMaxSynBacklog),
-				NetIpv4TcpMaxTwBuckets:         pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetIpv4TCPMaxTwBuckets),
+				NetIpv4NeighDefaultGcThresh1:   s.LinuxOSConfig.Sysctls.NetIpv4NeighDefaultGcThresh1,
+				NetIpv4NeighDefaultGcThresh2:   s.LinuxOSConfig.Sysctls.NetIpv4NeighDefaultGcThresh2,
+				NetIpv4NeighDefaultGcThresh3:   s.LinuxOSConfig.Sysctls.NetIpv4NeighDefaultGcThresh3,
+				NetIpv4TcpFinTimeout:           s.LinuxOSConfig.Sysctls.NetIpv4TCPFinTimeout,
+				NetIpv4TcpKeepaliveProbes:      s.LinuxOSConfig.Sysctls.NetIpv4TCPKeepaliveProbes,
+				NetIpv4TcpKeepaliveTime:        s.LinuxOSConfig.Sysctls.NetIpv4TCPKeepaliveTime,
+				NetIpv4TcpMaxSynBacklog:        s.LinuxOSConfig.Sysctls.NetIpv4TCPMaxSynBacklog,
+				NetIpv4TcpMaxTwBuckets:         s.LinuxOSConfig.Sysctls.NetIpv4TCPMaxTwBuckets,
 				NetIpv4TcpTwReuse:              s.LinuxOSConfig.Sysctls.NetIpv4TCPTwReuse,
-				NetIpv4TcpkeepaliveIntvl:       pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetIpv4TCPkeepaliveIntvl),
-				NetNetfilterNfConntrackBuckets: pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetNetfilterNfConntrackBuckets),
-				NetNetfilterNfConntrackMax:     pointers.ToUnsized(s.LinuxOSConfig.Sysctls.NetNetfilterNfConntrackMax),
-				VmMaxMapCount:                  pointers.ToUnsized(s.LinuxOSConfig.Sysctls.VMMaxMapCount),
-				VmSwappiness:                   pointers.ToUnsized(s.LinuxOSConfig.Sysctls.VMSwappiness),
-				VmVfsCachePressure:             pointers.ToUnsized(s.LinuxOSConfig.Sysctls.VMVfsCachePressure),
+				NetIpv4TcpkeepaliveIntvl:       s.LinuxOSConfig.Sysctls.NetIpv4TCPkeepaliveIntvl,
+				NetNetfilterNfConntrackBuckets: s.LinuxOSConfig.Sysctls.NetNetfilterNfConntrackBuckets,
+				NetNetfilterNfConntrackMax:     s.LinuxOSConfig.Sysctls.NetNetfilterNfConntrackMax,
+				VmMaxMapCount:                  s.LinuxOSConfig.Sysctls.VMMaxMapCount,
+				VmSwappiness:                   s.LinuxOSConfig.Sysctls.VMSwappiness,
+				VmVfsCachePressure:             s.LinuxOSConfig.Sysctls.VMVfsCachePressure,
 			}
 		}
 	}
