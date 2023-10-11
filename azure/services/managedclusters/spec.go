@@ -481,6 +481,7 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontai
 			return nil, errors.Wrapf(err, "failed to get agent pool specs for managed cluster %s", s.Name)
 		}
 
+		spec.AgentPoolProfiles = nil
 		for _, spec := range agentPoolSpecs {
 			agentPool, err := spec.Parameters(ctx, nil)
 			if err != nil {
