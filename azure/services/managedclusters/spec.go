@@ -474,6 +474,7 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontai
 
 	// Only include AgentPoolProfiles during initial cluster creation. Agent pools are managed solely by the
 	// AzureManagedMachinePool controller thereafter.
+	spec.AgentPoolProfiles = nil
 	if managedCluster.Status.AgentPoolProfiles == nil {
 		// Add all agent pools to cluster spec that will be submitted to the API
 		agentPoolSpecs, err := s.GetAllAgentPools()
@@ -481,7 +482,6 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontai
 			return nil, errors.Wrapf(err, "failed to get agent pool specs for managed cluster %s", s.Name)
 		}
 
-		spec.AgentPoolProfiles = nil
 		for _, spec := range agentPoolSpecs {
 			agentPool, err := spec.Parameters(ctx, nil)
 			if err != nil {
