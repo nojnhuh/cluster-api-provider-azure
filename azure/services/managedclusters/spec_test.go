@@ -409,7 +409,7 @@ func TestParameters(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			format.MaxLength = 10000
 			g := NewWithT(t)
-			t.Parallel()
+			// t.Parallel()
 
 			result, err := tc.spec.Parameters(context.TODO(), tc.existing)
 			if tc.expectedError != "" {
@@ -491,7 +491,8 @@ func getExistingCluster() *asocontainerservicev1.ManagedCluster {
 	mc.Spec.LinuxProfile = nil
 	mc.Spec.NetworkProfile.NetworkPluginMode = nil
 	mc.Spec.NodeResourceGroup = ptr.To("")
-	mc.Spec.OperatorSpec.Secrets.AdminCredentials.Name = "-kubeconfig"
+	mc.Spec.OperatorSpec.Secrets.AdminCredentials.Name = "-aso-kubeconfig"
+	mc.Spec.OperatorSpec.Secrets.UserCredentials.Name = "-user-aso-kubeconfig"
 	mc.Spec.Tags[infrav1.ClusterTagKey("")] = mc.Spec.Tags[infrav1.ClusterTagKey("test-cluster")]
 	delete(mc.Spec.Tags, infrav1.ClusterTagKey("test-cluster"))
 
@@ -581,7 +582,11 @@ func getSampleManagedCluster() *asocontainerservicev1.ManagedCluster {
 			OperatorSpec: &asocontainerservicev1.ManagedClusterOperatorSpec{
 				Secrets: &asocontainerservicev1.ManagedClusterOperatorSecrets{
 					AdminCredentials: &genruntime.SecretDestination{
-						Name: "test-cluster-kubeconfig",
+						Name: "test-cluster-aso-kubeconfig",
+						Key:  "value",
+					},
+					UserCredentials: &genruntime.SecretDestination{
+						Name: "test-cluster-user-aso-kubeconfig",
 						Key:  "value",
 					},
 				},

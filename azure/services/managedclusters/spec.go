@@ -127,6 +127,9 @@ type ManagedClusterSpec struct {
 
 	// DNSPrefix allows the user to customize dns prefix.
 	DNSPrefix *string
+
+	// DisableLocalAccounts disables getting static credentials for this cluster when set. Expected to only be used for AAD clusters.
+	DisableLocalAccounts *bool
 }
 
 // HTTPProxyConfig is the HTTP proxy configuration for the cluster.
@@ -334,7 +337,11 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontai
 	spec.OperatorSpec = &asocontainerservicev1.ManagedClusterOperatorSpec{
 		Secrets: &asocontainerservicev1.ManagedClusterOperatorSecrets{
 			AdminCredentials: &genruntime.SecretDestination{
-				Name: kubeconfigSecretName(s.ClusterName),
+				Name: adminKubeconfigSecretName(s.ClusterName),
+				Key:  secret.KubeconfigDataName,
+			},
+			UserCredentials: &genruntime.SecretDestination{
+				Name: userKubeconfigSecretName(s.ClusterName),
 				Key:  secret.KubeconfigDataName,
 			},
 		},
@@ -392,6 +399,9 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontai
 			Managed:             &s.AADProfile.Managed,
 			EnableAzureRBAC:     &s.AADProfile.EnableAzureRBAC,
 			AdminGroupObjectIDs: s.AADProfile.AdminGroupObjectIDs,
+		}
+		if s.DisableLocalAccounts != nil {
+			spec.DisableLocalAccounts = s.DisableLocalAccounts
 		}
 	}
 
@@ -556,8 +566,12 @@ func getIdentity(identity *infrav1.Identity) (managedClusterIdentity *asocontain
 	return
 }
 
-func kubeconfigSecretName(clusterName string) string {
+func adminKubeconfigSecretName(clusterName string) string {
 	return secret.Name(clusterName+"-aso", secret.Kubeconfig)
+}
+
+func userKubeconfigSecretName(clusterName string) string {
+	return secret.Name(clusterName+"-user-aso", secret.Kubeconfig)
 }
 
 // WasManaged implements azure.ASOResourceSpecGetter.
