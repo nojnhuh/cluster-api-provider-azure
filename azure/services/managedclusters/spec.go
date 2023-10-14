@@ -334,7 +334,7 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontai
 	spec.OperatorSpec = &asocontainerservicev1.ManagedClusterOperatorSpec{
 		Secrets: &asocontainerservicev1.ManagedClusterOperatorSecrets{
 			AdminCredentials: &genruntime.SecretDestination{
-				Name: secret.Name(s.ClusterName, secret.Kubeconfig),
+				Name: kubeconfigSecretName(s.ClusterName),
 				Key:  secret.KubeconfigDataName,
 			},
 		},
@@ -554,6 +554,10 @@ func getIdentity(identity *infrav1.Identity) (managedClusterIdentity *asocontain
 		}
 	}
 	return
+}
+
+func kubeconfigSecretName(clusterName string) string {
+	return secret.Name(clusterName+"-aso", secret.Kubeconfig)
 }
 
 // WasManaged implements azure.ASOResourceSpecGetter.

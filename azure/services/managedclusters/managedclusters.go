@@ -17,12 +17,17 @@ limitations under the License.
 package managedclusters
 
 import (
+	"context"
+
 	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20230201"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/ptr"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/aso"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	"sigs.k8s.io/cluster-api/util/secret"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const serviceName = "managedcluster"
@@ -34,6 +39,9 @@ type ManagedClusterScope interface {
 	aso.Scope
 	ManagedClusterSpec() azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedCluster]
 	SetControlPlaneEndpoint(clusterv1.APIEndpoint)
+	MakeEmptyKubeConfigSecret() corev1.Secret
+	GetKubeConfigData() []byte
+	SetKubeConfigData([]byte)
 	SetOIDCIssuerProfileStatus(*infrav1.OIDCIssuerProfileStatus)
 }
 
@@ -71,6 +79,23 @@ func postCreateOrUpdateResourceHook(scope ManagedClusterScope, managedCluster *a
 		Port: 443,
 	}
 	scope.SetControlPlaneEndpoint(endpoint)
+
+	// Update kubeconfig data
+	// Always fetch credentials in case of rotation
+	asoSecret := &corev1.Secret{}
+	err = scope.GetClient().Get(
+		context.TODO(),
+		client.ObjectKey{
+			Namespace: managedCluster.Namespace,
+			Name:      kubeconfigSecretName(scope.ClusterName()),
+		}, asoSecret)
+	if err != nil {
+		// TODO:
+		// log.Error(err, "failed to get ASO kubeconfig")
+		return
+	}
+	kubeConfigData := asoSecret.Data[secret.KubeconfigDataName]
+	scope.SetKubeConfigData(kubeConfigData)
 
 	scope.SetOIDCIssuerProfileStatus(nil)
 	if managedCluster.Status.OidcIssuerProfile != nil && managedCluster.Status.OidcIssuerProfile.IssuerURL != nil {

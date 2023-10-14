@@ -26,6 +26,7 @@ import (
 	asoresourcesv1 "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
 	"github.com/pkg/errors"
 	"golang.org/x/mod/semver"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
@@ -40,6 +41,7 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
+	"sigs.k8s.io/cluster-api/util/secret"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -114,9 +116,10 @@ func NewManagedControlPlaneScope(ctx context.Context, params ManagedControlPlane
 
 // ManagedControlPlaneScope defines the basic context for an actuator to operate upon.
 type ManagedControlPlaneScope struct {
-	Client      client.Client
-	patchHelper *patch.Helper
-	cache       *ManagedControlPlaneCache
+	Client         client.Client
+	patchHelper    *patch.Helper
+	kubeConfigData []byte
+	cache          *ManagedControlPlaneCache
 
 	AzureClients
 	Cluster             *clusterv1.Cluster
@@ -616,6 +619,30 @@ func (s *ManagedControlPlaneScope) GetAllAgentPoolSpecs() ([]azure.ASOResourceSp
 func (s *ManagedControlPlaneScope) SetControlPlaneEndpoint(endpoint clusterv1.APIEndpoint) {
 	s.ControlPlane.Spec.ControlPlaneEndpoint.Host = endpoint.Host
 	s.ControlPlane.Spec.ControlPlaneEndpoint.Port = endpoint.Port
+}
+
+// MakeEmptyKubeConfigSecret creates an empty secret object that is used for storing kubeconfig secret data.
+func (s *ManagedControlPlaneScope) MakeEmptyKubeConfigSecret() corev1.Secret {
+	return corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secret.Name(s.Cluster.Name, secret.Kubeconfig),
+			Namespace: s.Cluster.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(s.ControlPlane, infrav1.GroupVersion.WithKind("AzureManagedControlPlane")),
+			},
+			Labels: map[string]string{clusterv1.ClusterNameLabel: s.Cluster.Name},
+		},
+	}
+}
+
+// GetKubeConfigData returns a []byte that contains kubeconfig.
+func (s *ManagedControlPlaneScope) GetKubeConfigData() []byte {
+	return s.kubeConfigData
+}
+
+// SetKubeConfigData sets kubeconfig data.
+func (s *ManagedControlPlaneScope) SetKubeConfigData(kubeConfigData []byte) {
+	s.kubeConfigData = kubeConfigData
 }
 
 // SetLongRunningOperationState will set the future on the AzureManagedControlPlane status to allow the resource to continue
