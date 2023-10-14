@@ -17,10 +17,12 @@ limitations under the License.
 package managedclusters
 
 import (
+	"context"
 	"errors"
 	"testing"
 
 	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20230201"
+	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,13 +36,16 @@ import (
 
 func TestPostCreateOrUpdateResourceHook(t *testing.T) {
 	t.Run("error creating or updating", func(t *testing.T) {
+		g := NewGomegaWithT(t)
 		mockCtrl := gomock.NewController(t)
 		scope := mock_managedclusters.NewMockManagedClusterScope(mockCtrl)
 
-		postCreateOrUpdateResourceHook(scope, nil, errors.New("an error"))
+		err := postCreateOrUpdateResourceHook(context.Background(), scope, nil, errors.New("an error"))
+		g.Expect(err).To(HaveOccurred())
 	})
 
 	t.Run("successful create or update", func(t *testing.T) {
+		g := NewGomegaWithT(t)
 		mockCtrl := gomock.NewController(t)
 		scope := mock_managedclusters.NewMockManagedClusterScope(mockCtrl)
 		namespace := "default"
@@ -95,6 +100,7 @@ func TestPostCreateOrUpdateResourceHook(t *testing.T) {
 			},
 		}
 
-		postCreateOrUpdateResourceHook(scope, managedCluster, nil)
+		err := postCreateOrUpdateResourceHook(context.Background(), scope, managedCluster, nil)
+		g.Expect(err).NotTo(HaveOccurred())
 	})
 }

@@ -17,6 +17,8 @@ limitations under the License.
 package agentpools
 
 import (
+	"context"
+
 	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20230201"
 	"k8s.io/utils/ptr"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
@@ -67,9 +69,9 @@ func (s *Service) Name() string {
 	return serviceName
 }
 
-func postCreateOrUpdateResourceHook(scope AgentPoolScope, agentPool *asocontainerservicev1.ManagedClustersAgentPool, err error) {
+func postCreateOrUpdateResourceHook(ctx context.Context, scope AgentPoolScope, agentPool *asocontainerservicev1.ManagedClustersAgentPool, err error) error {
 	if err != nil {
-		return
+		return err
 	}
 	// When autoscaling is set, add the annotation to the machine pool and update the replica count.
 	if ptr.Deref(agentPool.Status.EnableAutoScaling, false) {
@@ -78,4 +80,5 @@ func postCreateOrUpdateResourceHook(scope AgentPoolScope, agentPool *asocontaine
 	} else { // Otherwise, remove the annotation.
 		scope.RemoveCAPIMachinePoolAnnotation(clusterv1.ReplicasManagedByAnnotation)
 	}
+	return nil
 }

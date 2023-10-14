@@ -81,9 +81,9 @@ func (s *Service) Name() string {
 	return serviceName
 }
 
-func postCreateOrUpdateResourceHook(scope ManagedClusterScope, managedCluster *asocontainerservicev1.ManagedCluster, err error) {
+func postCreateOrUpdateResourceHook(ctx context.Context, scope ManagedClusterScope, managedCluster *asocontainerservicev1.ManagedCluster, err error) error {
 	if err != nil {
-		return
+		return err
 	}
 
 	// Update control plane endpoint.
@@ -95,11 +95,9 @@ func postCreateOrUpdateResourceHook(scope ManagedClusterScope, managedCluster *a
 
 	// Update kubeconfig data
 	// Always fetch credentials in case of rotation
-	adminKubeConfigData, userKubeConfigData, err := reconcileKubeconfig(context.TODO(), scope, managedCluster.Namespace)
+	adminKubeConfigData, userKubeConfigData, err := reconcileKubeconfig(ctx, scope, managedCluster.Namespace)
 	if err != nil {
-		// TODO:
-		// return errors.Wrap(err, "error while reconciling adminKubeConfigData")
-		return
+		return errors.Wrap(err, "error while reconciling kubeconfigs")
 	}
 	scope.SetAdminKubeconfigData(adminKubeConfigData)
 	scope.SetUserKubeconfigData(userKubeConfigData)
@@ -110,6 +108,8 @@ func postCreateOrUpdateResourceHook(scope ManagedClusterScope, managedCluster *a
 			IssuerURL: managedCluster.Status.OidcIssuerProfile.IssuerURL,
 		})
 	}
+
+	return nil
 }
 
 // reconcileKubeconfig will reconcile admin kubeconfig and user kubeconfig.

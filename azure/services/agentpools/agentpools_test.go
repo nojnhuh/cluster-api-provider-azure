@@ -17,9 +17,11 @@ limitations under the License.
 package agentpools
 
 import (
+	"context"
 	"testing"
 
 	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20230201"
+	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
 	"go.uber.org/mock/gomock"
 	"k8s.io/utils/ptr"
@@ -29,13 +31,16 @@ import (
 
 func TestPostCreateOrUpdateResourceHook(t *testing.T) {
 	t.Run("error creating or updating", func(t *testing.T) {
+		g := NewGomegaWithT(t)
 		mockCtrl := gomock.NewController(t)
 		scope := mock_agentpools.NewMockAgentPoolScope(mockCtrl)
 
-		postCreateOrUpdateResourceHook(scope, nil, errors.New("an error"))
+		err := postCreateOrUpdateResourceHook(context.Background(), scope, nil, errors.New("an error"))
+		g.Expect(err).To(HaveOccurred())
 	})
 
 	t.Run("successful create or update, autoscaling disabled", func(t *testing.T) {
+		g := NewGomegaWithT(t)
 		mockCtrl := gomock.NewController(t)
 		scope := mock_agentpools.NewMockAgentPoolScope(mockCtrl)
 
@@ -47,10 +52,12 @@ func TestPostCreateOrUpdateResourceHook(t *testing.T) {
 			},
 		}
 
-		postCreateOrUpdateResourceHook(scope, managedCluster, nil)
+		err := postCreateOrUpdateResourceHook(context.Background(), scope, managedCluster, nil)
+		g.Expect(err).NotTo(HaveOccurred())
 	})
 
 	t.Run("successful create or update, autoscaling enabled", func(t *testing.T) {
+		g := NewGomegaWithT(t)
 		mockCtrl := gomock.NewController(t)
 		scope := mock_agentpools.NewMockAgentPoolScope(mockCtrl)
 
@@ -64,6 +71,7 @@ func TestPostCreateOrUpdateResourceHook(t *testing.T) {
 			},
 		}
 
-		postCreateOrUpdateResourceHook(scope, managedCluster, nil)
+		err := postCreateOrUpdateResourceHook(context.Background(), scope, managedCluster, nil)
+		g.Expect(err).NotTo(HaveOccurred())
 	})
 }
