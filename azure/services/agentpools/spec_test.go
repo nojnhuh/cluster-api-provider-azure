@@ -21,7 +21,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice"
 	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20230201"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/google/go-cmp/cmp"
@@ -143,12 +142,6 @@ func sdkWithScaleDownMode(scaleDownMode asocontainerservicev1.ScaleDownMode) fun
 func sdkWithSpotMaxPrice(spotMaxPrice float64) func(*asocontainerservicev1.ManagedClustersAgentPool) {
 	return func(pool *asocontainerservicev1.ManagedClustersAgentPool) {
 		pool.Spec.SpotMaxPrice = &spotMaxPrice
-	}
-}
-
-func sdkWithNodeLabels(nodeLabels map[string]*string) func(*armcontainerservice.AgentPool) {
-	return func(pool *armcontainerservice.AgentPool) {
-		pool.Properties.NodeLabels = nodeLabels
 	}
 }
 
