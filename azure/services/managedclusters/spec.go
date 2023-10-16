@@ -585,6 +585,7 @@ func userKubeconfigSecretName(clusterName string) string {
 
 // WasManaged implements azure.ASOResourceSpecGetter.
 func (s *ManagedClusterSpec) WasManaged(resource *asocontainerservicev1.ManagedCluster) bool {
+	// CAPZ has never supported BYO managed clusters.
 	return true
 }
 

@@ -286,5 +286,6 @@ func (s *AgentPoolSpec) Parameters(ctx context.Context, existing *asocontainerse
 
 // WasManaged implements azure.ASOResourceSpecGetter.
 func (s *AgentPoolSpec) WasManaged(resource *asocontainerservicev1.ManagedClustersAgentPool) bool {
+	// CAPZ has never supported BYO agent pools.
 	return true
 }
