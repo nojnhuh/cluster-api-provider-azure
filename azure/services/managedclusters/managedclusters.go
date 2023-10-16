@@ -121,7 +121,7 @@ func postCreateOrUpdateResourceHook(ctx context.Context, scope ManagedClusterSco
   The token is used to create the admin kubeconfig.
   The user needs to ensure to provide service principle with admin aad privileges.
 */
-func reconcileKubeconfig(ctx context.Context, scope ManagedClusterScope, namespace string) (userKubeConfigData []byte, adminKubeConfigData []byte, err error) {
+func reconcileKubeconfig(ctx context.Context, scope ManagedClusterScope, namespace string) (adminKubeConfigData []byte, userKubeConfigData []byte, err error) {
 	if scope.IsAADEnabled() {
 		if userKubeConfigData, err = getUserKubeconfigData(ctx, scope, namespace); err != nil {
 			return nil, nil, errors.Wrap(err, "error while trying to get user kubeconfig")

@@ -293,6 +293,8 @@ func buildAutoScalerProfile(autoScalerProfile *AutoScalerProfile) *asocontainers
 }
 
 // Parameters returns the parameters for the managed clusters.
+//
+//nolint:gocyclo // Function requires a lot of nil checks that raise complexity.
 func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontainerservicev1.ManagedCluster) (params *asocontainerservicev1.ManagedCluster, err error) {
 	ctx, _, done := tele.StartSpanWithLogger(ctx, "managedclusters.Service.Parameters")
 	defer done()
@@ -338,10 +340,6 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontai
 		Secrets: &asocontainerservicev1.ManagedClusterOperatorSecrets{
 			AdminCredentials: &genruntime.SecretDestination{
 				Name: adminKubeconfigSecretName(s.ClusterName),
-				Key:  secret.KubeconfigDataName,
-			},
-			UserCredentials: &genruntime.SecretDestination{
-				Name: userKubeconfigSecretName(s.ClusterName),
 				Key:  secret.KubeconfigDataName,
 			},
 		},
@@ -402,6 +400,17 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontai
 		}
 		if s.DisableLocalAccounts != nil {
 			spec.DisableLocalAccounts = s.DisableLocalAccounts
+		}
+
+		if ptr.Deref(s.DisableLocalAccounts, false) {
+			// admin credentials cannot be fetched when local accounts are disabled
+			spec.OperatorSpec.Secrets.AdminCredentials = nil
+		}
+		if s.AADProfile.Managed {
+			spec.OperatorSpec.Secrets.UserCredentials = &genruntime.SecretDestination{
+				Name: userKubeconfigSecretName(s.ClusterName),
+				Key:  secret.KubeconfigDataName,
+			}
 		}
 	}
 

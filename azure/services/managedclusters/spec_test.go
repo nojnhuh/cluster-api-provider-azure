@@ -57,6 +57,11 @@ func TestParameters(t *testing.T) {
 				OIDCIssuerProfile: &OIDCIssuerProfile{
 					Enabled: ptr.To(true),
 				},
+				AADProfile: &AADProfile{
+					Managed:             true,
+					AdminGroupObjectIDs: []string{"admin group"},
+				},
+				DisableLocalAccounts: ptr.To(true),
 				GetAllAgentPools: func() ([]azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool], error) {
 					return []azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool]{
 						&agentpools.AgentPoolSpec{
@@ -491,8 +496,11 @@ func getExistingCluster() *asocontainerservicev1.ManagedCluster {
 	mc.Spec.LinuxProfile = nil
 	mc.Spec.NetworkProfile.NetworkPluginMode = nil
 	mc.Spec.NodeResourceGroup = ptr.To("")
-	mc.Spec.OperatorSpec.Secrets.AdminCredentials.Name = "-aso-kubeconfig"
-	mc.Spec.OperatorSpec.Secrets.UserCredentials.Name = "-user-aso-kubeconfig"
+	mc.Spec.OperatorSpec.Secrets.AdminCredentials = &genruntime.SecretDestination{
+		Name: "-aso-kubeconfig",
+		Key:  "value",
+	}
+	mc.Spec.OperatorSpec.Secrets.UserCredentials = nil
 	mc.Spec.Tags[infrav1.ClusterTagKey("")] = mc.Spec.Tags[infrav1.ClusterTagKey("test-cluster")]
 	delete(mc.Spec.Tags, infrav1.ClusterTagKey("test-cluster"))
 
@@ -581,10 +589,6 @@ func getSampleManagedCluster() *asocontainerservicev1.ManagedCluster {
 			},
 			OperatorSpec: &asocontainerservicev1.ManagedClusterOperatorSpec{
 				Secrets: &asocontainerservicev1.ManagedClusterOperatorSecrets{
-					AdminCredentials: &genruntime.SecretDestination{
-						Name: "test-cluster-aso-kubeconfig",
-						Key:  "value",
-					},
 					UserCredentials: &genruntime.SecretDestination{
 						Name: "test-cluster-user-aso-kubeconfig",
 						Key:  "value",
@@ -594,7 +598,13 @@ func getSampleManagedCluster() *asocontainerservicev1.ManagedCluster {
 			Identity: &asocontainerservicev1.ManagedClusterIdentity{
 				Type: ptr.To(asocontainerservicev1.ManagedClusterIdentity_Type_SystemAssigned),
 			},
-			Location: ptr.To("test-location"),
+			AadProfile: &asocontainerservicev1.ManagedClusterAADProfile{
+				Managed:             ptr.To(true),
+				EnableAzureRBAC:     ptr.To(false),
+				AdminGroupObjectIDs: []string{"admin group"},
+			},
+			DisableLocalAccounts: ptr.To(true),
+			Location:             ptr.To("test-location"),
 			Tags: infrav1.Build(infrav1.BuildParams{
 				Lifecycle:   infrav1.ResourceLifecycleOwned,
 				ClusterName: "test-cluster",
