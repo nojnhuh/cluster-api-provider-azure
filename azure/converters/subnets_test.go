@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 	asonetworkv1 "github.com/Azure/azure-service-operator/v2/api/network/v1api20201101"
 	. "github.com/onsi/gomega"
 	"k8s.io/utils/ptr"
@@ -29,56 +28,16 @@ import (
 func TestGetSubnetAddresses(t *testing.T) {
 	tests := []struct {
 		name   string
-		subnet armnetwork.Subnet
-		want   []string
-	}{
-		{
-			name:   "nil properties subnet",
-			subnet: armnetwork.Subnet{},
-		},
-		{
-			name: "subnet with single address prefix",
-			subnet: armnetwork.Subnet{
-				Properties: &armnetwork.SubnetPropertiesFormat{
-					AddressPrefix: ptr.To("test-address-prefix"),
-				},
-			},
-			want: []string{"test-address-prefix"},
-		},
-		{
-			name: "subnet with multiple address prefixes",
-			subnet: armnetwork.Subnet{
-				Properties: &armnetwork.SubnetPropertiesFormat{
-					AddressPrefixes: []*string{ptr.To("test-address-prefix-1"), ptr.To("test-address-prefix-2")},
-				},
-			},
-			want: []string{"test-address-prefix-1", "test-address-prefix-2"},
-		},
-	}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			g := NewGomegaWithT(t)
-			got := GetSubnetAddresses(&tt.subnet)
-			g.Expect(got).To(Equal(tt.want), fmt.Sprintf("got: %v, want: %v", got, tt.want))
-		})
-	}
-}
-
-func TestGetASOSubnetAddresses(t *testing.T) {
-	tests := []struct {
-		name   string
-		subnet *asonetworkv1.VirtualNetworksSubnet
+		subnet asonetworkv1.VirtualNetworksSubnet
 		want   []string
 	}{
 		{
 			name:   "nil",
-			subnet: &asonetworkv1.VirtualNetworksSubnet{},
+			subnet: asonetworkv1.VirtualNetworksSubnet{},
 		},
 		{
 			name: "subnet with single address prefix",
-			subnet: &asonetworkv1.VirtualNetworksSubnet{
+			subnet: asonetworkv1.VirtualNetworksSubnet{
 				Status: asonetworkv1.VirtualNetworks_Subnet_STATUS{
 					AddressPrefix: ptr.To("test-address-prefix"),
 				},
@@ -87,7 +46,7 @@ func TestGetASOSubnetAddresses(t *testing.T) {
 		},
 		{
 			name: "subnet with multiple address prefixes",
-			subnet: &asonetworkv1.VirtualNetworksSubnet{
+			subnet: asonetworkv1.VirtualNetworksSubnet{
 				Status: asonetworkv1.VirtualNetworks_Subnet_STATUS{
 					AddressPrefixes: []string{
 						"test-address-prefix-1",
@@ -103,7 +62,7 @@ func TestGetASOSubnetAddresses(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			g := NewGomegaWithT(t)
-			got := GetASOSubnetAddresses(tt.subnet)
+			got := GetSubnetAddresses(tt.subnet)
 			g.Expect(got).To(Equal(tt.want), fmt.Sprintf("got: %v, want: %v", got, tt.want))
 		})
 	}

@@ -68,12 +68,6 @@ type ManagedControlPlaneScopeParams struct {
 	ControlPlane        *infrav1.AzureManagedControlPlane
 	ManagedMachinePools []ManagedMachinePool
 	Cache               *ManagedControlPlaneCache
-	VnetDescriber       VnetDescriber
-}
-
-// VnetDescriber answers whether a virtual network is managed or not.
-type VnetDescriber interface {
-	IsManaged(context.Context) (bool, error)
 }
 
 // NewManagedControlPlaneScope creates a new Scope from the supplied parameters.
@@ -122,7 +116,6 @@ func NewManagedControlPlaneScope(ctx context.Context, params ManagedControlPlane
 		ManagedMachinePools: params.ManagedMachinePools,
 		patchHelper:         helper,
 		cache:               params.Cache,
-		VnetDescriber:       params.VnetDescriber,
 	}, nil
 }
 
@@ -138,7 +131,6 @@ type ManagedControlPlaneScope struct {
 	Cluster             *clusterv1.Cluster
 	ControlPlane        *infrav1.AzureManagedControlPlane
 	ManagedMachinePools []ManagedMachinePool
-	VnetDescriber       VnetDescriber
 }
 
 // ManagedControlPlaneCache stores ManagedControlPlane data locally so we don't have to hit the API multiple times within the same reconcile loop.
@@ -279,10 +271,11 @@ func (s *ManagedControlPlaneScope) GroupSpecs() []azure.ASOResourceSpecGetter[*a
 }
 
 // VNetSpec returns the virtual network spec.
-func (s *ManagedControlPlaneScope) VNetSpec() azure.ResourceSpecGetter {
+func (s *ManagedControlPlaneScope) VNetSpec() azure.ASOResourceSpecGetter[*asonetworkv1.VirtualNetwork] {
 	return &virtualnetworks.VNetSpec{
 		ResourceGroup:  s.Vnet().ResourceGroup,
 		Name:           s.Vnet().Name,
+		Namespace:      s.ControlPlane.Namespace,
 		CIDRs:          s.Vnet().CIDRBlocks,
 		Location:       s.Location(),
 		ClusterName:    s.ClusterName(),
@@ -407,20 +400,14 @@ func (s *ManagedControlPlaneScope) IsVnetManaged() bool {
 	ctx, log, done := tele.StartSpanWithLogger(ctx, "scope.ManagedControlPlaneScope.IsVnetManaged")
 	defer done()
 
-	var vnetDescriber = s.VnetDescriber
-	if vnetDescriber == nil {
-		virtualNetworksSvc, err := virtualnetworks.New(s)
-		if err != nil {
-			log.Error(err, "failed to create virtualnetworks service")
-			return false
-		}
-		vnetDescriber = virtualNetworksSvc
-	}
-	isManaged, err := vnetDescriber.IsManaged(ctx)
+	vnet := s.VNetSpec().ResourceRef()
+	err := s.Client.Get(ctx, client.ObjectKeyFromObject(vnet), vnet)
 	if err != nil {
-		log.Error(err, "Unable to determine if ManagedControlPlaneScope VNET is managed by capz", "AzureManagedCluster", s.ClusterName())
+		log.Error(err, "Unable to determine if ManagedControlPlaneScope VNET is managed by capz, assuming unmanaged", "AzureManagedCluster", s.ClusterName())
+		return false
 	}
 
+	isManaged := infrav1.Tags(vnet.Status.Tags).HasOwned(s.ClusterName())
 	s.cache.isVnetManaged = ptr.To(isManaged)
 	return isManaged
 }
@@ -505,7 +492,7 @@ func (s *ManagedControlPlaneScope) ManagedClusterSpec() azure.ASOResourceSpecGet
 		DNSServiceIP:      s.ControlPlane.Spec.DNSServiceIP,
 		VnetSubnetID: azure.SubnetID(
 			s.ControlPlane.Spec.SubscriptionID,
-			s.VNetSpec().ResourceGroupName(),
+			s.Vnet().ResourceGroup,
 			s.ControlPlane.Spec.VirtualNetwork.Name,
 			s.ControlPlane.Spec.VirtualNetwork.Subnet.Name,
 		),
@@ -868,13 +855,13 @@ func (s *ManagedControlPlaneScope) PrivateEndpointSpecs() []azure.ResourceSpecGe
 	for _, privateEndpoint := range s.ControlPlane.Spec.VirtualNetwork.Subnet.PrivateEndpoints {
 		privateEndpointSpec := &privateendpoints.PrivateEndpointSpec{
 			Name:                       privateEndpoint.Name,
-			ResourceGroup:              s.VNetSpec().ResourceGroupName(),
+			ResourceGroup:              s.Vnet().ResourceGroup,
 			Location:                   privateEndpoint.Location,
 			CustomNetworkInterfaceName: privateEndpoint.CustomNetworkInterfaceName,
 			PrivateIPAddresses:         privateEndpoint.PrivateIPAddresses,
 			SubnetID: azure.SubnetID(
 				s.ControlPlane.Spec.SubscriptionID,
-				s.VNetSpec().ResourceGroupName(),
+				s.Vnet().ResourceGroup,
 				s.ControlPlane.Spec.VirtualNetwork.Name,
 				s.ControlPlane.Spec.VirtualNetwork.Subnet.Name,
 			),

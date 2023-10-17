@@ -146,6 +146,14 @@ func TestAzureManagedControlPlaneReconcilePaused(t *testing.T) {
 		Spec: infrav1.AzureManagedControlPlaneSpec{
 			AzureManagedControlPlaneClassSpec: infrav1.AzureManagedControlPlaneClassSpec{
 				SubscriptionID: "something",
+				VirtualNetwork: infrav1.ManagedControlPlaneVirtualNetwork{
+					ManagedControlPlaneVirtualNetworkClassSpec: infrav1.ManagedControlPlaneVirtualNetworkClassSpec{
+						Name: name,
+						Subnet: infrav1.ManagedControlPlaneSubnet{
+							Name: "subnet",
+						},
+					},
+				},
 			},
 			ResourceGroupName: name,
 		},
@@ -168,9 +176,17 @@ func TestAzureManagedControlPlaneReconcilePaused(t *testing.T) {
 	}
 	g.Expect(c.Create(ctx, mc)).To(Succeed())
 
-	subnet := &asonetworkv1.VirtualNetworksSubnet{
+	vnet := &asonetworkv1.VirtualNetwork{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
+			Namespace: namespace,
+		},
+	}
+	g.Expect(c.Create(ctx, vnet)).To(Succeed())
+
+	subnet := &asonetworkv1.VirtualNetworksSubnet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name + "-subnet",
 			Namespace: namespace,
 		},
 	}
