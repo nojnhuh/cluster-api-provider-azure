@@ -122,17 +122,20 @@ func (r *reconciler[T]) CreateOrUpdateResource(ctx context.Context, spec azure.A
 				// update instead of returning early.
 				adopt = true
 			case cond.Reason == conditions.ReasonReconciling.Name:
-				err := azure.NewOperationNotDoneError(&infrav1.Future{
+				readyErr = azure.NewOperationNotDoneError(&infrav1.Future{
 					Type:          createOrUpdateFutureType,
 					ResourceGroup: existing.GetNamespace(),
 					Name:          existing.GetName(),
 				})
-				return zero, azure.WithTransientError(err, requeueInterval)
 			default:
-				err := fmt.Errorf("resource is not Ready: %s", conds[i].Message)
-				readyErr = azure.WithTransientError(err, requeueInterval)
+				readyErr = fmt.Errorf("resource is not Ready: %s", conds[i].Message)
+			}
+
+			if readyErr != nil {
 				if conds[i].Severity == conditions.ConditionSeverityError {
-					readyErr = azure.WithTerminalError(err)
+					readyErr = azure.WithTerminalError(readyErr)
+				} else {
+					readyErr = azure.WithTransientError(readyErr, requeueInterval)
 				}
 			}
 		}
@@ -198,10 +201,12 @@ func (r *reconciler[T]) CreateOrUpdateResource(ctx context.Context, spec azure.A
 
 	diff := cmp.Diff(existing, parameters)
 	if diff == "" {
-		log.V(2).Info("resource up to date")
 		if readyErr != nil {
+			// Only return this error when the resource is up to date in order to permit updates from
+			// Parameters which may fix the resource's current state.
 			return zero, readyErr
 		}
+		log.V(2).Info("resource up to date")
 		return existing, nil
 	}
 

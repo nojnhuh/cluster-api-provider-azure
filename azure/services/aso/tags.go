@@ -50,6 +50,8 @@ func reconcileTags[T genruntime.MetaObject](t TagsGetterSetter[T], existing T, r
 		}
 
 		existingTags = t.GetActualTags(existing)
+		// Wait for tags to converge so we know for sure which ones are deleted from additionalTags (and
+		// should be deleted) and which were added manually (and should be kept).
 		if !reflect.DeepEqual(t.GetDesiredTags(existing), existingTags) &&
 			existing.GetAnnotations()[asoannotations.ReconcilePolicy] == string(asoannotations.ReconcilePolicyManage) {
 			return azure.WithTransientError(azure.NewOperationNotDoneError(&infrav1.Future{

@@ -230,6 +230,10 @@ func TestCreateOrUpdateResource(t *testing.T) {
 				Namespace: "namespace",
 			},
 		})
+		specMock.EXPECT().Parameters(gomockinternal.AContext(), gomock.Not(gomock.Nil())).DoAndReturn(func(_ context.Context, group *asoresourcesv1.ResourceGroup) (*asoresourcesv1.ResourceGroup, error) {
+			return group, nil
+		})
+		specMock.EXPECT().WasManaged(gomock.Any()).Return(false)
 
 		ctx := context.Background()
 		g.Expect(c.Create(ctx, &asoresourcesv1.ResourceGroup{
@@ -238,6 +242,9 @@ func TestCreateOrUpdateResource(t *testing.T) {
 				Namespace: "namespace",
 				Labels: map[string]string{
 					infrav1.OwnedByClusterLabelKey: clusterName,
+				},
+				Annotations: map[string]string{
+					asoannotations.PerResourceSecret: "cluster-aso-secret",
 				},
 			},
 			Status: asoresourcesv1.ResourceGroup_STATUS{
