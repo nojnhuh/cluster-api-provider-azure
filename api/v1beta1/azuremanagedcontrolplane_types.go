@@ -74,6 +74,13 @@ const (
 	NetworkPluginModeOverlay NetworkPluginMode = "overlay"
 )
 
+const (
+	// LoadBalancerSKUStandard is the standard load balancer SKU.
+	LoadBalancerSKUStandard = "standard"
+	// LoadBalancerSKUBasic is the basic load balancer SKU.
+	LoadBalancerSKUBasic = "basic"
+)
+
 // AzureManagedControlPlaneSpec defines the desired state of AzureManagedControlPlane.
 type AzureManagedControlPlaneSpec struct {
 	// Version defines the desired Kubernetes version.

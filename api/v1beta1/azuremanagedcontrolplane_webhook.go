@@ -84,13 +84,13 @@ func (mw *azureManagedControlPlaneWebhook) Default(ctx context.Context, obj runt
 		m.Spec.LoadBalancerSKU = &loadBalancerSKU
 	}
 	lbSku := ptr.Deref(m.Spec.LoadBalancerSKU, "")
-	if lbSku == "Standard" {
-		m.Spec.LoadBalancerSKU = ptr.To("standard")
-		log.Info("\"Standard\" load balancer SKU tier is invalid. Replacing with \"standard\"")
+	if strings.EqualFold(lbSku, LoadBalancerSKUStandard) && lbSku != LoadBalancerSKUStandard {
+		m.Spec.LoadBalancerSKU = ptr.To(LoadBalancerSKUStandard)
+		log.Info(fmt.Sprintf("%q load balancer SKU tier is invalid. Replacing with %q", lbSku, LoadBalancerSKUStandard))
 	}
-	if lbSku == "Basic" {
-		m.Spec.LoadBalancerSKU = ptr.To("basic")
-		log.Info("\"Basic\" load balancer SKU tier is invalid. Replacing with \"basic\"")
+	if strings.EqualFold(lbSku, LoadBalancerSKUBasic) && lbSku != LoadBalancerSKUBasic {
+		m.Spec.LoadBalancerSKU = ptr.To(LoadBalancerSKUBasic)
+		log.Info(fmt.Sprintf("%q load balancer SKU tier is invalid. Replacing with %q", lbSku, LoadBalancerSKUBasic))
 	}
 
 	if m.Spec.Version != "" && !strings.HasPrefix(m.Spec.Version, "v") {
