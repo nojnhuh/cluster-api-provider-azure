@@ -177,7 +177,7 @@ spec:
         echo "* checking binary versions"
         echo "ctr version: " $(ctr version)
         echo "kubeadm version: " $(kubeadm version -o=short)
-        echo "kubectl version: " $(kubectl version --client=true --short=true)
+        echo "kubectl version: " $(kubectl version --client=true)
         echo "kubelet version: " $(kubelet --version)
         echo "$$LINE_SEPARATOR"
       owner: root:root
@@ -388,7 +388,7 @@ spec:
           echo "* checking binary versions"
           echo "ctr version: " $(ctr version)
           echo "kubeadm version: " $(kubeadm version -o=short)
-          echo "kubectl version: " $(kubectl version --client=true --short=true)
+          echo "kubectl version: " $(kubectl version --client=true)
           echo "kubelet version: " $(kubelet --version)
           echo "$$LINE_SEPARATOR"
         owner: root:root
@@ -886,3 +886,11 @@ spec:
           encapsulation: None
           natOutgoing: Enabled
           nodeSelector: all(){{end}}
+      registry: mcr.microsoft.com/oss
+    # Image and registry configuration for the tigera/operator pod.
+    tigeraOperator:
+      image: tigera/operator
+      registry: mcr.microsoft.com/oss
+    calicoctl:
+      image: mcr.microsoft.com/oss/calico/ctl
+  version: ${CALICO_VERSION}
