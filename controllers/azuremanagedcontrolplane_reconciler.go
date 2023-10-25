@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/privateendpoints"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/resourcehealth"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/subnets"
+	"sigs.k8s.io/cluster-api-provider-azure/azure/services/tags"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/virtualnetworks"
 	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
 	"sigs.k8s.io/cluster-api/util/secret"
@@ -56,6 +57,10 @@ func newAzureManagedControlPlaneReconciler(scope *scope.ManagedControlPlaneScope
 	if err != nil {
 		return nil, err
 	}
+	tagsSvc, err := tags.New(scope)
+	if err != nil {
+		return nil, err
+	}
 	virtualNetworksSvc, err := virtualnetworks.New(scope)
 	if err != nil {
 		return nil, err
@@ -69,6 +74,7 @@ func newAzureManagedControlPlaneReconciler(scope *scope.ManagedControlPlaneScope
 			subnetsSvc,
 			managedclusters.New(scope),
 			privateEndpointsSvc,
+			tagsSvc,
 			resourceHealthSvc,
 		},
 	}, nil

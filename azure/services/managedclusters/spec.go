@@ -31,7 +31,6 @@ import (
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/converters"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/agentpools"
-	"sigs.k8s.io/cluster-api-provider-azure/azure/services/aso"
 	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
 	"sigs.k8s.io/cluster-api/util/secret"
 )
@@ -308,7 +307,7 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontai
 					ClusterName: s.ClusterName,
 					Name:        ptr.To(s.Name),
 					Role:        ptr.To(infrav1.CommonRole),
-					// Additional tags managed separately
+					Additional:  s.Tags,
 				}),
 			},
 		}
@@ -513,6 +512,11 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontai
 		}
 	}
 
+	if managedCluster.Status.Tags != nil {
+		// tags managed separately
+		spec.Tags = nil
+	}
+
 	return managedCluster, nil
 }
 
@@ -587,26 +591,4 @@ func userKubeconfigSecretName(clusterName string) string {
 func (s *ManagedClusterSpec) WasManaged(resource *asocontainerservicev1.ManagedCluster) bool {
 	// CAPZ has never supported BYO managed clusters.
 	return true
-}
-
-var _ aso.TagsGetterSetter[*asocontainerservicev1.ManagedCluster] = (*ManagedClusterSpec)(nil)
-
-// GetAdditionalTags implements aso.TagsGetterSetter.
-func (s *ManagedClusterSpec) GetAdditionalTags() infrav1.Tags {
-	return s.Tags
-}
-
-// GetDesiredTags implements aso.TagsGetterSetter.
-func (*ManagedClusterSpec) GetDesiredTags(resource *asocontainerservicev1.ManagedCluster) infrav1.Tags {
-	return resource.Spec.Tags
-}
-
-// GetActualTags implements aso.TagsGetterSetter.
-func (*ManagedClusterSpec) GetActualTags(resource *asocontainerservicev1.ManagedCluster) infrav1.Tags {
-	return resource.Status.Tags
-}
-
-// SetTags implements aso.TagsGetterSetter.
-func (*ManagedClusterSpec) SetTags(resource *asocontainerservicev1.ManagedCluster, tags infrav1.Tags) {
-	resource.Spec.Tags = tags
 }

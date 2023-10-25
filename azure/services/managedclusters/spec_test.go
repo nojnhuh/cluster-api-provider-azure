@@ -511,6 +511,10 @@ func getExistingCluster() *asocontainerservicev1.ManagedCluster {
 	// only nil vs. non-nil matters here
 	mc.Status.AgentPoolProfiles = []asocontainerservicev1.ManagedClusterAgentPoolProfile_STATUS{}
 
+	// tags managed separately
+	mc.Spec.Tags = nil
+	mc.Status.Tags = map[string]string{}
+
 	return mc
 }
 
