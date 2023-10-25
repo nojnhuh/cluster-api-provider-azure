@@ -513,7 +513,8 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontai
 	}
 
 	if managedCluster.Status.Tags != nil {
-		// tags managed separately
+		// tags managed separately because updating tags concurrently with agent pools' can cause the cluster
+		// to get stuck in an "Updating" state forever.
 		spec.Tags = nil
 	}
 
