@@ -25,604 +25,242 @@ import (
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/gomega"
-	"github.com/onsi/gomega/format"
 	"k8s.io/utils/ptr"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/agentpools"
-	gomockinternal "sigs.k8s.io/cluster-api-provider-azure/internal/test/matchers/gomock"
+	"sigs.k8s.io/cluster-api/util/secret"
 )
 
 func TestParameters(t *testing.T) {
-	testcases := []struct {
-		name          string
-		spec          *ManagedClusterSpec
-		existing      *asocontainerservicev1.ManagedCluster
-		expectedError string
-		expect        func(g *WithT, result *asocontainerservicev1.ManagedCluster)
-	}{
-		{
-			name:     "managedcluster does not exist",
-			existing: nil,
-			spec: &ManagedClusterSpec{
-				Name:              "test-managedcluster",
-				ResourceGroup:     "test-rg",
-				NodeResourceGroup: "test-node-rg",
-				ClusterName:       "test-cluster",
-				Location:          "test-location",
-				Version:           "v1.22.0",
-				LoadBalancerSKU:   "standard",
-				SSHPublicKey:      base64.StdEncoding.EncodeToString([]byte("test-ssh-key")),
-				NetworkPluginMode: ptr.To(infrav1.NetworkPluginModeOverlay),
-				OIDCIssuerProfile: &OIDCIssuerProfile{
-					Enabled: ptr.To(true),
-				},
-				AADProfile: &AADProfile{
-					Managed:             true,
-					AdminGroupObjectIDs: []string{"admin group"},
-				},
-				DisableLocalAccounts: ptr.To(true),
-				GetAllAgentPools: func() ([]azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool], error) {
-					return []azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool]{
-						&agentpools.AgentPoolSpec{
-							AzureName:     "test-agentpool-0",
-							Mode:          string(infrav1.NodePoolModeSystem),
-							ResourceGroup: "test-rg",
-							Replicas:      2,
-							AdditionalTags: map[string]string{
-								"test-tag": "test-value",
-							},
-						},
-						&agentpools.AgentPoolSpec{
-							AzureName:         "test-agentpool-1",
-							Mode:              string(infrav1.NodePoolModeUser),
-							ResourceGroup:     "test-rg",
-							Replicas:          4,
-							Cluster:           "test-managedcluster",
-							SKU:               "test_SKU",
-							Version:           ptr.To("v1.22.0"),
-							VnetSubnetID:      "fake/subnet/id",
-							MaxPods:           ptr.To(32),
-							AvailabilityZones: []string{"1", "2"},
-							AdditionalTags: map[string]string{
-								"test-tag": "test-value",
-							},
-						},
-					}, nil
-				},
-			},
-			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
-				sampleCluster := getSampleManagedCluster()
-				g.Expect(gomockinternal.DiffEq(result).Matches(sampleCluster)).To(BeTrue(), cmp.Diff(result, getSampleManagedCluster()))
-			},
-		},
-		{
-			name:     "managedcluster exists, no update needed",
-			existing: getExistingCluster(),
-			spec: &ManagedClusterSpec{
-				Name:            "test-managedcluster",
-				ResourceGroup:   "test-rg",
-				Location:        "test-location",
-				Version:         "v1.22.0",
-				LoadBalancerSKU: "standard",
-				OIDCIssuerProfile: &OIDCIssuerProfile{
-					Enabled: ptr.To(true),
-				},
-			},
-			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
-				g.Expect(result).To(Equal(getExistingCluster()))
-			},
-		},
-		{
-			name:     "managedcluster exists and an update is needed",
-			existing: getExistingCluster(),
-			spec: &ManagedClusterSpec{
-				Name:            "test-managedcluster",
-				ResourceGroup:   "test-rg",
-				Location:        "test-location",
-				Version:         "v1.22.99",
-				LoadBalancerSKU: "standard",
-				Identity: &infrav1.Identity{
-					Type:                           infrav1.ManagedControlPlaneIdentityTypeUserAssigned,
-					UserAssignedIdentityResourceID: "/resource/ID",
-				},
-				KubeletUserAssignedIdentity: "/resource/ID",
-			},
-			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
-				g.Expect(result.Spec.KubernetesVersion).To(Equal(ptr.To("v1.22.99")))
-				g.Expect(result.Spec.Identity.Type).To(Equal(ptr.To(asocontainerservicev1.ManagedClusterIdentity_Type_UserAssigned)))
-				g.Expect(result.Spec.Identity.UserAssignedIdentities).To(Equal([]asocontainerservicev1.UserAssignedIdentityDetails{{Reference: genruntime.ResourceReference{ARMID: "/resource/ID"}}}))
-				g.Expect(result.Spec.IdentityProfile).To(Equal(map[string]asocontainerservicev1.UserAssignedIdentity{kubeletIdentityKey: {ResourceReference: &genruntime.ResourceReference{ARMID: "/resource/ID"}}}))
-			},
-		},
-		{
-			name:     "set Linux profile if SSH key is set",
-			existing: nil,
-			spec: &ManagedClusterSpec{
-				Name:            "test-managedcluster",
-				ResourceGroup:   "test-rg",
-				Location:        "test-location",
-				Version:         "v1.22.0",
-				LoadBalancerSKU: "standard",
-				OIDCIssuerProfile: &OIDCIssuerProfile{
-					Enabled: ptr.To(true),
-				},
-				SSHPublicKey: base64.StdEncoding.EncodeToString([]byte("test-ssh-key")),
-				GetAllAgentPools: func() ([]azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool], error) {
-					return []azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool]{
-						&agentpools.AgentPoolSpec{
-							Name:          "test-agentpool-0",
-							Mode:          string(infrav1.NodePoolModeSystem),
-							ResourceGroup: "test-rg",
-							Replicas:      2,
-							AdditionalTags: map[string]string{
-								"test-tag": "test-value",
-							},
-						},
-					}, nil
-				},
-			},
-			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
-				g.Expect(result.Spec.LinuxProfile).To(Not(BeNil()))
-				g.Expect(*(result.Spec.LinuxProfile.Ssh.PublicKeys)[0].KeyData).To(Equal("test-ssh-key"))
-			},
-		},
-		{
-			name:     "set HTTPProxyConfig if set",
-			existing: nil,
-			spec: &ManagedClusterSpec{
-				Name:            "test-managedcluster",
-				ResourceGroup:   "test-rg",
-				Location:        "test-location",
-				Version:         "v1.22.0",
-				LoadBalancerSKU: "standard",
-				OIDCIssuerProfile: &OIDCIssuerProfile{
-					Enabled: ptr.To(true),
-				},
-				HTTPProxyConfig: &HTTPProxyConfig{
-					HTTPProxy:  ptr.To("http://proxy.com"),
-					HTTPSProxy: ptr.To("https://proxy.com"),
-				},
-				GetAllAgentPools: func() ([]azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool], error) {
-					return []azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool]{}, nil
-				},
-			},
-			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
-				g.Expect(result.Spec.HttpProxyConfig).To(Not(BeNil()))
-				g.Expect(*result.Spec.HttpProxyConfig.HttpProxy).To(Equal("http://proxy.com"))
-			},
-		},
-		{
-			name:     "set HTTPProxyConfig if set with no proxy list",
-			existing: nil,
-			spec: &ManagedClusterSpec{
-				Name:            "test-managedcluster",
-				ResourceGroup:   "test-rg",
-				Location:        "test-location",
-				Version:         "v1.22.0",
-				LoadBalancerSKU: "standard",
-				OIDCIssuerProfile: &OIDCIssuerProfile{
-					Enabled: ptr.To(true),
-				},
-				HTTPProxyConfig: &HTTPProxyConfig{
-					NoProxy: []string{"noproxy1", "noproxy2"},
-				},
-				GetAllAgentPools: func() ([]azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool], error) {
-					return []azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool]{}, nil
-				},
-			},
-			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
-				g.Expect(result.Spec.HttpProxyConfig).To(Not(BeNil()))
-				g.Expect((result.Spec.HttpProxyConfig.NoProxy)).To(Equal([]string{"noproxy1", "noproxy2"}))
-			},
-		},
-		{
-			name:     "skip Linux profile if SSH key is not set",
-			existing: nil,
-			spec: &ManagedClusterSpec{
-				Name:            "test-managedcluster",
-				ResourceGroup:   "test-rg",
-				Location:        "test-location",
-				Version:         "v1.22.0",
-				LoadBalancerSKU: "standard",
-				OIDCIssuerProfile: &OIDCIssuerProfile{
-					Enabled: ptr.To(true),
-				},
-				SSHPublicKey: "",
-				GetAllAgentPools: func() ([]azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool], error) {
-					return []azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool]{
-						&agentpools.AgentPoolSpec{
-							Name:          "test-agentpool-0",
-							Mode:          string(infrav1.NodePoolModeSystem),
-							ResourceGroup: "test-rg",
-							Replicas:      2,
-							AdditionalTags: map[string]string{
-								"test-tag": "test-value",
-							},
-						},
-					}, nil
-				},
-			},
-			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
-				g.Expect(result.Spec.LinuxProfile).To(BeNil())
-			},
-		},
-		{
-			name:     "no update needed if both clusters have no authorized IP ranges",
-			existing: getExistingClusterWithAPIServerAccessProfile(),
-			spec: &ManagedClusterSpec{
-				Name:            "test-managedcluster",
-				ResourceGroup:   "test-rg",
-				Location:        "test-location",
-				Version:         "v1.22.0",
-				LoadBalancerSKU: "standard",
-				OIDCIssuerProfile: &OIDCIssuerProfile{
-					Enabled: ptr.To(true),
-				},
-				APIServerAccessProfile: &APIServerAccessProfile{
-					EnablePrivateCluster: ptr.To(false),
-				},
-			},
-			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
-				g.Expect(result).To(Equal(getExistingClusterWithAPIServerAccessProfile()))
-			},
-		},
-		{
-			name:     "update authorized IP ranges with empty struct if spec does not have authorized IP ranges but existing cluster has authorized IP ranges",
-			existing: getExistingClusterWithAuthorizedIPRanges(),
-			spec: &ManagedClusterSpec{
-				Name:            "test-managedcluster",
-				ResourceGroup:   "test-rg",
-				Location:        "test-location",
-				Version:         "v1.22.0",
-				LoadBalancerSKU: "standard",
-				OIDCIssuerProfile: &OIDCIssuerProfile{
-					Enabled: ptr.To(true),
-				},
-				APIServerAccessProfile: &APIServerAccessProfile{
-					AuthorizedIPRanges: []string{},
-				},
-			},
-			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
-				g.Expect(result.Spec.ApiServerAccessProfile).To(Not(BeNil()))
-				g.Expect(result.Spec.ApiServerAccessProfile.AuthorizedIPRanges).To(Equal([]string{}))
-			},
-		},
-		{
-			name:     "update authorized IP ranges with authorized IPs spec has authorized IP ranges but existing cluster does not have authorized IP ranges",
-			existing: getExistingCluster(),
-			spec: &ManagedClusterSpec{
-				Name:            "test-managedcluster",
-				ResourceGroup:   "test-rg",
-				Location:        "test-location",
-				Version:         "v1.22.0",
-				LoadBalancerSKU: "standard",
-				OIDCIssuerProfile: &OIDCIssuerProfile{
-					Enabled: ptr.To(true),
-				},
-				APIServerAccessProfile: &APIServerAccessProfile{
-					AuthorizedIPRanges: []string{"192.168.0.1/32, 192.168.0.2/32, 192.168.0.3/32"},
-				},
-			},
-			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
-				g.Expect(result.Spec.ApiServerAccessProfile).To(Not(BeNil()))
-				g.Expect(result.Spec.ApiServerAccessProfile.AuthorizedIPRanges).To(Equal([]string{"192.168.0.1/32, 192.168.0.2/32, 192.168.0.3/32"}))
-			},
-		},
-		{
-			name:     "no update needed when authorized IP ranges when both clusters have the same authorized IP ranges",
-			existing: getExistingClusterWithAuthorizedIPRanges(),
-			spec: &ManagedClusterSpec{
-				Name:            "test-managedcluster",
-				ResourceGroup:   "test-rg",
-				Location:        "test-location",
-				Version:         "v1.22.0",
-				LoadBalancerSKU: "standard",
-				OIDCIssuerProfile: &OIDCIssuerProfile{
-					Enabled: ptr.To(true),
-				},
-				APIServerAccessProfile: &APIServerAccessProfile{
-					AuthorizedIPRanges: []string{"192.168.0.1/32, 192.168.0.2/32, 192.168.0.3/32"},
-				},
-			},
-			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
-				g.Expect(result).To(Equal(getExistingClusterWithAuthorizedIPRanges()))
-			},
-		},
-		{
-			name:     "managedcluster exists with UserAssigned identity, no update needed",
-			existing: getExistingClusterWithUserAssignedIdentity(),
-			spec: &ManagedClusterSpec{
-				Name:            "test-managedcluster",
-				ResourceGroup:   "test-rg",
-				Location:        "test-location",
-				Version:         "v1.22.0",
-				LoadBalancerSKU: "standard",
-				OIDCIssuerProfile: &OIDCIssuerProfile{
-					Enabled: ptr.To(true),
-				},
-				Identity: &infrav1.Identity{
-					Type:                           infrav1.ManagedControlPlaneIdentityTypeUserAssigned,
-					UserAssignedIdentityResourceID: "some id",
-				},
-			},
-			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
-				g.Expect(result).To(Equal(getExistingClusterWithUserAssignedIdentity()))
-			},
-		},
-		{
-			name: "setting networkPluginMode from nil to \"overlay\" will update",
-			existing: func() *asocontainerservicev1.ManagedCluster {
-				c := getExistingCluster()
-				c.Spec.NetworkProfile.NetworkPluginMode = nil
-				return c
-			}(),
-			spec: &ManagedClusterSpec{
-				Name:            "test-managedcluster",
-				ResourceGroup:   "test-rg",
-				Location:        "test-location",
-				Version:         "v1.22.0",
-				LoadBalancerSKU: "standard",
-				OIDCIssuerProfile: &OIDCIssuerProfile{
-					Enabled: ptr.To(true),
-				},
-				NetworkPluginMode: ptr.To(infrav1.NetworkPluginModeOverlay),
-			},
-			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
-				g.Expect(result.Spec.NetworkProfile.NetworkPluginMode).NotTo(BeNil())
-				g.Expect(*result.Spec.NetworkProfile.NetworkPluginMode).To(Equal(asocontainerservicev1.ContainerServiceNetworkProfile_NetworkPluginMode_Overlay))
-			},
-		},
-		{
-			name:     "setting networkPluginMode from \"overlay\" to nil doesn't require update",
-			existing: getExistingCluster(),
-			spec: &ManagedClusterSpec{
-				Name:            "test-managedcluster",
-				ResourceGroup:   "test-rg",
-				Location:        "test-location",
-				Version:         "v1.22.0",
-				LoadBalancerSKU: "standard",
-				OIDCIssuerProfile: &OIDCIssuerProfile{
-					Enabled: ptr.To(true),
-				},
-				NetworkPluginMode: nil,
-			},
-			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
-				g.Expect(result).To(Equal(getExistingCluster()))
-			},
-		},
-		{
-			name:     "update needed when oidc issuer profile enabled changes",
-			existing: getExistingCluster(),
-			spec: &ManagedClusterSpec{
-				Name:            "test-managedcluster",
-				ResourceGroup:   "test-rg",
-				Location:        "test-location",
-				Version:         "v1.22.0",
-				LoadBalancerSKU: "standard",
-				OIDCIssuerProfile: &OIDCIssuerProfile{
-					Enabled: ptr.To(false),
-				},
-			},
-			expect: func(g *WithT, result *asocontainerservicev1.ManagedCluster) {
-				g.Expect(*result.Spec.OidcIssuerProfile.Enabled).To(BeFalse())
-			},
-		},
-	}
-	for _, tc := range testcases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			format.MaxLength = 10000
-			g := NewWithT(t)
-			// t.Parallel()
+	t.Run("no existing managed cluster", func(t *testing.T) {
+		g := NewGomegaWithT(t)
 
-			result, err := tc.spec.Parameters(context.TODO(), tc.existing)
-			if tc.expectedError != "" {
-				g.Expect(err).To(HaveOccurred())
-				g.Expect(err).To(MatchError(tc.expectedError))
-			} else {
-				g.Expect(err).NotTo(HaveOccurred())
-			}
-			tc.expect(g, result)
-		})
-	}
-}
-
-func TestGetIdentity(t *testing.T) {
-	testcases := []struct {
-		name         string
-		identity     *infrav1.Identity
-		expectedType *asocontainerservicev1.ManagedClusterIdentity_Type
-	}{
-		{
-			name:     "default",
-			identity: &infrav1.Identity{},
-		},
-		{
-			name: "user-assigned identity",
-			identity: &infrav1.Identity{
-				Type:                           infrav1.ManagedControlPlaneIdentityTypeUserAssigned,
-				UserAssignedIdentityResourceID: "/subscriptions/fae7cc14-bfba-4471-9435-f945b42a16dd/resourcegroups/my-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/my-cluster-user-identity",
+		spec := &ManagedClusterSpec{
+			Name:              "name",
+			Namespace:         "namespace",
+			ResourceGroup:     "rg",
+			NodeResourceGroup: "node rg",
+			ClusterName:       "cluster",
+			VnetSubnetID:      "vnet subnet id",
+			Location:          "location",
+			Tags:              map[string]string{"additional": "tags"},
+			Version:           "version",
+			LoadBalancerSKU:   "lb sku",
+			NetworkPlugin:     "network plugin",
+			NetworkPluginMode: ptr.To(infrav1.NetworkPluginMode("network plugin mode")),
+			NetworkPolicy:     "network policy",
+			OutboundType:      ptr.To(infrav1.ManagedControlPlaneOutboundType("outbound type")),
+			SSHPublicKey:      base64.StdEncoding.EncodeToString([]byte("ssh")),
+			GetAllAgentPools: func() ([]azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool], error) {
+				return []azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool]{
+					&agentpools.AgentPoolSpec{
+						Replicas:  5,
+						Mode:      "mode",
+						AzureName: "agentpool",
+					},
+				}, nil
 			},
-			expectedType: ptr.To(asocontainerservicev1.ManagedClusterIdentity_Type_UserAssigned),
-		},
-		{
-			name: "system-assigned identity",
-			identity: &infrav1.Identity{
-				Type: infrav1.ManagedControlPlaneIdentityTypeSystemAssigned,
-			},
-			expectedType: ptr.To(asocontainerservicev1.ManagedClusterIdentity_Type_SystemAssigned),
-		},
-	}
-	for _, tc := range testcases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			g := NewWithT(t)
-			t.Parallel()
-
-			result, err := getIdentity(tc.identity)
-			g.Expect(err).To(BeNil())
-			if tc.identity.Type != "" {
-				g.Expect(result.Type).To(Equal(tc.expectedType))
-				if tc.identity.Type == infrav1.ManagedControlPlaneIdentityTypeUserAssigned {
-					g.Expect(result.UserAssignedIdentities).To(Not(BeEmpty()))
-					g.Expect(result.UserAssignedIdentities[0]).To(Equal(asocontainerservicev1.UserAssignedIdentityDetails{
-						Reference: genruntime.ResourceReference{
-							ARMID: tc.identity.UserAssignedIdentityResourceID,
-						},
-					}))
-				} else {
-					g.Expect(result.UserAssignedIdentities).To(BeEmpty())
-				}
-			} else {
-				g.Expect(result).To(BeNil())
-			}
-		})
-	}
-}
-
-func getExistingClusterWithAPIServerAccessProfile() *asocontainerservicev1.ManagedCluster {
-	mc := getExistingCluster()
-	mc.Spec.ApiServerAccessProfile = &asocontainerservicev1.ManagedClusterAPIServerAccessProfile{
-		EnablePrivateCluster: ptr.To(false),
-	}
-	return mc
-}
-
-func getExistingCluster() *asocontainerservicev1.ManagedCluster {
-	mc := getSampleManagedCluster()
-	mc.Status.Id = ptr.To("test-id")
-
-	mc.Spec.LinuxProfile = nil
-	mc.Spec.NetworkProfile.NetworkPluginMode = nil
-	mc.Spec.NodeResourceGroup = ptr.To("")
-	mc.Spec.OperatorSpec.Secrets.AdminCredentials = &genruntime.SecretDestination{
-		Name: "-aso-kubeconfig",
-		Key:  "value",
-	}
-	mc.Spec.OperatorSpec.Secrets.UserCredentials = nil
-	mc.Spec.Tags[infrav1.ClusterTagKey("")] = mc.Spec.Tags[infrav1.ClusterTagKey("test-cluster")]
-	delete(mc.Spec.Tags, infrav1.ClusterTagKey("test-cluster"))
-
-	// field that CAPZ does not manage, simulating user-supplied value
-	mc.Spec.EnablePodSecurityPolicy = ptr.To(true)
-
-	mc.Spec.AgentPoolProfiles = nil
-	// only nil vs. non-nil matters here
-	mc.Status.AgentPoolProfiles = []asocontainerservicev1.ManagedClusterAgentPoolProfile_STATUS{}
-
-	// tags managed separately
-	mc.Spec.Tags = nil
-	mc.Status.Tags = map[string]string{}
-
-	return mc
-}
-
-func getExistingClusterWithUserAssignedIdentity() *asocontainerservicev1.ManagedCluster {
-	mc := getExistingCluster()
-	mc.Status.Id = ptr.To("test-id")
-	mc.Spec.Identity = &asocontainerservicev1.ManagedClusterIdentity{
-		Type: ptr.To(asocontainerservicev1.ManagedClusterIdentity_Type_UserAssigned),
-		UserAssignedIdentities: []asocontainerservicev1.UserAssignedIdentityDetails{
-			{
-				Reference: genruntime.ResourceReference{
-					ARMID: "some id",
-				},
-			},
-		},
-	}
-	return mc
-}
-
-func getSampleManagedCluster() *asocontainerservicev1.ManagedCluster {
-	return &asocontainerservicev1.ManagedCluster{
-		Spec: asocontainerservicev1.ManagedCluster_Spec{
-			AzureName:         "test-managedcluster",
-			Owner:             &genruntime.KnownResourceReference{Name: "test-rg"},
-			KubernetesVersion: ptr.To("v1.22.0"),
-			AgentPoolProfiles: []asocontainerservicev1.ManagedClusterAgentPoolProfile{
+			PodCIDR:      "pod cidr",
+			ServiceCIDR:  "0.0.0.0/10",
+			DNSServiceIP: nil,
+			AddonProfiles: []AddonProfile{
 				{
-					Name:         ptr.To("test-agentpool-0"),
-					Mode:         ptr.To(asocontainerservicev1.AgentPoolMode(infrav1.NodePoolModeSystem)),
-					Count:        ptr.To(2),
-					Type:         ptr.To(asocontainerservicev1.AgentPoolType_VirtualMachineScaleSets),
-					OsDiskSizeGB: ptr.To[asocontainerservicev1.ContainerServiceOSDisk](0),
-					Tags: map[string]string{
-						"test-tag": "test-value",
-					},
-					EnableAutoScaling: ptr.To(false),
-				},
-				{
-					Name:                ptr.To("test-agentpool-1"),
-					Mode:                ptr.To(asocontainerservicev1.AgentPoolMode(infrav1.NodePoolModeUser)),
-					Count:               ptr.To(4),
-					Type:                ptr.To(asocontainerservicev1.AgentPoolType_VirtualMachineScaleSets),
-					OsDiskSizeGB:        ptr.To[asocontainerservicev1.ContainerServiceOSDisk](0),
-					VmSize:              ptr.To("test_SKU"),
-					OrchestratorVersion: ptr.To("v1.22.0"),
-					VnetSubnetReference: &genruntime.ResourceReference{
-						ARMID: "fake/subnet/id",
-					},
-					MaxPods:           ptr.To(32),
-					AvailabilityZones: []string{"1", "2"},
-					Tags: map[string]string{
-						"test-tag": "test-value",
-					},
-					EnableAutoScaling: ptr.To(false),
+					Name:    "addon name",
+					Enabled: true,
+					Config:  map[string]string{"addon": "config"},
 				},
 			},
-			LinuxProfile: &asocontainerservicev1.ContainerServiceLinuxProfile{
-				AdminUsername: ptr.To(azure.DefaultAKSUserName),
-				Ssh: &asocontainerservicev1.ContainerServiceSshConfiguration{
-					PublicKeys: []asocontainerservicev1.ContainerServiceSshPublicKey{
-						{
-							KeyData: ptr.To("test-ssh-key"),
-						},
-					},
-				},
+			AADProfile: &AADProfile{
+				Managed: true,
 			},
-			ServicePrincipalProfile: &asocontainerservicev1.ManagedClusterServicePrincipalProfile{ClientId: ptr.To("msi")},
-			NodeResourceGroup:       ptr.To("test-node-rg"),
-			EnableRBAC:              ptr.To(true),
-			NetworkProfile: &asocontainerservicev1.ContainerServiceNetworkProfile{
-				LoadBalancerSku:   ptr.To(asocontainerservicev1.ContainerServiceNetworkProfile_LoadBalancerSku_Standard),
-				NetworkPluginMode: ptr.To(asocontainerservicev1.ContainerServiceNetworkProfile_NetworkPluginMode_Overlay),
+			SKU: &SKU{
+				Tier: "sku tier",
 			},
-			OidcIssuerProfile: &asocontainerservicev1.ManagedClusterOIDCIssuerProfile{
+			LoadBalancerProfile: &LoadBalancerProfile{
+				ManagedOutboundIPs: ptr.To(16),
+				OutboundIPPrefixes: []string{"outbound ip prefixes"},
+				OutboundIPs:        []string{"outbound ips"},
+			},
+			APIServerAccessProfile: &APIServerAccessProfile{
+				AuthorizedIPRanges: []string{"authorized ip ranges"},
+			},
+			AutoScalerProfile: &AutoScalerProfile{
+				Expander: ptr.To("expander"),
+			},
+			Identity: &infrav1.Identity{
+				Type:                           infrav1.ManagedControlPlaneIdentityType(asocontainerservicev1.ManagedClusterIdentity_Type_UserAssigned),
+				UserAssignedIdentityResourceID: "user assigned id id",
+			},
+			KubeletUserAssignedIdentity: "kubelet id",
+			HTTPProxyConfig: &HTTPProxyConfig{
+				NoProxy: []string{"noproxy"},
+			},
+			OIDCIssuerProfile: &OIDCIssuerProfile{
 				Enabled: ptr.To(true),
 			},
-			OperatorSpec: &asocontainerservicev1.ManagedClusterOperatorSpec{
-				Secrets: &asocontainerservicev1.ManagedClusterOperatorSecrets{
-					UserCredentials: &genruntime.SecretDestination{
-						Name: "test-cluster-user-aso-kubeconfig",
-						Key:  "value",
+			DNSPrefix:            ptr.To("dns prefix"),
+			DisableLocalAccounts: ptr.To(true),
+		}
+
+		expected := &asocontainerservicev1.ManagedCluster{
+			Spec: asocontainerservicev1.ManagedCluster_Spec{
+				AadProfile: &asocontainerservicev1.ManagedClusterAADProfile{
+					EnableAzureRBAC: ptr.To(false),
+					Managed:         ptr.To(true),
+				},
+				AddonProfiles: map[string]asocontainerservicev1.ManagedClusterAddonProfile{
+					"addon name": {
+						Config:  map[string]string{"addon": "config"},
+						Enabled: ptr.To(true),
 					},
 				},
+				AgentPoolProfiles: []asocontainerservicev1.ManagedClusterAgentPoolProfile{
+					{
+						Count:             ptr.To(5),
+						EnableAutoScaling: ptr.To(false),
+						Mode:              ptr.To(asocontainerservicev1.AgentPoolMode("mode")),
+						Name:              ptr.To("agentpool"),
+						OsDiskSizeGB:      ptr.To(asocontainerservicev1.ContainerServiceOSDisk(0)),
+						Type:              ptr.To(asocontainerservicev1.AgentPoolType_VirtualMachineScaleSets),
+					},
+				},
+				ApiServerAccessProfile: &asocontainerservicev1.ManagedClusterAPIServerAccessProfile{
+					AuthorizedIPRanges: []string{"authorized ip ranges"},
+				},
+				AutoScalerProfile: &asocontainerservicev1.ManagedClusterProperties_AutoScalerProfile{
+					Expander: ptr.To(asocontainerservicev1.ManagedClusterProperties_AutoScalerProfile_Expander("expander")),
+				},
+				AzureName:            "name",
+				DisableLocalAccounts: ptr.To(true),
+				DnsPrefix:            ptr.To("dns prefix"),
+				EnableRBAC:           ptr.To(true),
+				HttpProxyConfig: &asocontainerservicev1.ManagedClusterHTTPProxyConfig{
+					NoProxy: []string{"noproxy"},
+				},
+				Identity: &asocontainerservicev1.ManagedClusterIdentity{
+					Type: ptr.To(asocontainerservicev1.ManagedClusterIdentity_Type_UserAssigned),
+					UserAssignedIdentities: []asocontainerservicev1.UserAssignedIdentityDetails{
+						{
+							Reference: genruntime.ResourceReference{
+								ARMID: "user assigned id id",
+							},
+						},
+					},
+				},
+				IdentityProfile: map[string]asocontainerservicev1.UserAssignedIdentity{
+					kubeletIdentityKey: {
+						ResourceReference: &genruntime.ResourceReference{
+							ARMID: "kubelet id",
+						},
+					},
+				},
+				KubernetesVersion: ptr.To("version"),
+				LinuxProfile: &asocontainerservicev1.ContainerServiceLinuxProfile{
+					AdminUsername: ptr.To(azure.DefaultAKSUserName),
+					Ssh: &asocontainerservicev1.ContainerServiceSshConfiguration{
+						PublicKeys: []asocontainerservicev1.ContainerServiceSshPublicKey{
+							{
+								KeyData: ptr.To("ssh"),
+							},
+						},
+					},
+				},
+				Location: ptr.To("location"),
+				NetworkProfile: &asocontainerservicev1.ContainerServiceNetworkProfile{
+					DnsServiceIP: ptr.To("0.0.0.10"),
+					LoadBalancerProfile: &asocontainerservicev1.ManagedClusterLoadBalancerProfile{
+						ManagedOutboundIPs: &asocontainerservicev1.ManagedClusterLoadBalancerProfile_ManagedOutboundIPs{
+							Count: ptr.To(16),
+						},
+						OutboundIPPrefixes: &asocontainerservicev1.ManagedClusterLoadBalancerProfile_OutboundIPPrefixes{
+							PublicIPPrefixes: []asocontainerservicev1.ResourceReference{
+								{
+									Reference: &genruntime.ResourceReference{
+										ARMID: "outbound ip prefixes",
+									},
+								},
+							},
+						},
+						OutboundIPs: &asocontainerservicev1.ManagedClusterLoadBalancerProfile_OutboundIPs{
+							PublicIPs: []asocontainerservicev1.ResourceReference{
+								{
+									Reference: &genruntime.ResourceReference{
+										ARMID: "outbound ips",
+									},
+								},
+							},
+						},
+					},
+					LoadBalancerSku:   ptr.To(asocontainerservicev1.ContainerServiceNetworkProfile_LoadBalancerSku("lb sku")),
+					NetworkPlugin:     ptr.To(asocontainerservicev1.ContainerServiceNetworkProfile_NetworkPlugin("network plugin")),
+					NetworkPluginMode: ptr.To(asocontainerservicev1.ContainerServiceNetworkProfile_NetworkPluginMode("network plugin mode")),
+					NetworkPolicy:     ptr.To(asocontainerservicev1.ContainerServiceNetworkProfile_NetworkPolicy("network policy")),
+					OutboundType:      ptr.To(asocontainerservicev1.ContainerServiceNetworkProfile_OutboundType("outbound type")),
+					PodCidr:           ptr.To("pod cidr"),
+					ServiceCidr:       ptr.To("0.0.0.0/10"),
+				},
+				NodeResourceGroup: ptr.To("node rg"),
+				OidcIssuerProfile: &asocontainerservicev1.ManagedClusterOIDCIssuerProfile{
+					Enabled: ptr.To(true),
+				},
+				OperatorSpec: &asocontainerservicev1.ManagedClusterOperatorSpec{
+					Secrets: &asocontainerservicev1.ManagedClusterOperatorSecrets{
+						UserCredentials: &genruntime.SecretDestination{
+							Name: "cluster-user-aso-kubeconfig",
+							Key:  secret.KubeconfigDataName,
+						},
+					},
+				},
+				Owner: &genruntime.KnownResourceReference{
+					Name: "rg",
+				},
+				ServicePrincipalProfile: &asocontainerservicev1.ManagedClusterServicePrincipalProfile{
+					ClientId: ptr.To("msi"),
+				},
+				Sku: &asocontainerservicev1.ManagedClusterSKU{
+					Name: ptr.To(asocontainerservicev1.ManagedClusterSKU_Name_Base),
+					Tier: ptr.To(asocontainerservicev1.ManagedClusterSKU_Tier("sku tier")),
+				},
+				Tags: map[string]string{
+					"Name":       "name",
+					"additional": "tags",
+					"sigs.k8s.io_cluster-api-provider-azure_cluster_cluster": "owned",
+					"sigs.k8s.io_cluster-api-provider-azure_role":            "common",
+				},
 			},
-			Identity: &asocontainerservicev1.ManagedClusterIdentity{
-				Type: ptr.To(asocontainerservicev1.ManagedClusterIdentity_Type_SystemAssigned),
-			},
-			AadProfile: &asocontainerservicev1.ManagedClusterAADProfile{
-				Managed:             ptr.To(true),
-				EnableAzureRBAC:     ptr.To(false),
-				AdminGroupObjectIDs: []string{"admin group"},
-			},
-			DisableLocalAccounts: ptr.To(true),
-			Location:             ptr.To("test-location"),
-			Tags: infrav1.Build(infrav1.BuildParams{
-				Lifecycle:   infrav1.ResourceLifecycleOwned,
-				ClusterName: "test-cluster",
-				Name:        ptr.To("test-managedcluster"),
-				Role:        ptr.To(infrav1.CommonRole),
-			}),
-		},
-	}
-}
+		}
 
-func getExistingClusterWithAuthorizedIPRanges() *asocontainerservicev1.ManagedCluster {
-	mc := getExistingCluster()
-	mc.Spec.ApiServerAccessProfile = &asocontainerservicev1.ManagedClusterAPIServerAccessProfile{
-		AuthorizedIPRanges: []string{"192.168.0.1/32, 192.168.0.2/32, 192.168.0.3/32"},
-	}
-	return mc
+		actual, err := spec.Parameters(context.Background(), nil)
+
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(cmp.Diff(actual, expected)).To(BeEmpty())
+	})
+
+	t.Run("with existing managed cluster", func(t *testing.T) {
+		g := NewGomegaWithT(t)
+
+		spec := &ManagedClusterSpec{
+			DNSPrefix: ptr.To("managed by CAPZ"),
+			Tags:      map[string]string{"additional": "tags"},
+		}
+		existing := &asocontainerservicev1.ManagedCluster{
+			Spec: asocontainerservicev1.ManagedCluster_Spec{
+				DnsPrefix:               ptr.To("set by the user"),
+				EnablePodSecurityPolicy: ptr.To(true), // set by the user
+			},
+			Status: asocontainerservicev1.ManagedCluster_STATUS{
+				AgentPoolProfiles: []asocontainerservicev1.ManagedClusterAgentPoolProfile_STATUS{},
+				Tags:              map[string]string{},
+			},
+		}
+
+		actual, err := spec.Parameters(context.Background(), existing)
+
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(actual.Spec.AgentPoolProfiles).To(BeNil())
+		g.Expect(actual.Spec.Tags).To(BeNil())
+		g.Expect(actual.Spec.DnsPrefix).To(Equal(ptr.To("managed by CAPZ")))
+		g.Expect(actual.Spec.EnablePodSecurityPolicy).To(Equal(ptr.To(true)))
+	})
 }

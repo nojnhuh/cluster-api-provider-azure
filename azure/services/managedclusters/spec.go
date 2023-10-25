@@ -373,6 +373,7 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontai
 	}
 
 	if s.ServiceCIDR != "" {
+		spec.NetworkProfile.DnsServiceIP = s.DNSServiceIP
 		if s.DNSServiceIP == nil {
 			spec.NetworkProfile.ServiceCidr = &s.ServiceCIDR
 			ip, _, err := net.ParseCIDR(s.ServiceCIDR)
@@ -386,8 +387,6 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontai
 			ip[15] = byte(10)
 			dnsIP := ip.String()
 			spec.NetworkProfile.DnsServiceIP = &dnsIP
-		} else {
-			spec.NetworkProfile.DnsServiceIP = s.DNSServiceIP
 		}
 	}
 
