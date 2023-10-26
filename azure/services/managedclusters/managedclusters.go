@@ -58,27 +58,13 @@ type ManagedClusterScope interface {
 	SetOIDCIssuerProfileStatus(*infrav1.OIDCIssuerProfileStatus)
 }
 
-// Service provides operations on azure resources.
-type Service struct {
-	Scope ManagedClusterScope
-	*aso.Service[*asocontainerservicev1.ManagedCluster, ManagedClusterScope]
-}
-
 // New creates a new service.
-func New(scope ManagedClusterScope) *Service {
+func New(scope ManagedClusterScope) *aso.Service[*asocontainerservicev1.ManagedCluster, ManagedClusterScope] {
 	svc := aso.NewService[*asocontainerservicev1.ManagedCluster](serviceName, scope)
 	svc.Specs = []azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedCluster]{scope.ManagedClusterSpec()}
 	svc.ConditionType = infrav1.ManagedClusterRunningCondition
 	svc.PostCreateOrUpdateResourceHook = postCreateOrUpdateResourceHook
-	return &Service{
-		Scope:   scope,
-		Service: svc,
-	}
-}
-
-// Name returns the service name.
-func (s *Service) Name() string {
-	return serviceName
+	return svc
 }
 
 func postCreateOrUpdateResourceHook(ctx context.Context, scope ManagedClusterScope, managedCluster *asocontainerservicev1.ManagedCluster, err error) error {

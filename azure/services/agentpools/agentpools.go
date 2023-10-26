@@ -46,27 +46,13 @@ type AgentPoolScope interface {
 	SetSubnetName()
 }
 
-// Service provides operations on Azure resources.
-type Service struct {
-	scope AgentPoolScope
-	*aso.Service[*asocontainerservicev1.ManagedClustersAgentPool, AgentPoolScope]
-}
-
 // New creates a new service.
-func New(scope AgentPoolScope) *Service {
+func New(scope AgentPoolScope) *aso.Service[*asocontainerservicev1.ManagedClustersAgentPool, AgentPoolScope] {
 	svc := aso.NewService[*asocontainerservicev1.ManagedClustersAgentPool](serviceName, scope)
 	svc.Specs = []azure.ASOResourceSpecGetter[*asocontainerservicev1.ManagedClustersAgentPool]{scope.AgentPoolSpec()}
 	svc.ConditionType = infrav1.AgentPoolsReadyCondition
 	svc.PostCreateOrUpdateResourceHook = postCreateOrUpdateResourceHook
-	return &Service{
-		scope:   scope,
-		Service: svc,
-	}
-}
-
-// Name returns the service name.
-func (s *Service) Name() string {
-	return serviceName
+	return svc
 }
 
 func postCreateOrUpdateResourceHook(ctx context.Context, scope AgentPoolScope, agentPool *asocontainerservicev1.ManagedClustersAgentPool, err error) error {
