@@ -75,10 +75,10 @@ const (
 )
 
 const (
-	// LoadBalancerSKUStandard is the standard load balancer SKU.
-	LoadBalancerSKUStandard = "standard"
-	// LoadBalancerSKUBasic is the basic load balancer SKU.
-	LoadBalancerSKUBasic = "basic"
+	// LoadBalancerSKUStandard is the Standard load balancer SKU.
+	LoadBalancerSKUStandard = "Standard"
+	// LoadBalancerSKUBasic is the Basic load balancer SKU.
+	LoadBalancerSKUBasic = "Basic"
 )
 
 // AzureManagedControlPlaneSpec defines the desired state of AzureManagedControlPlane.
@@ -162,7 +162,8 @@ type AzureManagedControlPlaneSpec struct {
 
 	// LoadBalancerSKU is the SKU of the loadBalancer to be provisioned.
 	// Immutable.
-	// +kubebuilder:validation:Enum=Basic;basic;Standard;standard
+	// +kubebuilder:validation:Enum=Basic;Standard
+	// +kubebuilder:default:=Standard
 	// +optional
 	LoadBalancerSKU *string `json:"loadBalancerSKU,omitempty"`
 

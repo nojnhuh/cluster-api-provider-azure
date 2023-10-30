@@ -48,7 +48,6 @@ func TestDefaultingWebhook(t *testing.T) {
 	err := mcpw.Default(context.Background(), amcp)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(*amcp.Spec.NetworkPlugin).To(Equal("azure"))
-	g.Expect(*amcp.Spec.LoadBalancerSKU).To(Equal("standard"))
 	g.Expect(amcp.Spec.Version).To(Equal("v1.17.5"))
 	g.Expect(*amcp.Spec.SSHPublicKey).NotTo(BeEmpty())
 	g.Expect(amcp.Spec.NodeResourceGroupName).To(Equal("MC_fooRg_fooName_fooLocation"))
@@ -64,7 +63,6 @@ func TestDefaultingWebhook(t *testing.T) {
 
 	t.Logf("Testing amcp defaulting webhook with baseline")
 	netPlug := "kubenet"
-	lbSKU := "Basic"
 	netPol := "azure"
 	amcp.Spec.NetworkPlugin = &netPlug
 	amcp.Spec.LoadBalancerSKU = &lbSKU
@@ -83,7 +81,6 @@ func TestDefaultingWebhook(t *testing.T) {
 	err = mcpw.Default(context.Background(), amcp)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(*amcp.Spec.NetworkPlugin).To(Equal(netPlug))
-	g.Expect(*amcp.Spec.LoadBalancerSKU).To(Equal("basic"))
 	g.Expect(*amcp.Spec.NetworkPolicy).To(Equal(netPol))
 	g.Expect(amcp.Spec.Version).To(Equal("v9.99.99"))
 	g.Expect(amcp.Spec.SSHPublicKey).To(BeNil())
@@ -1328,14 +1325,14 @@ func TestAzureManagedControlPlane_ValidateUpdate(t *testing.T) {
 			oldAMCP: &AzureManagedControlPlane{
 				Spec: AzureManagedControlPlaneSpec{
 					DNSServiceIP:    ptr.To("192.168.0.10"),
-					LoadBalancerSKU: ptr.To("Standard"),
+					LoadBalancerSKU: ptr.To(LoadBalancerSKUStandard),
 					Version:         "v1.18.0",
 				},
 			},
 			amcp: &AzureManagedControlPlane{
 				Spec: AzureManagedControlPlaneSpec{
 					DNSServiceIP:    ptr.To("192.168.0.10"),
-					LoadBalancerSKU: ptr.To("Basic"),
+					LoadBalancerSKU: ptr.To(LoadBalancerSKUBasic),
 					Version:         "v1.18.0",
 				},
 			},
@@ -1346,7 +1343,7 @@ func TestAzureManagedControlPlane_ValidateUpdate(t *testing.T) {
 			oldAMCP: &AzureManagedControlPlane{
 				Spec: AzureManagedControlPlaneSpec{
 					DNSServiceIP:    ptr.To("192.168.0.10"),
-					LoadBalancerSKU: ptr.To("Standard"),
+					LoadBalancerSKU: ptr.To(LoadBalancerSKUStandard),
 					Version:         "v1.18.0",
 				},
 			},

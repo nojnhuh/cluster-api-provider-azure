@@ -362,13 +362,12 @@ spec:
                     type: array
                 type: object
               loadBalancerSKU:
+                default: Standard
                 description: LoadBalancerSKU is the SKU of the loadBalancer to be
                   provisioned. Immutable.
                 enum:
                 - Basic
-                - basic
                 - Standard
-                - standard
                 type: string
               location:
                 description: 'Location is a string matching one of the canonical Azure

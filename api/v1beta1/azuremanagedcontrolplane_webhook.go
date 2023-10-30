@@ -68,8 +68,6 @@ type azureManagedControlPlaneWebhook struct {
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type.
 func (mw *azureManagedControlPlaneWebhook) Default(ctx context.Context, obj runtime.Object) error {
-	log := ctrl.Log.WithName("AzureManagedControlPlaneWebHookLogger")
-
 	m, ok := obj.(*AzureManagedControlPlane)
 	if !ok {
 		return apierrors.NewBadRequest("expected an AzureManagedControlPlane")
@@ -77,20 +75,6 @@ func (mw *azureManagedControlPlaneWebhook) Default(ctx context.Context, obj runt
 	if m.Spec.NetworkPlugin == nil {
 		networkPlugin := "azure"
 		m.Spec.NetworkPlugin = &networkPlugin
-	}
-
-	if m.Spec.LoadBalancerSKU == nil {
-		loadBalancerSKU := "standard"
-		m.Spec.LoadBalancerSKU = &loadBalancerSKU
-	}
-	lbSku := ptr.Deref(m.Spec.LoadBalancerSKU, "")
-	if strings.EqualFold(lbSku, LoadBalancerSKUStandard) && lbSku != LoadBalancerSKUStandard {
-		m.Spec.LoadBalancerSKU = ptr.To(LoadBalancerSKUStandard)
-		log.Info(fmt.Sprintf("%q load balancer SKU tier is invalid. Replacing with %q", lbSku, LoadBalancerSKUStandard))
-	}
-	if strings.EqualFold(lbSku, LoadBalancerSKUBasic) && lbSku != LoadBalancerSKUBasic {
-		m.Spec.LoadBalancerSKU = ptr.To(LoadBalancerSKUBasic)
-		log.Info(fmt.Sprintf("%q load balancer SKU tier is invalid. Replacing with %q", lbSku, LoadBalancerSKUBasic))
 	}
 
 	if m.Spec.Version != "" && !strings.HasPrefix(m.Spec.Version, "v") {
@@ -105,13 +89,13 @@ func (mw *azureManagedControlPlaneWebhook) Default(ctx context.Context, obj runt
 	}
 
 	if err := m.setDefaultSSHPublicKey(); err != nil {
-		log.Error(err, "setDefaultSSHPublicKey failed")
+		ctrl.Log.WithName("AzureManagedControlPlaneWebHookLogger").Error(err, "setDefaultSSHPublicKey failed")
 	}
 
 	// PaidManagedControlPlaneTier has been replaced with StandardManagedControlPlaneTier since v2023-02-01.
 	if m.Spec.SKU != nil && m.Spec.SKU.Tier == PaidManagedControlPlaneTier {
 		m.Spec.SKU.Tier = StandardManagedControlPlaneTier
-		log.Info("Paid SKU tier is deprecated and has been replaced by Standard")
+		ctrl.Log.WithName("AzureManagedControlPlaneWebHookLogger").Info("Paid SKU tier is deprecated and has been replaced by Standard")
 	}
 
 	m.setDefaultNodeResourceGroupName()
