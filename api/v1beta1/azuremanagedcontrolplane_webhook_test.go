@@ -65,7 +65,6 @@ func TestDefaultingWebhook(t *testing.T) {
 	netPlug := "kubenet"
 	netPol := "azure"
 	amcp.Spec.NetworkPlugin = &netPlug
-	amcp.Spec.LoadBalancerSKU = &lbSKU
 	amcp.Spec.NetworkPolicy = &netPol
 	amcp.Spec.Version = "9.99.99"
 	amcp.Spec.SSHPublicKey = nil
