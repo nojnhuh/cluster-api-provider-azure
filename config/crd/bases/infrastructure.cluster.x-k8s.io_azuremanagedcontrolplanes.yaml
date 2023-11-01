@@ -573,6 +573,7 @@ spec:
                 - name
                 type: object
             required:
+            - identityRef
             - location
             - resourceGroupName
             - version

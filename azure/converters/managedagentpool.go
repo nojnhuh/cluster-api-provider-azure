@@ -52,6 +52,7 @@ func AgentPoolToManagedClusterAgentPoolProfile(pool *asocontainerservicev1.Manag
 		KubeletDiskType:             properties.KubeletDiskType,
 		LinuxOSConfig:               properties.LinuxOSConfig,
 		EnableFIPS:                  properties.EnableFIPS,
+		EnableEncryptionAtHost:      properties.EnableEncryptionAtHost,
 	}
 	if properties.KubeletConfig != nil {
 		agentPool.KubeletConfig = properties.KubeletConfig

@@ -310,7 +310,7 @@ func (s *ClusterScope) RouteTableSpecs() []azure.ResourceSpecGetter {
 			specs = append(specs, &routetables.RouteTableSpec{
 				Name:           subnet.RouteTable.Name,
 				Location:       s.Location(),
-				ResourceGroup:  s.ResourceGroup(),
+				ResourceGroup:  s.Vnet().ResourceGroup,
 				ClusterName:    s.ClusterName(),
 				AdditionalTags: s.AdditionalTags(),
 			})
@@ -358,7 +358,7 @@ func (s *ClusterScope) NSGSpecs() []azure.ResourceSpecGetter {
 		nsgspecs[i] = &securitygroups.NSGSpec{
 			Name:                     subnet.SecurityGroup.Name,
 			SecurityRules:            subnet.SecurityGroup.SecurityRules,
-			ResourceGroup:            s.ResourceGroup(),
+			ResourceGroup:            s.Vnet().ResourceGroup,
 			Location:                 s.Location(),
 			ClusterName:              s.ClusterName(),
 			AdditionalTags:           s.AdditionalTags(),
@@ -875,11 +875,17 @@ func (s *ClusterScope) APIServerHost() string {
 	return s.APIServerPublicIP().DNSName
 }
 
-// SetFailureDomain will set the spec for a for a given key.
+// SetFailureDomain sets a failure domain in a cluster's status by its id.
+// The provided failure domain spec may be overridden to false by cluster's spec property.
 func (s *ClusterScope) SetFailureDomain(id string, spec clusterv1.FailureDomainSpec) {
 	if s.AzureCluster.Status.FailureDomains == nil {
 		s.AzureCluster.Status.FailureDomains = make(clusterv1.FailureDomains)
 	}
+
+	if fd, ok := s.AzureCluster.Spec.FailureDomains[id]; ok && !fd.ControlPlane {
+		spec.ControlPlane = false
+	}
+
 	s.AzureCluster.Status.FailureDomains[id] = spec
 }
 

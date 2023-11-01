@@ -182,6 +182,13 @@ func (mw *azureManagedMachinePoolWebhook) ValidateUpdate(ctx context.Context, ol
 		allErrs = append(allErrs, err)
 	}
 
+	if err := webhookutils.ValidateImmutable(
+		field.NewPath("Spec", "EnableEncryptionAtHost"),
+		old.Spec.EnableEncryptionAtHost,
+		m.Spec.EnableEncryptionAtHost); err != nil && old.Spec.EnableEncryptionAtHost != nil {
+		allErrs = append(allErrs, err)
+	}
+
 	if !webhookutils.EnsureStringSlicesAreEquivalent(m.Spec.AvailabilityZones, old.Spec.AvailabilityZones) {
 		allErrs = append(allErrs,
 			field.Invalid(

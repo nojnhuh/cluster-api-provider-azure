@@ -149,6 +149,9 @@ type AgentPoolSpec struct {
 
 	// EnableFIPS indicates whether FIPS is enabled on the node pool
 	EnableFIPS *bool
+
+	// EnableEncryptionAtHost indicates whether host encryption is enabled on the node pool
+	EnableEncryptionAtHost *bool
 }
 
 // ResourceRef implements azure.ASOResourceSpecGetter.
@@ -197,6 +200,7 @@ func (s *AgentPoolSpec) Parameters(ctx context.Context, existing *asocontainerse
 	spec.EnableNodePublicIP = s.EnableNodePublicIP
 	spec.Tags = s.AdditionalTags
 	spec.EnableFIPS = s.EnableFIPS
+	spec.EnableEncryptionAtHost = s.EnableEncryptionAtHost
 
 	if s.KubeletConfig != nil {
 		spec.KubeletConfig = &asocontainerservicev1.KubeletConfig{
