@@ -182,8 +182,6 @@ func AKSAdditionalTagsSpec(ctx context.Context, inputGetter func() AKSAdditional
 				}
 			}
 
-			// TODO: restore the behavior to delete all tags like the above control plane test does once we
-			// include ASO v2.4.0: https://github.com/Azure/azure-service-operator/issues/3367
 			var initialTags infrav1.Tags
 			Eventually(func(g Gomega) {
 				g.Expect(mgmtClient.Get(ctx, client.ObjectKeyFromObject(ammp), ammp)).To(Succeed())

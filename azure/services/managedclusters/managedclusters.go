@@ -132,7 +132,7 @@ func reconcileKubeconfig(ctx context.Context, scope ManagedClusterScope, namespa
 		asoSecret,
 	)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to get ASO admin kubeconfig")
+		return nil, nil, errors.Wrap(err, "failed to get ASO admin kubeconfig secret")
 	}
 	adminKubeConfigData = asoSecret.Data[secret.KubeconfigDataName]
 	return adminKubeConfigData, userKubeConfigData, nil
@@ -150,7 +150,7 @@ func getUserKubeconfigData(ctx context.Context, scope ManagedClusterScope, names
 		asoSecret,
 	)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get ASO user kubeconfig")
+		return nil, errors.Wrap(err, "failed to get ASO user kubeconfig secret")
 	}
 	kubeConfigData := asoSecret.Data[secret.KubeconfigDataName]
 	return kubeConfigData, nil

@@ -243,6 +243,13 @@ spec:
       name: test-subnet
 ```
 
+### Enable AKS features with custom headers (--aks-custom-headers)
+
+CAPZ no longer supports passing custom headers to AKS APIs with `infrastructure.cluster.x-k8s.io/custom-header-` annotations.
+Custom headers are deprecated in AKS in favor of new features first landing in preview API versions:
+
+https://github.com/Azure/azure-rest-api-specs/pull/18232
+
 ### Disable Local Accounts in AKS when using Azure Active Directory
 
 When deploying an AKS cluster, local accounts are enabled by default. 
