@@ -44,7 +44,7 @@ func TestAzureManagedMachinePoolDefaultingWebhook(t *testing.T) {
 		Spec: AzureManagedMachinePoolSpec{
 			Mode:         "System",
 			SKU:          "StandardD2S_V3",
-			OSDiskSizeGB: ptr.To[int32](512),
+			OSDiskSizeGB: ptr.To(512),
 		},
 	}
 	var client client.Client
@@ -111,14 +111,14 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 				Spec: AzureManagedMachinePoolSpec{
 					Mode:         "System",
 					SKU:          "StandardD2S_V3",
-					OSDiskSizeGB: ptr.To[int32](512),
+					OSDiskSizeGB: ptr.To(512),
 				},
 			},
 			old: &AzureManagedMachinePool{
 				Spec: AzureManagedMachinePoolSpec{
 					Mode:         "System",
 					SKU:          "StandardD2S_V4",
-					OSDiskSizeGB: ptr.To[int32](512),
+					OSDiskSizeGB: ptr.To(512),
 				},
 			},
 			wantErr: true,
@@ -130,7 +130,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 					OSType:       ptr.To(LinuxOS),
 					Mode:         "System",
 					SKU:          "StandardD2S_V3",
-					OSDiskSizeGB: ptr.To[int32](512),
+					OSDiskSizeGB: ptr.To(512),
 				},
 			},
 			old: &AzureManagedMachinePool{
@@ -138,7 +138,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 					OSType:       ptr.To(WindowsOS),
 					Mode:         "System",
 					SKU:          "StandardD2S_V4",
-					OSDiskSizeGB: ptr.To[int32](512),
+					OSDiskSizeGB: ptr.To(512),
 				},
 			},
 			wantErr: true,
@@ -149,14 +149,14 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 				Spec: AzureManagedMachinePoolSpec{
 					Mode:         "System",
 					SKU:          "StandardD2S_V3",
-					OSDiskSizeGB: ptr.To[int32](512),
+					OSDiskSizeGB: ptr.To(512),
 				},
 			},
 			old: &AzureManagedMachinePool{
 				Spec: AzureManagedMachinePoolSpec{
 					Mode:         "System",
 					SKU:          "StandardD2S_V3",
-					OSDiskSizeGB: ptr.To[int32](1024),
+					OSDiskSizeGB: ptr.To(1024),
 				},
 			},
 			wantErr: true,
@@ -167,7 +167,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 				Spec: AzureManagedMachinePoolSpec{
 					Mode:              "System",
 					SKU:               "StandardD2S_V3",
-					OSDiskSizeGB:      ptr.To[int32](512),
+					OSDiskSizeGB:      ptr.To(512),
 					AvailabilityZones: []string{"1", "2", "3"},
 				},
 			},
@@ -175,7 +175,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 				Spec: AzureManagedMachinePoolSpec{
 					Mode:         "System",
 					SKU:          "StandardD2S_V3",
-					OSDiskSizeGB: ptr.To[int32](512),
+					OSDiskSizeGB: ptr.To(512),
 				},
 			},
 			wantErr: true,
@@ -186,14 +186,14 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 				Spec: AzureManagedMachinePoolSpec{
 					Mode:         "System",
 					SKU:          "StandardD2S_V3",
-					OSDiskSizeGB: ptr.To[int32](512),
+					OSDiskSizeGB: ptr.To(512),
 				},
 			},
 			old: &AzureManagedMachinePool{
 				Spec: AzureManagedMachinePoolSpec{
 					Mode:              "System",
 					SKU:               "StandardD2S_V3",
-					OSDiskSizeGB:      ptr.To[int32](512),
+					OSDiskSizeGB:      ptr.To(512),
 					AvailabilityZones: []string{"1", "2", "3"},
 				},
 			},
@@ -205,7 +205,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 				Spec: AzureManagedMachinePoolSpec{
 					Mode:              "System",
 					SKU:               "StandardD2S_V3",
-					OSDiskSizeGB:      ptr.To[int32](512),
+					OSDiskSizeGB:      ptr.To(512),
 					AvailabilityZones: []string{"1", "2"},
 				},
 			},
@@ -213,7 +213,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 				Spec: AzureManagedMachinePoolSpec{
 					Mode:              "System",
 					SKU:               "StandardD2S_V3",
-					OSDiskSizeGB:      ptr.To[int32](512),
+					OSDiskSizeGB:      ptr.To(512),
 					AvailabilityZones: []string{"1", "2", "3"},
 				},
 			},
@@ -225,7 +225,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 				Spec: AzureManagedMachinePoolSpec{
 					Mode:              "System",
 					SKU:               "StandardD2S_V3",
-					OSDiskSizeGB:      ptr.To[int32](512),
+					OSDiskSizeGB:      ptr.To(512),
 					AvailabilityZones: []string{"1", "3", "2"},
 				},
 			},
@@ -233,7 +233,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 				Spec: AzureManagedMachinePoolSpec{
 					Mode:              "System",
 					SKU:               "StandardD2S_V3",
-					OSDiskSizeGB:      ptr.To[int32](512),
+					OSDiskSizeGB:      ptr.To(512),
 					AvailabilityZones: []string{"1", "2", "3"},
 				},
 			},
@@ -245,7 +245,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 				Spec: AzureManagedMachinePoolSpec{
 					Mode:         "System",
 					SKU:          "StandardD2S_V3",
-					OSDiskSizeGB: ptr.To[int32](512),
+					OSDiskSizeGB: ptr.To(512),
 					MaxPods:      ptr.To(24),
 				},
 			},
@@ -253,7 +253,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 				Spec: AzureManagedMachinePoolSpec{
 					Mode:         "System",
 					SKU:          "StandardD2S_V3",
-					OSDiskSizeGB: ptr.To[int32](512),
+					OSDiskSizeGB: ptr.To(512),
 					MaxPods:      ptr.To(25),
 				},
 			},
@@ -265,7 +265,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 				Spec: AzureManagedMachinePoolSpec{
 					Mode:         "System",
 					SKU:          "StandardD2S_V3",
-					OSDiskSizeGB: ptr.To[int32](512),
+					OSDiskSizeGB: ptr.To(512),
 					MaxPods:      ptr.To(30),
 				},
 			},
@@ -273,7 +273,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 				Spec: AzureManagedMachinePoolSpec{
 					Mode:         "System",
 					SKU:          "StandardD2S_V3",
-					OSDiskSizeGB: ptr.To[int32](512),
+					OSDiskSizeGB: ptr.To(512),
 					MaxPods:      ptr.To(30),
 				},
 			},
@@ -285,7 +285,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 				Spec: AzureManagedMachinePoolSpec{
 					Mode:         "System",
 					SKU:          "StandardD2S_V3",
-					OSDiskSizeGB: ptr.To[int32](512),
+					OSDiskSizeGB: ptr.To(512),
 					MaxPods:      ptr.To(24),
 					OsDiskType:   ptr.To(string(asocontainerservicev1.OSDiskType_Ephemeral)),
 				},
@@ -294,7 +294,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 				Spec: AzureManagedMachinePoolSpec{
 					Mode:         "System",
 					SKU:          "StandardD2S_V3",
-					OSDiskSizeGB: ptr.To[int32](512),
+					OSDiskSizeGB: ptr.To(512),
 					MaxPods:      ptr.To(24),
 					OsDiskType:   ptr.To(string(asocontainerservicev1.OSDiskType_Managed)),
 				},
@@ -307,7 +307,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 				Spec: AzureManagedMachinePoolSpec{
 					Mode:         "System",
 					SKU:          "StandardD2S_V3",
-					OSDiskSizeGB: ptr.To[int32](512),
+					OSDiskSizeGB: ptr.To(512),
 					MaxPods:      ptr.To(30),
 					OsDiskType:   ptr.To(string(asocontainerservicev1.OSDiskType_Managed)),
 				},
@@ -316,7 +316,7 @@ func TestAzureManagedMachinePoolUpdatingWebhook(t *testing.T) {
 				Spec: AzureManagedMachinePoolSpec{
 					Mode:         "System",
 					SKU:          "StandardD2S_V3",
-					OSDiskSizeGB: ptr.To[int32](512),
+					OSDiskSizeGB: ptr.To(512),
 					MaxPods:      ptr.To(30),
 					OsDiskType:   ptr.To(string(asocontainerservicev1.OSDiskType_Managed)),
 				},

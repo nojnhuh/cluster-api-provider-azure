@@ -445,7 +445,6 @@ spec:
                 description: OSDiskSizeGB is the disk size for every machine in this
                   agent pool. If you specify 0, it will apply the default osDisk size
                   according to the vmSize specified. Immutable.
-                format: int32
                 type: integer
               osDiskType:
                 default: Managed

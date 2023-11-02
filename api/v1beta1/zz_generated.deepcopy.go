@@ -1384,7 +1384,7 @@ func (in *AzureManagedMachinePoolSpec) DeepCopyInto(out *AzureManagedMachinePool
 	}
 	if in.OSDiskSizeGB != nil {
 		in, out := &in.OSDiskSizeGB, &out.OSDiskSizeGB
-		*out = new(int32)
+		*out = new(int)
 		**out = **in
 	}
 	if in.AvailabilityZones != nil {

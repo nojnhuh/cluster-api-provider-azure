@@ -442,7 +442,7 @@ type AzureManagedMachinePoolSpec struct {
 	// If you specify 0, it will apply the default osDisk size according to the vmSize specified.
 	// Immutable.
 	// +optional
-	OSDiskSizeGB *int32 `json:"osDiskSizeGB,omitempty"`
+	OSDiskSizeGB *int `json:"osDiskSizeGB,omitempty"`
 
 	// AvailabilityZones - Availability zones for nodes. Must use VirtualMachineScaleSets AgentPoolType.
 	// Immutable.

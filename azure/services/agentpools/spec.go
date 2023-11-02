@@ -82,7 +82,7 @@ type AgentPoolSpec struct {
 	Replicas int
 
 	// OSDiskSizeGB is the OS disk size in GB for every machine in this agent pool.
-	OSDiskSizeGB int32
+	OSDiskSizeGB int
 
 	// VnetSubnetID is the Azure Resource ID for the subnet which should contain nodes.
 	VnetSubnetID string
