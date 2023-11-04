@@ -2,6 +2,7 @@ apiVersion: cluster.x-k8s.io/v1beta1
 kind: Cluster
 metadata:
   labels:
+    azuredisk-csi: "true"
     cni: calico
     cni-windows: ${CLUSTER_NAME}-calico
     containerd-logger: enabled
@@ -108,13 +109,30 @@ spec:
         set -o nounset
         set -o pipefail
         set -o errexit
+        [[ $(id -u) != 0 ]] && SUDO="sudo" || SUDO=""
+
+        echo "Use OOT credential provider"
+        mkdir -p /var/lib/kubelet/credential-provider
+        curl --retry 10 --retry-delay 5 -Lo /var/lib/kubelet/credential-provider/acr-credential-provider "https://${AZURE_STORAGE_ACCOUNT}.blob.core.windows.net/${AZURE_BLOB_CONTAINER_NAME}/${IMAGE_TAG_ACR_CREDENTIAL_PROVIDER}/azure-acr-credential-provider"
+        chmod 755 /var/lib/kubelet/credential-provider/acr-credential-provider
+        curl --retry 10 --retry-delay 5 -Lo /var/lib/kubelet/credential-provider-config.yaml https://raw.githubusercontent.com/kubernetes-sigs/cloud-provider-azure/${IMAGE_TAG_ACR_CREDENTIAL_PROVIDER}/examples/out-of-tree/credential-provider-config.yaml
+        chmod 644 /var/lib/kubelet/credential-provider-config.yaml
+      owner: root:root
+      path: /tmp/oot-cred-provider.sh
+      permissions: "0744"
+    - content: |
+        #!/bin/bash
+
+        set -o nounset
+        set -o pipefail
+        set -o errexit
 
         systemctl stop kubelet
         declare -a BINARIES=("kubeadm" "kubectl" "kubelet")
         az login --identity
         for BINARY in "$${BINARIES[@]}"; do
           echo "* installing package: $${BINARY} ${KUBE_GIT_VERSION}"
-          az storage blob download --blob-url "https://${AZURE_STORAGE_ACCOUNT}.blob.core.windows.net/${JOB_NAME}/${KUBE_GIT_VERSION}/bin/linux/amd64/$${BINARY}" -f "/usr/bin/$${BINARY}" --auth-mode login
+          az storage blob download --blob-url "https://${AZURE_STORAGE_ACCOUNT}.blob.core.windows.net/${AZURE_BLOB_CONTAINER_NAME}/${KUBE_GIT_VERSION}/bin/linux/amd64/$${BINARY}" -f "/usr/bin/$${BINARY}" --auth-mode login
         done
         systemctl restart kubelet
 
@@ -160,12 +178,16 @@ spec:
         kubeletExtraArgs:
           azure-container-registry-config: /etc/kubernetes/azure.json
           cloud-provider: external
+          image-credential-provider-bin-dir: /var/lib/kubelet/credential-provider
+          image-credential-provider-config: /var/lib/kubelet/credential-provider-config.yaml
         name: '{{ ds.meta_data["local_hostname"] }}'
     joinConfiguration:
       nodeRegistration:
         kubeletExtraArgs:
           azure-container-registry-config: /etc/kubernetes/azure.json
           cloud-provider: external
+          image-credential-provider-bin-dir: /var/lib/kubelet/credential-provider
+          image-credential-provider-config: /var/lib/kubelet/credential-provider-config.yaml
         name: '{{ ds.meta_data["local_hostname"] }}'
     mounts:
     - - LABEL=etcd_disk
@@ -173,6 +195,7 @@ spec:
     postKubeadmCommands:
     - bash -c /tmp/replace-k8s-components.sh
     preKubeadmCommands:
+    - bash -c /tmp/oot-cred-provider.sh
     - bash -c /tmp/replace-k8s-binaries.sh
     verbosity: 5
   machineTemplate:
@@ -290,13 +313,30 @@ spec:
           set -o nounset
           set -o pipefail
           set -o errexit
+          [[ $(id -u) != 0 ]] && SUDO="sudo" || SUDO=""
+
+          echo "Use OOT credential provider"
+          mkdir -p /var/lib/kubelet/credential-provider
+          curl --retry 10 --retry-delay 5 -Lo /var/lib/kubelet/credential-provider/acr-credential-provider "https://${AZURE_STORAGE_ACCOUNT}.blob.core.windows.net/${AZURE_BLOB_CONTAINER_NAME}/${IMAGE_TAG_ACR_CREDENTIAL_PROVIDER}/azure-acr-credential-provider"
+          chmod 755 /var/lib/kubelet/credential-provider/acr-credential-provider
+          curl --retry 10 --retry-delay 5 -Lo /var/lib/kubelet/credential-provider-config.yaml https://raw.githubusercontent.com/kubernetes-sigs/cloud-provider-azure/${IMAGE_TAG_ACR_CREDENTIAL_PROVIDER}/examples/out-of-tree/credential-provider-config.yaml
+          chmod 644 /var/lib/kubelet/credential-provider-config.yaml
+        owner: root:root
+        path: /tmp/oot-cred-provider.sh
+        permissions: "0744"
+      - content: |
+          #!/bin/bash
+
+          set -o nounset
+          set -o pipefail
+          set -o errexit
 
           systemctl stop kubelet
           declare -a BINARIES=("kubeadm" "kubectl" "kubelet")
           az login --identity
           for BINARY in "$${BINARIES[@]}"; do
             echo "* installing package: $${BINARY} ${KUBE_GIT_VERSION}"
-            az storage blob download --blob-url "https://${AZURE_STORAGE_ACCOUNT}.blob.core.windows.net/${JOB_NAME}/${KUBE_GIT_VERSION}/bin/linux/amd64/$${BINARY}" -f "/usr/bin/$${BINARY}" --auth-mode login
+            az storage blob download --blob-url "https://${AZURE_STORAGE_ACCOUNT}.blob.core.windows.net/${AZURE_BLOB_CONTAINER_NAME}/${KUBE_GIT_VERSION}/bin/linux/amd64/$${BINARY}" -f "/usr/bin/$${BINARY}" --auth-mode login
           done
           systemctl restart kubelet
 
@@ -311,8 +351,11 @@ spec:
           kubeletExtraArgs:
             azure-container-registry-config: /etc/kubernetes/azure.json
             cloud-provider: external
+            image-credential-provider-bin-dir: /var/lib/kubelet/credential-provider
+            image-credential-provider-config: /var/lib/kubelet/credential-provider-config.yaml
           name: '{{ ds.meta_data["local_hostname"] }}'
       preKubeadmCommands:
+      - bash -c /tmp/oot-cred-provider.sh
       - bash -c /tmp/replace-k8s-binaries.sh
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
@@ -428,6 +471,16 @@ spec:
         path: C:/collect-hns-crashes.ps1
         permissions: "0744"
       - content: |
+          $ErrorActionPreference = 'Stop'
+
+          echo "Use OOT credential provider"
+          mkdir C:\var\lib\kubelet\credential-provider
+          curl.exe --retry 10 --retry-delay 5 -L "https://${AZURE_STORAGE_ACCOUNT}.blob.core.windows.net/${AZURE_BLOB_CONTAINER_NAME}/${IMAGE_TAG_ACR_CREDENTIAL_PROVIDER}/azure-acr-credential-provider.exe" --output C:\var\lib\kubelet\credential-provider\acr-credential-provider.exe
+          cp C:\var\lib\kubelet\credential-provider\acr-credential-provider.exe C:\var\lib\kubelet\credential-provider\acr-credential-provider
+          curl.exe --retry 10 --retry-delay 5 -L https://raw.githubusercontent.com/kubernetes-sigs/cloud-provider-azure/${IMAGE_TAG_ACR_CREDENTIAL_PROVIDER}/examples/out-of-tree/credential-provider-config-win.yaml --output C:\var\lib\kubelet\credential-provider-config.yaml
+        path: C:/oot-cred-provider.ps1
+        permissions: "0744"
+      - content: |
           Write-Host "Installing Azure CLI"
           $ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri https://azcliprod.blob.core.windows.net/msi/azure-cli-2.53.0.msi -OutFile .\AzureCLI.msi; Start-Process msiexec.exe -Wait -ArgumentList '/I AzureCLI.msi /quiet'; Remove-Item .\AzureCLI.msi
           # Need to add manually AZ to PATH as it is not added without a reset
@@ -450,7 +503,7 @@ spec:
             $env:PATH +=";C:\Program Files (x86)\Microsoft SDKs\Azure\CLI2\wbin"
             # Install Binaries
             $$binaries=@("kubeadm", "kubectl", "kubelet", "kube-proxy")
-            $$ci_url="https://${AZURE_STORAGE_ACCOUNT}.blob.core.windows.net/${JOB_NAME}/${KUBE_GIT_VERSION}/bin/windows/amd64"
+            $$ci_url="https://${AZURE_STORAGE_ACCOUNT}.blob.core.windows.net/${AZURE_BLOB_CONTAINER_NAME}/${KUBE_GIT_VERSION}/bin/windows/amd64"
             echo "running az login via identity"
             az login --identity
             foreach ( $$binary in $$binaries )
@@ -478,6 +531,8 @@ spec:
             azure-container-registry-config: c:/k/azure.json
             cloud-provider: external
             feature-gates: ${NODE_FEATURE_GATES:-""}
+            image-credential-provider-bin-dir: /var/lib/kubelet/credential-provider
+            image-credential-provider-config: /var/lib/kubelet/credential-provider-config.yaml
             v: "2"
             windows-priorityclass: ABOVE_NORMAL_PRIORITY_CLASS
           name: '{{ ds.meta_data["local_hostname"] }}'
@@ -488,6 +543,7 @@ spec:
       - powershell C:/create-temp-folder.ps1
       - powershell C:/replace-containerd.ps1
       - powershell C:/collect-hns-crashes.ps1
+      - powershell C:/oot-cred-provider.ps1
       - powershell C:/install-az-cli.ps1
       - powershell C:/replace-pr-binaries.ps1
       users:
@@ -602,6 +658,26 @@ spec:
     calicoctl:
       image: mcr.microsoft.com/oss/calico/ctl
   version: ${CALICO_VERSION}
+---
+apiVersion: addons.cluster.x-k8s.io/v1alpha1
+kind: HelmChartProxy
+metadata:
+  name: azuredisk-csi-driver-chart
+  namespace: default
+spec:
+  chartName: azuredisk-csi-driver
+  clusterSelector:
+    matchLabels:
+      azuredisk-csi: "true"
+  namespace: kube-system
+  releaseName: azuredisk-csi-driver-oot
+  repoURL: https://raw.githubusercontent.com/kubernetes-sigs/azuredisk-csi-driver/master/charts
+  valuesTemplate: |-
+    controller:
+      replicas: 1
+      runOnControlPlane: true
+    windows:
+      useHostProcessContainers: {{ hasKey .Cluster.metadata.labels "cni-windows" }}
 ---
 apiVersion: v1
 data:

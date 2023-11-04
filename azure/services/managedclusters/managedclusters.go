@@ -56,6 +56,8 @@ type ManagedClusterScope interface {
 	IsAADEnabled() bool
 	AreLocalAccountsDisabled() bool
 	SetOIDCIssuerProfileStatus(*infrav1.OIDCIssuerProfileStatus)
+	MakeClusterCA() *corev1.Secret
+	StoreClusterInfo(context.Context, []byte) error
 }
 
 // New creates a new service.
