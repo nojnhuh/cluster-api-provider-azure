@@ -93,7 +93,8 @@ func TestPostCreateOrUpdateResourceHook(t *testing.T) {
 				Namespace: namespace,
 			},
 			Status: asocontainerservicev1.ManagedCluster_STATUS{
-				Fqdn: ptr.To("fdqn"),
+				Fqdn:        ptr.To("fdqn"),
+				PrivateFQDN: ptr.To("private fqdn"),
 				OidcIssuerProfile: &asocontainerservicev1.ManagedClusterOIDCIssuerProfile_STATUS{
 					IssuerURL: ptr.To("oidc"),
 				},
@@ -102,5 +103,41 @@ func TestPostCreateOrUpdateResourceHook(t *testing.T) {
 
 		err := postCreateOrUpdateResourceHook(context.Background(), scope, managedCluster, nil)
 		g.Expect(err).NotTo(HaveOccurred())
+	})
+
+	t.Run("private cluster fqdn", func(t *testing.T) {
+		g := NewGomegaWithT(t)
+		mockCtrl := gomock.NewController(t)
+		scope := mock_managedclusters.NewMockManagedClusterScope(mockCtrl)
+		namespace := "default"
+		clusterName := "cluster"
+
+		kclient := fakeclient.NewClientBuilder().
+			Build()
+		scope.EXPECT().GetClient().Return(kclient).AnyTimes()
+
+		scope.EXPECT().SetControlPlaneEndpoint(clusterv1.APIEndpoint{
+			Host: "private fqdn",
+			Port: 443,
+		})
+		scope.EXPECT().ClusterName().Return(clusterName).AnyTimes()
+		scope.EXPECT().IsAADEnabled().Return(true)
+
+		managedCluster := &asocontainerservicev1.ManagedCluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace,
+			},
+			Status: asocontainerservicev1.ManagedCluster_STATUS{
+				Fqdn:        ptr.To("fdqn"),
+				PrivateFQDN: ptr.To("private fqdn"),
+				ApiServerAccessProfile: &asocontainerservicev1.ManagedClusterAPIServerAccessProfile_STATUS{
+					EnablePrivateCluster:           ptr.To(true),
+					EnablePrivateClusterPublicFQDN: ptr.To(false),
+				},
+			},
+		}
+
+		err := postCreateOrUpdateResourceHook(context.Background(), scope, managedCluster, nil)
+		g.Expect(err).To(HaveOccurred())
 	})
 }

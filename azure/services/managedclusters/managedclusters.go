@@ -79,6 +79,14 @@ func postCreateOrUpdateResourceHook(ctx context.Context, scope ManagedClusterSco
 		Host: ptr.Deref(managedCluster.Status.Fqdn, ""),
 		Port: 443,
 	}
+	if managedCluster.Status.ApiServerAccessProfile != nil &&
+		ptr.Deref(managedCluster.Status.ApiServerAccessProfile.EnablePrivateCluster, false) &&
+		!ptr.Deref(managedCluster.Status.ApiServerAccessProfile.EnablePrivateClusterPublicFQDN, false) {
+		endpoint = clusterv1.APIEndpoint{
+			Host: ptr.Deref(managedCluster.Status.PrivateFQDN, ""),
+			Port: 443,
+		}
+	}
 	scope.SetControlPlaneEndpoint(endpoint)
 
 	// Update kubeconfig data
