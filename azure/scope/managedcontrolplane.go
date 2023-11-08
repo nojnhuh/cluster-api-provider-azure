@@ -839,18 +839,6 @@ func (s *ManagedControlPlaneScope) SetAnnotation(key, value string) {
 	s.ControlPlane.Annotations[key] = value
 }
 
-// TagsSpecs returns the tag specs for the ManagedControlPlane.
-func (s *ManagedControlPlaneScope) TagsSpecs() []azure.TagsSpec {
-	specs := []azure.TagsSpec{
-		{
-			Scope:      azure.ManagedClusterID(s.SubscriptionID(), s.ResourceGroup(), s.ManagedClusterSpec().ResourceRef().Name),
-			Tags:       s.AdditionalTags(),
-			Annotation: azure.ManagedClusterTagsLastAppliedAnnotation,
-		},
-	}
-	return specs
-}
-
 // AvailabilityStatusResource refers to the AzureManagedControlPlane.
 func (s *ManagedControlPlaneScope) AvailabilityStatusResource() conditions.Setter {
 	return s.ControlPlane

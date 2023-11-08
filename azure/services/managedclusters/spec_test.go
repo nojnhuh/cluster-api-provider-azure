@@ -223,8 +223,7 @@ func TestParameters(t *testing.T) {
 					Tier: ptr.To(asocontainerservicev1.ManagedClusterSKU_Tier("sku tier")),
 				},
 				Tags: map[string]string{
-					"Name":       "name",
-					"additional": "tags",
+					"Name": "name",
 					"sigs.k8s.io_cluster-api-provider-azure_cluster_cluster": "owned",
 					"sigs.k8s.io_cluster-api-provider-azure_role":            "common",
 				},
