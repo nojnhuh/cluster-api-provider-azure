@@ -335,6 +335,11 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontai
 		NetworkPolicy:   azure.AliasOrNil[asocontainerservicev1.ContainerServiceNetworkProfile_NetworkPolicy](&s.NetworkPolicy),
 	}
 	managedCluster.Spec.AutoScalerProfile = buildAutoScalerProfile(s.AutoScalerProfile)
+	// This is the default value for AKS. We need to set it here in order for ASO not to try to delete it
+	// after the cluster is created if we leave it unspecified, which is invalid per AKS.
+	managedCluster.Spec.NetworkProfile.IpFamilies = []asocontainerservicev1.ContainerServiceNetworkProfile_IpFamilies{
+		asocontainerservicev1.ContainerServiceNetworkProfile_IpFamilies_IPv4,
+	}
 
 	var decodedSSHPublicKey []byte
 	if s.SSHPublicKey != "" {
@@ -367,7 +372,7 @@ func (s *ManagedClusterSpec) Parameters(ctx context.Context, existing *asocontai
 	if s.ServiceCIDR != "" {
 		managedCluster.Spec.NetworkProfile.DnsServiceIP = s.DNSServiceIP
 		if s.DNSServiceIP == nil {
-			managedCluster.Spec.NetworkProfile.ServiceCidr = &s.ServiceCIDR
+			managedCluster.Spec.NetworkProfile.ServiceCidrs = []string{s.ServiceCIDR}
 			ip, _, err := net.ParseCIDR(s.ServiceCIDR)
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse service cidr: %w", err)

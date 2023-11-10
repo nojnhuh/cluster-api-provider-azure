@@ -169,6 +169,9 @@ func TestParameters(t *testing.T) {
 				Location: ptr.To("location"),
 				NetworkProfile: &asocontainerservicev1.ContainerServiceNetworkProfile{
 					DnsServiceIP: ptr.To("0.0.0.10"),
+					IpFamilies: []asocontainerservicev1.ContainerServiceNetworkProfile_IpFamilies{
+						asocontainerservicev1.ContainerServiceNetworkProfile_IpFamilies_IPv4,
+					},
 					LoadBalancerProfile: &asocontainerservicev1.ManagedClusterLoadBalancerProfile{
 						ManagedOutboundIPs: &asocontainerservicev1.ManagedClusterLoadBalancerProfile_ManagedOutboundIPs{
 							Count: ptr.To(16),
@@ -198,7 +201,7 @@ func TestParameters(t *testing.T) {
 					NetworkPolicy:     ptr.To(asocontainerservicev1.ContainerServiceNetworkProfile_NetworkPolicy("network policy")),
 					OutboundType:      ptr.To(asocontainerservicev1.ContainerServiceNetworkProfile_OutboundType("outbound type")),
 					PodCidr:           ptr.To("pod cidr"),
-					ServiceCidr:       ptr.To("0.0.0.0/10"),
+					ServiceCidrs:      []string{"0.0.0.0/10"},
 				},
 				NodeResourceGroup: ptr.To("node rg"),
 				OidcIssuerProfile: &asocontainerservicev1.ManagedClusterOIDCIssuerProfile{
