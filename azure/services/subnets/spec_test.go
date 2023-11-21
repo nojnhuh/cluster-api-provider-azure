@@ -43,6 +43,7 @@ func TestParameters(t *testing.T) {
 				SubscriptionID:    "sub",
 				ResourceGroup:     "rg",
 				VNetName:          "vnet",
+				VNetResourceGroup: "vnet-rg",
 				CIDRs:             []string{"cidr"},
 				RouteTableName:    "routetable",
 				NatGatewayName:    "natgateway",
@@ -65,7 +66,7 @@ func TestParameters(t *testing.T) {
 					AddressPrefix:   ptr.To("cidr"),
 					RouteTable: &asonetworkv1.RouteTableSpec_VirtualNetworks_Subnet_SubResourceEmbedded{
 						Reference: &genruntime.ResourceReference{
-							ARMID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/routeTables/routetable",
+							ARMID: "/subscriptions/sub/resourceGroups/vnet-rg/providers/Microsoft.Network/routeTables/routetable",
 						},
 					},
 					NatGateway: &asonetworkv1.SubResource{
@@ -75,7 +76,7 @@ func TestParameters(t *testing.T) {
 					},
 					NetworkSecurityGroup: &asonetworkv1.NetworkSecurityGroupSpec_VirtualNetworks_Subnet_SubResourceEmbedded{
 						Reference: &genruntime.ResourceReference{
-							ARMID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/networkSecurityGroups/securitygroup",
+							ARMID: "/subscriptions/sub/resourceGroups/vnet-rg/providers/Microsoft.Network/networkSecurityGroups/securitygroup",
 						},
 					},
 					ServiceEndpoints: []asonetworkv1.ServiceEndpointPropertiesFormat{
@@ -95,6 +96,7 @@ func TestParameters(t *testing.T) {
 				SubscriptionID:    "sub",
 				ResourceGroup:     "rg",
 				VNetName:          "vnet",
+				VNetResourceGroup: "vnet-rg",
 				CIDRs:             []string{"cidr"},
 				RouteTableName:    "routetable",
 				NatGatewayName:    "natgateway",
@@ -121,7 +123,7 @@ func TestParameters(t *testing.T) {
 					AddressPrefix:   ptr.To("cidr"),
 					RouteTable: &asonetworkv1.RouteTableSpec_VirtualNetworks_Subnet_SubResourceEmbedded{
 						Reference: &genruntime.ResourceReference{
-							ARMID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/routeTables/routetable",
+							ARMID: "/subscriptions/sub/resourceGroups/vnet-rg/providers/Microsoft.Network/routeTables/routetable",
 						},
 					},
 					NatGateway: &asonetworkv1.SubResource{
@@ -131,7 +133,7 @@ func TestParameters(t *testing.T) {
 					},
 					NetworkSecurityGroup: &asonetworkv1.NetworkSecurityGroupSpec_VirtualNetworks_Subnet_SubResourceEmbedded{
 						Reference: &genruntime.ResourceReference{
-							ARMID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/networkSecurityGroups/securitygroup",
+							ARMID: "/subscriptions/sub/resourceGroups/vnet-rg/providers/Microsoft.Network/networkSecurityGroups/securitygroup",
 						},
 					},
 					ServiceEndpoints: []asonetworkv1.ServiceEndpointPropertiesFormat{

@@ -79,7 +79,7 @@ func (s *SubnetSpec) Parameters(ctx context.Context, existing *asonetworkv1.Virt
 	if s.RouteTableName != "" {
 		subnet.Spec.RouteTable = &asonetworkv1.RouteTableSpec_VirtualNetworks_Subnet_SubResourceEmbedded{
 			Reference: &genruntime.ResourceReference{
-				ARMID: azure.RouteTableID(s.SubscriptionID, s.ResourceGroup, s.RouteTableName),
+				ARMID: azure.RouteTableID(s.SubscriptionID, s.VNetResourceGroup, s.RouteTableName),
 			},
 		}
 	}
@@ -95,7 +95,7 @@ func (s *SubnetSpec) Parameters(ctx context.Context, existing *asonetworkv1.Virt
 	if s.SecurityGroupName != "" {
 		subnet.Spec.NetworkSecurityGroup = &asonetworkv1.NetworkSecurityGroupSpec_VirtualNetworks_Subnet_SubResourceEmbedded{
 			Reference: &genruntime.ResourceReference{
-				ARMID: azure.SecurityGroupID(s.SubscriptionID, s.ResourceGroup, s.SecurityGroupName),
+				ARMID: azure.SecurityGroupID(s.SubscriptionID, s.VNetResourceGroup, s.SecurityGroupName),
 			},
 		}
 	}
