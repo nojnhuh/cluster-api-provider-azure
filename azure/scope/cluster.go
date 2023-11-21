@@ -396,7 +396,6 @@ func (s *ClusterScope) SubnetSpecs() []azure.ASOResourceSpecGetter[*asonetworkv1
 			IsVNetManaged:     s.IsVnetManaged(),
 			RouteTableName:    subnet.RouteTable.Name,
 			SecurityGroupName: subnet.SecurityGroup.Name,
-			Role:              subnet.Role,
 			NatGatewayName:    subnet.NatGateway.Name,
 			ServiceEndpoints:  subnet.ServiceEndpoints,
 		}
@@ -416,7 +415,6 @@ func (s *ClusterScope) SubnetSpecs() []azure.ASOResourceSpecGetter[*asonetworkv1
 			IsVNetManaged:     s.IsVnetManaged(),
 			SecurityGroupName: azureBastionSubnet.SecurityGroup.Name,
 			RouteTableName:    azureBastionSubnet.RouteTable.Name,
-			Role:              azureBastionSubnet.Role,
 			ServiceEndpoints:  azureBastionSubnet.ServiceEndpoints,
 		})
 	}

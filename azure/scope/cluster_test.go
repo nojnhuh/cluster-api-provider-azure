@@ -1355,7 +1355,6 @@ func TestSubnetSpecs(t *testing.T) {
 					IsVNetManaged:     false,
 					RouteTableName:    "fake-route-table-1",
 					SecurityGroupName: "fake-security-group-1",
-					Role:              infrav1.SubnetNode,
 					NatGatewayName:    "fake-natgateway-1",
 				},
 			},
@@ -1458,7 +1457,6 @@ func TestSubnetSpecs(t *testing.T) {
 					IsVNetManaged:     false,
 					RouteTableName:    "fake-route-table-1",
 					SecurityGroupName: "fake-security-group-1",
-					Role:              infrav1.SubnetNode,
 					NatGatewayName:    "fake-natgateway-1",
 				},
 				&subnets.SubnetSpec{
@@ -1471,7 +1469,6 @@ func TestSubnetSpecs(t *testing.T) {
 					IsVNetManaged:     false,
 					SecurityGroupName: "fake-bastion-security-group-1",
 					RouteTableName:    "fake-bastion-route-table-1",
-					Role:              infrav1.SubnetBastion,
 				},
 			},
 		},

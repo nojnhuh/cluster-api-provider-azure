@@ -40,7 +40,6 @@ type SubnetSpec struct {
 	IsVNetManaged     bool
 	RouteTableName    string
 	SecurityGroupName string
-	Role              infrav1.SubnetRole
 	NatGatewayName    string
 	ServiceEndpoints  infrav1.ServiceEndpoints
 }
