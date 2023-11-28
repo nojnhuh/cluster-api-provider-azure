@@ -7,7 +7,7 @@ reviewers:
   - "@matthchr"
   - "@dtzar"
 creation-date: 2023-11-22
-last-updated: 2023-11-22
+last-updated: 2023-11-28
 status: provisional
 see-also:
   - "docs/proposals/20230123-azure-service-operator.md"
@@ -29,22 +29,20 @@ see-also:
   - [User Stories](#user-stories)
     - [Story 1](#story-1)
     - [Story 2](#story-2)
-  - [Requirements (Optional)](#requirements-optional)
-    - [Functional Requirements](#functional-requirements)
-      - [FR1](#fr1)
-      - [FR2](#fr2)
-    - [Non-Functional Requirements](#non-functional-requirements)
-      - [NFR1](#nfr1)
-      - [NFR2](#nfr2)
-  - [Implementation Details/Notes/Constraints](#implementation-detailsnotesconstraints)
+  - [API Design Options](#api-design-options)
+    - [Option 1: CAPZ resource references an existing ASO resource](#option-1-capz-resource-references-an-existing-aso-resource)
+    - [Option 2: CAPZ resource references a non-functional ASO "template" resource](#option-2-capz-resource-references-a-non-functional-aso-template-resource)
+    - [Option 3: CAPZ resource defines an entire unstructured ASO resource inline](#option-3-capz-resource-defines-an-entire-unstructured-aso-resource-inline)
+    - [Option 4: CAPZ resource defines an entire typed ASO resource inline](#option-4-capz-resource-defines-an-entire-typed-aso-resource-inline)
+    - [Decision](#decision)
   - [Security Model](#security-model)
   - [Risks and Mitigations](#risks-and-mitigations)
 - [Alternatives](#alternatives)
 - [Upgrade Strategy](#upgrade-strategy)
 - [Additional Details](#additional-details)
-  - [Test Plan [optional]](#test-plan-optional)
-  - [Graduation Criteria [optional]](#graduation-criteria-optional)
-  - [Version Skew Strategy [optional]](#version-skew-strategy-optional)
+  - [Test Plan](#test-plan)
+  - [Graduation Criteria](#graduation-criteria)
+  - [Version Skew Strategy](#version-skew-strategy)
 - [Implementation History](#implementation-history)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -90,142 +88,221 @@ be reflected in Cluster API.
 
 ## Proposal
 
-This is where we get down to the nitty gritty of what the proposal actually is.
-
-- What is the plan for implementing this feature?
-- What data model changes, additions, or removals are required?
-- Provide a scenario, or example.
-- Use diagrams to communicate concepts, flows of execution, and states.
-
-[PlantUML](http://plantuml.com) is the preferred tool to generate diagrams,
-place your `.plantuml` files under `images/` and run `make diagrams` from the docs folder.
-
 ### User Stories
-
-- Detail the things that people will be able to do if this proposal is implemented.
-- Include as much detail as possible so that people can understand the "how" of the system.
-- The goal here is to make this feel real for users without getting bogged down.
 
 #### Story 1
 
+As a managed cluster user, I want to be able to use all available AKS features natively from CAPZ so that I
+can more consistently managed my CAPZ AKS clusters that use advanced or niche features without having to wait
+for each of them to be implemented in CAPZ.
+
 #### Story 2
 
-### Requirements (Optional)
+As an AKS user looking to adopt Cluster API over an existing infrastructure managed solution, I want to be
+able to use all AKS features natively from CAPZ so that I can adopt Cluster API with the confidence that all
+the AKS features I currently utilize are still supported.
 
-Some authors may wish to use requirements in addition to user stories.
-Technical requirements should derived from user stories, and provide a trace from
-use case to design, implementation and test case. Requirements can be prioritised
-using the MoSCoW (MUST, SHOULD, COULD, WON'T) criteria.
+### API Design Options
 
-The FR and NFR notation is intended to be used as cross-references across a CAEP.
+There are a few different ways the entire AKS API surface area could be exposed from the CAPZ API. The
+following options all rely on ASO's ManagedCluster and ManagedClustersAgentPool resources to define the full
+AKS API, roughly organized in order of increasing responsibility for CAPZ. The examples below use
+AzureManagedControlPlane and ManagedCluster to help illustrate, but all of the same ideas should also apply to
+AzureManagedMachinePool and ManagedClustersAgentPool.
 
-The difference between goals and requirements is that between an executive summary
-and the body of a document. Each requirement should be in support of a goal,
-but narrowly scoped in a way that is verifiable or ideally - testable.
+#### Option 1: CAPZ resource references an existing ASO resource
 
-#### Functional Requirements
+Here, the AzureManagedControlPlane spec would be updated with a field that references an ASO ManagedCluster
+resource:
 
-Functional requirements are the properties that this design should include.
+```go
+type AzureManagedControlPlaneSpec struct {
+	...
+	
+	// ManagedClusterName is the name of the ASO ManagedCluster backing this AzureManagedControlPlane.
+	ManagedClusterName string `json:"managedClusterName"`
+}
+```
 
-##### FR1
+CAPZ will _not_ create this ManagedCluster and instead rely on it being created by any other means. CAPZ's
+`aks` flavor template will be updated to include a ManagedCluster to fulfill this requirement. CAPZ will also
+not modify the ManagedCluster except to fulfill CAPI contracts, such as managing replica count. Users modify
+other parameters which are not managed by CAPI on the ManagedCluster directly. Users should be fairly familiar
+with this pattern since it is already used extensively throughout CAPI, e.g. by modifying a virtual machine
+through its InfraMachine resource for parameters not defined on the Machine resource.
 
-##### FR2
+This approach has two key benefits. First, it can leverage ASO's conversion webhooks to allow CAPZ to interact
+with the ManagedCluster through one version of the API, and users to use a different API version, including
+newer or preview (https://github.com/kubernetes-sigs/cluster-api-provider-azure/issues/2625) API versions.
+Second, since ASO can [adopt existing Azure
+resources](https://azure.github.io/azure-service-operator/guide/frequently-asked-questions/#how-can-i-import-existing-azure-resources-into-aso),
+adopting existing AKS clusters into CAPZ
+(https://github.com/kubernetes-sigs/cluster-api-provider-azure/issues/1173) additionally would only require
+the extra steps to create the AzureManagedControlPlane referring to the adopted ManagedCluster.
 
-#### Non-Functional Requirements
+One other consideration is that this approach trades the requirement that CAPZ has the necessary RBAC
+permissions to create ManagedClusters for users having that same capability. CAPZ would still require
+permissions to read, update, and delete ManagedClusters.
 
-Non-functional requirements are user expectations of the solution. Include
-considerations for performance, reliability and security.
+The main roadblocks with this method relate to ClusterClass. If CAPZ's AzureManagedControlPlane controller is
+not responsible for creating the ASO ManagedCluster resource, then users would need to manage those
+separately, defeating much of the purpose of ClusterClass. Additionally, since each AzureManagedControlPlane
+will be referring to a distinct ManagedCluster, the new `ManagedClusterName` field should not be defined in an
+AzureManagedControlPlaneTemplate.
 
-##### NFR1
+#### Option 2: CAPZ resource references a non-functional ASO "template" resource
 
-##### NFR2
+This method is similar to [Option 1]. To better enable ClusterClass, instead of defining the full name of the
+ManagedCluster resource, the name of a "template" resource is defined instead:
 
-### Implementation Details/Notes/Constraints
+```go
+type AzureManagedControlPlaneClassSpec struct {
+	...
+	
+	// ManagedClusterTemplateName is the name of the ASO ManagedCluster to be used as a template from which
+	// new ManagedClusters will be created.
+	ManagedClusterTemplateName string `json:"managedClusterTemplateName"`
+}
+```
 
-- What are some important details that didn't come across above.
-- What are the caveats to the implementation?
-- Go in to as much detail as necessary here.
-- Talk about core concepts and how they releate.
+This template resource will be a ManagedCluster used as a base from which the AzureManagedControlPlane
+controller will create a new ManagedCluster. The template ManagedCluster will have ASO's [`skip` reconcile
+policy](https://azure.github.io/azure-service-operator/guide/annotations/#serviceoperatorazurecomreconcile-policy)
+applied so it does not result in any AKS resource being created in Azure. The ManagedClusters created based on
+the template will be reconciled normally to create AKS resources in Azure. The non-template ManagedClusters
+will be linked to the AzureManagedControlPlane through the standard `cluster.x-k8s.io/cluster-name` label.
+
+To modify parameters on the AKS cluster, either the template or non-template ManagedCluster may be updated.
+CAPZ will propagate changes made to a template to instances of that template. Parameters defined on the
+template take precedence over the same parameters on the instances.
+
+The main difference with [Option 1] that enables ClusterClass is that the same ManagedCluster template
+resource can be referenced by multiple AzureManagedControlPlanes, so this new `ManagedClusterTemplateName`
+field can be defined on the AzureManagedControlPlaneClassSpec so a set of ASK parameters defined once in the
+template can be applied to all Clusters built from that ClusterClass.
+
+This method makes all ManagedCluster fields available to define in a template which could lead to
+misconfiguration if certain parameters that must be unique to a cluster are erroneously shared through a
+template. Since those fields cannot be automatically identified and may evolve between AKS API versions, CAPZ
+will not attempt to categorize ASO ManagedCluster fields that way like it does between the fields present and
+omitted from the `AzureClusterClassSpec` type, for example. CAPZ could document a best-effort list of known
+fields which could or should not be defined in template types and will otherwise rely on AKS to provide
+reasonable error messages for misconfigurations.
+
+Like [Option 1], this method keeps particular versions of CAPZ decoupled from particular API versions of ASO
+resources (including allowing preview versions) and opens the door for streamlined adoption of existing AKS
+clusters.
+
+#### Option 3: CAPZ resource defines an entire unstructured ASO resource inline
+
+This method is functionally equivalent to [Option 2] except that the template resource is defined inline
+within the AzureManagedControlPlane:
+
+```go
+type AzureManagedControlPlaneClassSpec struct {
+	...
+	
+	// ManagedClusterTemplate is the ASO ManagedCluster to be used as a template from which new
+	// ManagedClusters will be created.
+	ManagedClusterTemplate map[string]interface{} `json:"managedClusterTemplate"`
+}
+```
+
+One variant of this method could be to using `string` instead of `map[string]interface{}` for the template
+type, though that would make defining patches unwieldy (like for ClusterClass).
+
+Compared to [Option 2], this method loses schema and webhook validation that would be performed by ASO when
+creating a separate ManagedCluster to serve as a template. That validation would still be performed when CAPZ
+creates the ManagedCluster resource, but that would be some time after the AzureManagedControlPlane is created
+and error messages may not be quite as visible.
+
+#### Option 4: CAPZ resource defines an entire typed ASO resource inline
+
+This method is functionally equivalent to [Option 3] except that the template field's type is the exact same
+as an ASO ManagedCluster:
+
+```go
+type AzureManagedControlPlaneClassSpec struct {
+	...
+	
+	// ManagedClusterSpec defines the spec of the ASO ManagedCluster managed by this AzureManagedControlPlane.
+	ManagedClusterSpec v1api20230201.ManagedCluster_Spec `json:"managedClusterTemplate"`
+}
+```
+
+This method allows CAPZ to leverage schema validation defined by ASO's CRDs upon AzureManagedControlPlane
+creation, but would still lose any further webhook validation done by ASO unless CAPZ can invoke that itself.
+
+It also has the drawback that one version of CAPZ is tied directly to a single AKS API version. The spec could
+potentially contain separate fields for each API version and enforce in webhooks that only one API version is
+being used at a time. Alternatively, users may set fields only present in a newer API version directly on the
+ManagedCluster after creation (if allowed by AKS) because CAPZ will not override user-provided fields for
+which it does not have its own opinion on ASO resources.
+
+#### Decision
+
+TBD
 
 ### Security Model
 
-Document the intended security model for the proposal, including implications
-on the Kubernetes RBAC model. Questions you may want to answer include:
-
-* Does this proposal implement security controls or require the need to do so?
-  * If so, consider describing the different roles and permissions with tables.
-* Are their adequate security warnings where appropriate (see https://adam.shostack.org/ReederEtAl_NEATatMicrosoft.pdf for guidance).
-* Are regex expressions going to be used, and are their appropriate defenses against DOS.
-* Is any sensitive data being stored in a secret, and only exists for as long as necessary?
+Overall, none of the approaches outlined above change what data is ultimately represented in the API, only the
+higher-level shape of the API. That means there is no further transport or handling of secrets or other
+sensitive information beyond what CAPZ already does.
 
 ### Risks and Mitigations
 
-- What are the risks of this proposal and how do we mitigate? Think broadly.
-- How will UX be reviewed and by whom?
-- How will security be reviewed and by whom?
-- Consider including folks that also work outside the SIG or subproject.
+Increasing CAPZ's reliance on ASO and exposing ASO to users at the API level further increases the risk
+[previously discussed](https://github.com/kubernetes-sigs/cluster-api-provider-azure/blob/ce3c130266b23a8b67aa5ef9a21f257ff9e6d63e/docs/proposals/20230123-azure-service-operator.md?plain=1#L169)
+that since ASO has not yet been proven to be as much of a staple as the other projects that manage
+infrastructure on Azure, ASO's lifespan may be more limited than others. If ASO were to sunset while CAPZ
+still relies on it, CAPZ would have to rework its APIs. This risk is mitigated by the fact that no
+announcements have yet been made regarding ASO's end-of-life and the project continues to be very active.
 
 ## Alternatives
 
-The `Alternatives` section is used to highlight and record other possible approaches to delivering the value proposed by a proposal.
+The main alternative to leveraging ASO to expose the entire AKS API from CAPZ would be for CAPZ to build its
+own code generation pipeline which takes as input the Azure API specs and ultimately produces definitions for
+AzureManagedControlPlane and AzureManagedMachinePool and mappings to ASO's ManagedCluster and
+ManagedClustersAgentPool. Such a solution would likely end up being too similar to what ASO already provides
+for the effort to be worthwhile.
 
 ## Upgrade Strategy
 
-If applicable, how will the component be upgraded? Make sure this is in the test plan.
+Each of the [options above](#api-design-options) suggest additive, backwards-compatible API changes. Users
+will not need to perform any action after upgrading to the first version of CAPZ that implements this
+proposal.
 
-Consider the following in developing an upgrade strategy for this enhancement:
-- What changes (in invocations, configurations, API use, etc.) is an existing cluster required to make on upgrade in order to keep previous behavior?
-- What changes (in invocations, configurations, API use, etc.) is an existing cluster required to make on upgrade in order to make use of the enhancement?
+The new API field allowing the entire ASO resource to be defined in the CAPZ API will overlap with several
+existing CAPZ API fields. e.g. with [Option 4], AzureManagedControlPlane's `spec.location` maps to the same
+ASO API field as `spec.managedClusterSpec.location`. If both are defined, then the `spec.managedCluster.*`
+field takes precedence. If only `spec.location` is defined, its value will still be used to construct the
+desired state for the ManagedCluster.
 
 ## Additional Details
 
-### Test Plan [optional]
+### Test Plan
 
-**Note:** *Section not required until targeted at a release.*
+Existing end-to-end tests will verify that CAPZ's behavior does not regress.
 
-Consider the following in developing a test plan for this enhancement:
-- Will there be e2e and integration tests, in addition to unit tests?
-- How will it be tested in isolation vs with other components?
+### Graduation Criteria
 
-No need to outline all of the test cases, just the general strategy.
-Anything that would count as tricky in the implementation and anything particularly challenging to test should be called out.
+In CAPZ version `1.N` which first implements this proposal, setting any new CAPZ API fields introduced by this
+proposal will not be allowed without enabling an `AKSASOAPI` feature flag in CAPZ. The feature flag will be
+required throughout `1.N+2` and dropped for `1.N+3` where the feature will be enabled by default.
 
-All code is expected to have adequate tests (eventually with coverage expectations).
-Please adhere to the [Kubernetes testing guidelines][testing-guidelines] when drafting this test plan.
+### Version Skew Strategy
 
-[testing-guidelines]: https://git.k8s.io/community/contributors/devel/sig-testing/testing.md
-
-### Graduation Criteria [optional]
-
-**Note:** *Section not required until targeted at a release.*
-
-Define graduation milestones.
-
-These may be defined in terms of API maturity, or as something else. Initial proposal should keep
-this high-level with a focus on what signals will be looked at to determine graduation.
-
-Consider the following in developing the graduation criteria for this enhancement:
-- [Maturity levels (`alpha`, `beta`, `stable`)][maturity-levels]
-- [Deprecation policy][deprecation-policy]
-
-Clearly define what graduation means by either linking to the [API doc definition](https://kubernetes.io/docs/concepts/overview/kubernetes-api/#api-versioning),
-or by redefining what graduation means.
-
-In general, we try to use the same stages (alpha, beta, GA), regardless how the functionality is accessed.
-
-[maturity-levels]: https://git.k8s.io/community/contributors/devel/sig-architecture/api_changes.md#alpha-beta-and-stable-versions
-[deprecation-policy]: https://kubernetes.io/docs/reference/using-api/deprecation-policy/
-
-### Version Skew Strategy [optional]
-
-If applicable, how will the component handle version skew with other components? What are the guarantees? Make sure
-this is in the test plan.
-
-Consider the following in developing a version skew strategy for this enhancement:
-- Does this enhancement involve coordinating behavior in the control plane and in the kubelet? How does an n-2 kubelet without this feature available behave when this feature is used?
-- Will any other components on the node change? For example, changes to CSI, CRI or CNI may require updating that component before the kubelet.
+With options 1-3 above, users are free to use any ASO API versions for AKS resources. CAPZ may internally
+operate against a different API version and ASO's webhooks will transparently perform any necessary conversion
+between versions.
 
 ## Implementation History
 
 - [ ] 06/15/2023: Issue opened: https://github.com/kubernetes-sigs/cluster-api-provider-azure/issues/3629
-- [ ] 11/22/2023: Iteration begins on this proposal document.
+- [ ] 11/22/2023: Iteration begins on this proposal document
+- [ ] 11/28/2023: First complete draft of this document is made available for review
+
+[Option 1]: #option-1-capz-resource-references-an-existing-aso-resource
+[Option 2]: #option-2-capz-resource-references-a-non-functional-aso-template-resource
+[Option 3]: #option-3-capz-resource-defines-an-entire-unstructured-aso-resource-inline
+[Option 4]: #option-4-capz-resource-defines-an-entire-typed-aso-resource-inline
