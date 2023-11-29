@@ -282,7 +282,8 @@ desired state for the ManagedCluster.
 
 ### Test Plan
 
-Existing end-to-end tests will verify that CAPZ's behavior does not regress.
+Existing end-to-end tests will verify that CAPZ's current behavior does not regress. New tests will verify
+that the new API fields proposed here behave as expected.
 
 ### Graduation Criteria
 
