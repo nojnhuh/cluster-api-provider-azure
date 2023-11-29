@@ -93,7 +93,7 @@ be reflected in Cluster API.
 #### Story 1
 
 As a managed cluster user, I want to be able to use all available AKS features natively from CAPZ so that I
-can more consistently managed my CAPZ AKS clusters that use advanced or niche features without having to wait
+can more consistently manage my CAPZ AKS clusters that use advanced or niche features without having to wait
 for each of them to be implemented in CAPZ.
 
 #### Story 2
