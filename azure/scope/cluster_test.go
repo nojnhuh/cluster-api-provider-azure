@@ -1605,7 +1605,7 @@ func TestAzureBastionSpec(t *testing.T) {
 	tests := []struct {
 		name         string
 		clusterScope ClusterScope
-		want         azure.ResourceSpecGetter
+		want         azure.ASOResourceSpecGetter[*asonetworkv1.BastionHost]
 	}{
 		{
 			name: "returns nil if no subnets are specified",

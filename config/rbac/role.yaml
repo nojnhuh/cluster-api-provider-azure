@@ -305,6 +305,7 @@ rules:
 - apiGroups:
   - network.azure.com
   resources:
+  - bastionhosts
   - natgateways
   - virtualnetworks
   - virtualnetworkssubnets
@@ -319,6 +320,7 @@ rules:
 - apiGroups:
   - network.azure.com
   resources:
+  - bastionhosts/status
   - natgateways/status
   - virtualnetworks/status
   - virtualnetworkssubnets/status
