@@ -178,7 +178,7 @@ template take precedence over the same parameters on the instances.
 
 The main difference with [Option 1] that enables ClusterClass is that the same ManagedCluster template
 resource can be referenced by multiple AzureManagedControlPlanes, so this new `ManagedClusterTemplateName`
-field can be defined on the AzureManagedControlPlaneClassSpec so a set of ASK parameters defined once in the
+field can be defined on the AzureManagedControlPlaneClassSpec so a set of AKS parameters defined once in the
 template can be applied to all Clusters built from that ClusterClass.
 
 This method makes all ManagedCluster fields available to define in a template which could lead to
