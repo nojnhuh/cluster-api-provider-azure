@@ -67,6 +67,7 @@ func postCreateOrUpdateResourceHook(ctx context.Context, scope VNetScope, existi
 	}
 	hasSubnets := false
 	for _, subnet := range subnets.Items {
+		// TODO: ASO v2.5 will add owner labels so we could do this equivalently with a label selector.
 		if subnet.Owner().Name != existingVnet.Name {
 			continue
 		}
