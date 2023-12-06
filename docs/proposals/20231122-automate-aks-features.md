@@ -81,6 +81,8 @@ be reflected in Cluster API.
 
 - Narrow the gap between the sets of features offered by AKS and CAPZ.
 - Reduce the maintenance cost of making new AKS features available from CAPZ.
+- Preserve the behavior of existing CAPZ AKS definitions while allowing users to utilize the new API pattern
+  iteratively to use new features not currently implemented in CAPZ.
 
 ### Non-Goals/Future Work
 
