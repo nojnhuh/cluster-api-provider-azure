@@ -307,6 +307,7 @@ rules:
   resources:
   - bastionhosts
   - natgateways
+  - privateendpoints
   - virtualnetworks
   - virtualnetworkssubnets
   verbs:
@@ -322,6 +323,7 @@ rules:
   resources:
   - bastionhosts/status
   - natgateways/status
+  - privateendpoints/status
   - virtualnetworks/status
   - virtualnetworkssubnets/status
   verbs:
@@ -331,6 +333,7 @@ rules:
 - apiGroups:
   - network.azure.com
   resources:
+  - privateendpoints
   - virtualnetworks
   - virtualnetworkssubnets
   verbs:
@@ -344,6 +347,7 @@ rules:
 - apiGroups:
   - network.azure.com
   resources:
+  - privateendpoints/status
   - virtualnetworks/status
   - virtualnetworkssubnets/status
   verbs:

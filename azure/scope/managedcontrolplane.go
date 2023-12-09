@@ -24,7 +24,8 @@ import (
 	"time"
 
 	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20230201"
-	asonetworkv1 "github.com/Azure/azure-service-operator/v2/api/network/v1api20201101"
+	asonetworkv1api20201101 "github.com/Azure/azure-service-operator/v2/api/network/v1api20201101"
+	asonetworkv1api20220701 "github.com/Azure/azure-service-operator/v2/api/network/v1api20220701"
 	asoresourcesv1 "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
 	"github.com/pkg/errors"
 	"golang.org/x/mod/semver"
@@ -114,7 +115,7 @@ func NewManagedControlPlaneScope(ctx context.Context, params ManagedControlPlane
 		Cluster:             params.Cluster,
 		ControlPlane:        params.ControlPlane,
 		ManagedMachinePools: params.ManagedMachinePools,
-		patchHelper:         helper,
+		PatchHelper:         helper,
 		cache:               params.Cache,
 	}, nil
 }
@@ -122,7 +123,7 @@ func NewManagedControlPlaneScope(ctx context.Context, params ManagedControlPlane
 // ManagedControlPlaneScope defines the basic context for an actuator to operate upon.
 type ManagedControlPlaneScope struct {
 	Client              client.Client
-	patchHelper         *patch.Helper
+	PatchHelper         *patch.Helper
 	adminKubeConfigData []byte
 	userKubeConfigData  []byte
 	cache               *ManagedControlPlaneCache
@@ -223,7 +224,7 @@ func (s *ManagedControlPlaneScope) PatchObject(ctx context.Context) error {
 
 	conditions.SetSummary(s.ControlPlane)
 
-	return s.patchHelper.Patch(
+	return s.PatchHelper.Patch(
 		ctx,
 		s.ControlPlane,
 		patch.WithOwnedConditions{Conditions: []clusterv1.ConditionType{
@@ -271,7 +272,7 @@ func (s *ManagedControlPlaneScope) GroupSpecs() []azure.ASOResourceSpecGetter[*a
 }
 
 // VNetSpec returns the virtual network spec.
-func (s *ManagedControlPlaneScope) VNetSpec() azure.ASOResourceSpecGetter[*asonetworkv1.VirtualNetwork] {
+func (s *ManagedControlPlaneScope) VNetSpec() azure.ASOResourceSpecGetter[*asonetworkv1api20201101.VirtualNetwork] {
 	return &virtualnetworks.VNetSpec{
 		ResourceGroup:  s.Vnet().ResourceGroup,
 		Name:           s.Vnet().Name,
@@ -299,8 +300,8 @@ func (s *ManagedControlPlaneScope) NodeNatGateway() infrav1.NatGateway {
 }
 
 // SubnetSpecs returns the subnets specs.
-func (s *ManagedControlPlaneScope) SubnetSpecs() []azure.ASOResourceSpecGetter[*asonetworkv1.VirtualNetworksSubnet] {
-	return []azure.ASOResourceSpecGetter[*asonetworkv1.VirtualNetworksSubnet]{
+func (s *ManagedControlPlaneScope) SubnetSpecs() []azure.ASOResourceSpecGetter[*asonetworkv1api20201101.VirtualNetworksSubnet] {
+	return []azure.ASOResourceSpecGetter[*asonetworkv1api20201101.VirtualNetworksSubnet]{
 		&subnets.SubnetSpec{
 			Name:              s.NodeSubnet().Name,
 			Namespace:         s.ControlPlane.Namespace,
@@ -848,12 +849,13 @@ func (s *ManagedControlPlaneScope) AvailabilityStatusFilter(cond *clusterv1.Cond
 }
 
 // PrivateEndpointSpecs returns the private endpoint specs.
-func (s *ManagedControlPlaneScope) PrivateEndpointSpecs() []azure.ResourceSpecGetter {
-	privateEndpointSpecs := make([]azure.ResourceSpecGetter, len(s.ControlPlane.Spec.VirtualNetwork.Subnet.PrivateEndpoints))
+func (s *ManagedControlPlaneScope) PrivateEndpointSpecs() []azure.ASOResourceSpecGetter[*asonetworkv1api20220701.PrivateEndpoint] {
+	privateEndpointSpecs := make([]azure.ASOResourceSpecGetter[*asonetworkv1api20220701.PrivateEndpoint], 0, len(s.ControlPlane.Spec.VirtualNetwork.Subnet.PrivateEndpoints))
 
 	for _, privateEndpoint := range s.ControlPlane.Spec.VirtualNetwork.Subnet.PrivateEndpoints {
 		privateEndpointSpec := &privateendpoints.PrivateEndpointSpec{
 			Name:                       privateEndpoint.Name,
+			Namespace:                  s.Cluster.Namespace,
 			ResourceGroup:              s.Vnet().ResourceGroup,
 			Location:                   privateEndpoint.Location,
 			CustomNetworkInterfaceName: privateEndpoint.CustomNetworkInterfaceName,
@@ -879,7 +881,6 @@ func (s *ManagedControlPlaneScope) PrivateEndpointSpecs() []azure.ResourceSpecGe
 			}
 			privateEndpointSpec.PrivateLinkServiceConnections = append(privateEndpointSpec.PrivateLinkServiceConnections, pl)
 		}
-
 		privateEndpointSpecs = append(privateEndpointSpecs, privateEndpointSpec)
 	}
 
