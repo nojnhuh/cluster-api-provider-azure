@@ -29,6 +29,7 @@ see-also:
   - [User Stories](#user-stories)
     - [Story 1](#story-1)
     - [Story 2](#story-2)
+    - [Story 3](#story-3)
   - [API Design Options](#api-design-options)
     - [Option 1: CAPZ resource references an existing ASO resource](#option-1-capz-resource-references-an-existing-aso-resource)
     - [Option 2: CAPZ resource references a non-functional ASO "template" resource](#option-2-capz-resource-references-a-non-functional-aso-template-resource)
@@ -95,14 +96,19 @@ be reflected in Cluster API.
 #### Story 1
 
 As a managed cluster user, I want to be able to use all available AKS features natively from CAPZ so that I
-can more consistently manage my CAPZ AKS clusters that use advanced or niche features without having to wait
-for each of them to be implemented in CAPZ.
+can more consistently manage my CAPZ AKS clusters that use advanced or niche features more quickly than having
+to wait for each of them to be implemented in CAPZ.
 
 #### Story 2
 
-As an AKS user looking to adopt Cluster API over an existing infrastructure managed solution, I want to be
+As an AKS user looking to adopt Cluster API over an existing infrastructure management solution, I want to be
 able to use all AKS features natively from CAPZ so that I can adopt Cluster API with the confidence that all
 the AKS features I currently utilize are still supported.
+
+#### Story 3
+
+As a CAPZ developer, I want to be able to make new AKS features available from CAPZ more easily in order to
+meet user demand.
 
 ### API Design Options
 
@@ -241,9 +247,15 @@ being used at a time. Alternatively, users may set fields only present in a newe
 ManagedCluster after creation (if allowed by AKS) because CAPZ will not override user-provided fields for
 which it does not have its own opinion on ASO resources.
 
+Regarding ClusterClass, this option functions the same as [Option 2] or [Option 3], where all ASO fields can
+be defined in a template. This option opens up an additional safeguard though, where webhooks could flag
+fields which should not be defined in a template. Similar webhook checks would be less practical in the other
+options where CAPZ would need to be aware of the set of disallowed fields for each ASO API version that a user
+could use.
+
 #### Decision
 
-TBD
+[Option 4]
 
 ### Security Model
 
@@ -279,6 +291,11 @@ existing CAPZ API fields. e.g. with [Option 4], AzureManagedControlPlane's `spec
 ASO API field as `spec.managedClusterSpec.location`. If both are defined, then the `spec.managedCluster.*`
 field takes precedence. If only `spec.location` is defined, its value will still be used to construct the
 desired state for the ManagedCluster.
+
+An alternative available with [Option 3] and [Option 4] is to introduce a new CAPZ API version for
+AzureManagedControlPlane and AzureManagedMachinePool, such as v1beta2, which includes only the ASO type and
+other non-overlapping fields. Then, conversion webhooks can be implemented to convert between v1beta1 and
+v1beta2.
 
 ## Additional Details
 
