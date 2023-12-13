@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	asonetworkv1 "github.com/Azure/azure-service-operator/v2/api/network/v1api20201101"
+	"github.com/Azure/azure-service-operator/v2/pkg/common/labels"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
@@ -69,11 +70,11 @@ func TestPostCreateOrUpdateResourceHook(t *testing.T) {
 			&asonetworkv1.VirtualNetworksSubnet{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "subnet",
+					Labels: map[string]string{
+						labels.OwnerNameLabel: existing.Name,
+					},
 				},
 				Spec: asonetworkv1.VirtualNetworks_Subnet_Spec{
-					Owner: &genruntime.KnownResourceReference{
-						Name: existing.Name,
-					},
 					AzureName: "azure-name",
 				},
 				Status: asonetworkv1.VirtualNetworks_Subnet_STATUS{

@@ -20,6 +20,7 @@ import (
 	"context"
 
 	asonetworkv1 "github.com/Azure/azure-service-operator/v2/api/network/v1api20201101"
+	"github.com/Azure/azure-service-operator/v2/pkg/common/labels"
 	"github.com/pkg/errors"
 	"k8s.io/utils/ptr"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
@@ -61,23 +62,20 @@ func postCreateOrUpdateResourceHook(ctx context.Context, scope VNetScope, existi
 	// This makes sure the subnet CIDRs are up to date and there are no validation errors when updating the VNet.
 	// Subnets that are not part of this cluster spec are silently ignored.
 	subnets := &asonetworkv1.VirtualNetworksSubnetList{}
-	err = scope.GetClient().List(ctx, subnets, client.InNamespace(existingVnet.Namespace))
+	err = scope.GetClient().List(ctx, subnets,
+		client.InNamespace(existingVnet.Namespace),
+		client.MatchingLabels{labels.OwnerNameLabel: existingVnet.Name},
+	)
 	if err != nil {
 		return errors.Wrap(err, "failed to list subnets")
 	}
-	hasSubnets := false
 	for _, subnet := range subnets.Items {
-		// TODO: ASO v2.5 will add owner labels so we could do this equivalently with a label selector.
-		if subnet.Owner().Name != existingVnet.Name {
-			continue
-		}
-		hasSubnets = true
 		scope.UpdateSubnetCIDRs(subnet.AzureName(), converters.GetSubnetAddresses(subnet))
 	}
 	// Only update the vnet's CIDRBlocks when we also updated subnets' since the vnet is created before
 	// subnets to prevent an updated vnet CIDR from invalidating subnet CIDRs that were defaulted and do not
 	// exist yet.
-	if hasSubnets && existingVnet.Status.AddressSpace != nil {
+	if len(subnets.Items) > 0 && existingVnet.Status.AddressSpace != nil {
 		vnet.CIDRBlocks = existingVnet.Status.AddressSpace.AddressPrefixes
 	}
 
