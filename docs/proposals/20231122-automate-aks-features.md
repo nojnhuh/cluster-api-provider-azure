@@ -152,7 +152,16 @@ One other consideration is that this approach trades the requirement that CAPZ h
 permissions to create ManagedClusters for users having that same capability. CAPZ would still require
 permissions to read, update, and delete ManagedClusters.
 
-The main roadblocks with this method relate to ClusterClass. If CAPZ's AzureManagedControlPlane controller is
+Drawbacks with this approach include:
+- A requirement to define ASO resources in templates in addition to the existing suite of CAPI/CAPZ resources
+  (one ASO ManagedCluster and one ASO ManagedClustersAgentPool for each MahcinePool).
+- Inconsistency between how CAPZ manages some resources through references to pre-created ASO objects (the
+  managed cluster and agent pools) and some by creating the ASO objects on its own (resource group, virtual
+  network, subnets).
+- An increased risk of users conflicting with CAPZ if users and CAPZ are both expected to modify mutually
+  exclusive sets of fields on the same resources.
+
+Other main roadblocks with this method relate to ClusterClass. If CAPZ's AzureManagedControlPlane controller is
 not responsible for creating the ASO ManagedCluster resource, then users would need to manage those
 separately, defeating much of the purpose of ClusterClass. Additionally, since each AzureManagedControlPlane
 will be referring to a distinct ManagedCluster, the new `ManagedClusterName` field should not be defined in an
@@ -247,6 +256,10 @@ being used at a time. Alternatively, users may set fields only present in a newe
 ManagedCluster after creation (if allowed by AKS) because CAPZ will not override user-provided fields for
 which it does not have its own opinion on ASO resources.
 
+While it couples CAPZ to one ASO API version, this approach allows CAPZ to move a more calculated pace with
+regards to AKS API versions the way it's done today. This also narrows CAPZ's scope of responsibility which
+reduces CAPZ's exposure to potential incompatibilities with certain ASO API versions.
+
 Regarding ClusterClass, this option functions the same as [Option 2] or [Option 3], where all ASO fields can
 be defined in a template. This option opens up an additional safeguard though, where webhooks could flag
 fields which should not be defined in a template. Similar webhook checks would be less practical in the other
@@ -255,7 +268,8 @@ could use.
 
 #### Decision
 
-[Option 4]
+We are opting to move forward with [Option 4]. That approach is most consistent with how the API is defined
+today and would make for the smoothest transition for users.
 
 ### Security Model
 
