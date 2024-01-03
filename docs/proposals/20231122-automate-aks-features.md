@@ -219,9 +219,9 @@ within the AzureManagedControlPlane:
 type AzureManagedControlPlaneClassSpec struct {
 	...
 	
-	// ManagedClusterTemplate is the ASO ManagedCluster to be used as a template from which new
+	// ASOManagedClusterTemplate is the ASO ManagedCluster to be used as a template from which new
 	// ManagedClusters will be created.
-	ManagedClusterTemplate map[string]interface{} `json:"managedClusterTemplate"`
+	ASOManagedClusterTemplate map[string]interface{} `json:"asoManagedClusterTemplate"`
 }
 ```
 
@@ -242,8 +242,8 @@ as an ASO ManagedCluster:
 type AzureManagedControlPlaneClassSpec struct {
 	...
 	
-	// ManagedClusterSpec defines the spec of the ASO ManagedCluster managed by this AzureManagedControlPlane.
-	ManagedClusterSpec v1api20230201.ManagedCluster_Spec `json:"managedClusterTemplate"`
+	// ASOManagedClusterSpec defines the spec of the ASO ManagedCluster managed by this AzureManagedControlPlane.
+	ASOManagedClusterSpec v1api20230201.ManagedCluster_Spec `json:"asoManagedClusterSpec"`
 }
 ```
 
