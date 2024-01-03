@@ -127,8 +127,8 @@ resource:
 type AzureManagedControlPlaneSpec struct {
 	...
 	
-	// ManagedClusterName is the name of the ASO ManagedCluster backing this AzureManagedControlPlane.
-	ManagedClusterName string `json:"managedClusterName"`
+	// ASOManagedClusterRef is a reference to the ASO ManagedCluster backing this AzureManagedControlPlane.
+	ASOManagedClusterRef corev1.ObjectReference `json:"asoManagedClusterRef"`
 }
 ```
 
@@ -164,21 +164,21 @@ Drawbacks with this approach include:
 Other main roadblocks with this method relate to ClusterClass. If CAPZ's AzureManagedControlPlane controller is
 not responsible for creating the ASO ManagedCluster resource, then users would need to manage those
 separately, defeating much of the purpose of ClusterClass. Additionally, since each AzureManagedControlPlane
-will be referring to a distinct ManagedCluster, the new `ManagedClusterName` field should not be defined in an
-AzureManagedControlPlaneTemplate.
+will be referring to a distinct ManagedCluster, the new `ASOManagedClusterRef` field should not be defined in
+an AzureManagedControlPlaneTemplate.
 
 #### Option 2: CAPZ resource references a non-functional ASO "template" resource
 
-This method is similar to [Option 1]. To better enable ClusterClass, instead of defining the full name of the
-ManagedCluster resource, the name of a "template" resource is defined instead:
+This method is similar to [Option 1]. To better enable ClusterClass, instead of defining a full reference to
+the ManagedCluster resource, a reference to a "template" resource is defined instead:
 
 ```go
 type AzureManagedControlPlaneClassSpec struct {
 	...
 	
-	// ManagedClusterTemplateName is the name of the ASO ManagedCluster to be used as a template from which
-	// new ManagedClusters will be created.
-	ManagedClusterTemplateName string `json:"managedClusterTemplateName"`
+	// ASOManagedClusterTemplateRef is a reference to the ASO ManagedCluster to be used as a template from
+	// which new ManagedClusters will be created.
+	ASOManagedClusterTemplateref corev1.ObjectReference `json:"asoManagedClusterTemplateRef"`
 }
 ```
 
@@ -194,7 +194,7 @@ CAPZ will propagate changes made to a template to instances of that template. Pa
 template take precedence over the same parameters on the instances.
 
 The main difference with [Option 1] that enables ClusterClass is that the same ManagedCluster template
-resource can be referenced by multiple AzureManagedControlPlanes, so this new `ManagedClusterTemplateName`
+resource can be referenced by multiple AzureManagedControlPlanes, so this new `ASOManagedClusterTemplateRef`
 field can be defined on the AzureManagedControlPlaneClassSpec so a set of AKS parameters defined once in the
 template can be applied to all Clusters built from that ClusterClass.
 
