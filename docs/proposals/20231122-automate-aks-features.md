@@ -127,8 +127,8 @@ resource:
 type AzureManagedControlPlaneSpec struct {
 	...
 	
-	// ASOManagedClusterRef is a reference to the ASO ManagedCluster backing this AzureManagedControlPlane.
-	ASOManagedClusterRef corev1.ObjectReference `json:"asoManagedClusterRef"`
+	// ManagedClusterRef is a reference to the ASO ManagedCluster backing this AzureManagedControlPlane.
+	ManagedClusterRef corev1.ObjectReference `json:"managedClusterRef"`
 }
 ```
 
@@ -164,8 +164,8 @@ Drawbacks with this approach include:
 Other main roadblocks with this method relate to ClusterClass. If CAPZ's AzureManagedControlPlane controller is
 not responsible for creating the ASO ManagedCluster resource, then users would need to manage those
 separately, defeating much of the purpose of ClusterClass. Additionally, since each AzureManagedControlPlane
-will be referring to a distinct ManagedCluster, the new `ASOManagedClusterRef` field should not be defined in
-an AzureManagedControlPlaneTemplate.
+will be referring to a distinct ManagedCluster, the new `ManagedClusterRef` field should not be defined in an
+AzureManagedControlPlaneTemplate.
 
 #### Option 2: CAPZ resource references a non-functional ASO "template" resource
 
@@ -176,9 +176,9 @@ the ManagedCluster resource, a reference to a "template" resource is defined ins
 type AzureManagedControlPlaneClassSpec struct {
 	...
 	
-	// ASOManagedClusterTemplateRef is a reference to the ASO ManagedCluster to be used as a template from
-	// which new ManagedClusters will be created.
-	ASOManagedClusterTemplateref corev1.ObjectReference `json:"asoManagedClusterTemplateRef"`
+	// ManagedClusterTemplateRef is a reference to the ASO ManagedCluster to be used as a template from which
+	// new ManagedClusters will be created.
+	ManagedClusterTemplateref corev1.ObjectReference `json:"managedClusterTemplateRef"`
 }
 ```
 
@@ -194,7 +194,7 @@ CAPZ will propagate changes made to a template to instances of that template. Pa
 template take precedence over the same parameters on the instances.
 
 The main difference with [Option 1] that enables ClusterClass is that the same ManagedCluster template
-resource can be referenced by multiple AzureManagedControlPlanes, so this new `ASOManagedClusterTemplateRef`
+resource can be referenced by multiple AzureManagedControlPlanes, so this new `ManagedClusterTemplateRef`
 field can be defined on the AzureManagedControlPlaneClassSpec so a set of AKS parameters defined once in the
 template can be applied to all Clusters built from that ClusterClass.
 
@@ -219,9 +219,9 @@ within the AzureManagedControlPlane:
 type AzureManagedControlPlaneClassSpec struct {
 	...
 	
-	// ASOManagedClusterTemplate is the ASO ManagedCluster to be used as a template from which new
+	// ManagedClusterTemplate is the ASO ManagedCluster to be used as a template from which new
 	// ManagedClusters will be created.
-	ASOManagedClusterTemplate map[string]interface{} `json:"asoManagedClusterTemplate"`
+	ManagedClusterTemplate map[string]interface{} `json:"managedClusterTemplate"`
 }
 ```
 
@@ -242,8 +242,8 @@ as an ASO ManagedCluster:
 type AzureManagedControlPlaneClassSpec struct {
 	...
 	
-	// ASOManagedClusterSpec defines the spec of the ASO ManagedCluster managed by this AzureManagedControlPlane.
-	ASOManagedClusterSpec v1api20230201.ManagedCluster_Spec `json:"asoManagedClusterSpec"`
+	// ManagedClusterSpec defines the spec of the ASO ManagedCluster managed by this AzureManagedControlPlane.
+	ManagedClusterSpec v1api20230201.ManagedCluster_Spec `json:"managedClusterSpec"`
 }
 ```
 
@@ -266,12 +266,20 @@ fields which should not be defined in a template. Similar webhook checks would b
 options where CAPZ would need to be aware of the set of disallowed fields for each ASO API version that a user
 could use.
 
+Similarly, CAPZ's webhooks are also better able to validate and default the ASO configuration and ensure
+fields like ManagedCluster's `spec.owner` that should not be modified by users are set correctly.
+
 #### Decision
 
 We are opting to move forward with [Option 4]. That approach is most consistent with how the API is defined
 today and would make for the smoothest transition for users.
 
 ### Security Model
+
+One possible concern is that with little oversight as to what fields defined in the AKS API ultimately become
+exposed in the CAPZ API, bad actors may become able to modify certain sensitive configuration by way of CAPZ's
+AzureManagedControlPlane which was not possible before. However, CAPZ has historically not forbidden workload
+cluster administrators from modifying any such sensitive configuration in the past.
 
 Overall, none of the approaches outlined above change what data is ultimately represented in the API, only the
 higher-level shape of the API. That means there is no further transport or handling of secrets or other
@@ -284,7 +292,9 @@ Increasing CAPZ's reliance on ASO and exposing ASO to users at the API level fur
 that since ASO has not yet been proven to be as much of a staple as the other projects that manage
 infrastructure on Azure, ASO's lifespan may be more limited than others. If ASO were to sunset while CAPZ
 still relies on it, CAPZ would have to rework its APIs. This risk is mitigated by the fact that no
-announcements have yet been made regarding ASO's end-of-life and the project continues to be very active.
+announcements have yet been made regarding ASO's end-of-life and the project continues to be very active. And
+since ASO's resource representations are mostly straightforward reflections of the Azure API spec, shifting
+away from ASO to another Azure API abstraction should be mostly mechanical.
 
 ## Alternatives
 
@@ -302,9 +312,9 @@ proposal.
 
 The new API field allowing the entire ASO resource to be defined in the CAPZ API will overlap with several
 existing CAPZ API fields. e.g. with [Option 4], AzureManagedControlPlane's `spec.location` maps to the same
-ASO API field as `spec.managedClusterSpec.location`. If both are defined, then the `spec.managedCluster.*`
-field takes precedence. If only `spec.location` is defined, its value will still be used to construct the
-desired state for the ManagedCluster.
+ASO API field as `spec.managedClusterSpec.location`. If both are defined, then the validating webhook will
+reject that and instruct the user to prefer the `spec.managedCluster.*` field. If only `spec.location` is
+defined, its value will still be used to construct the desired state for the ManagedCluster.
 
 An alternative available with [Option 3] and [Option 4] is to introduce a new CAPZ API version for
 AzureManagedControlPlane and AzureManagedMachinePool, such as v1beta2, which includes only the ASO type and
