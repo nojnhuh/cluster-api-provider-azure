@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"time"
 
+	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20231001"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/record"
@@ -103,6 +104,7 @@ func (ammpr *AzureManagedMachinePoolReconciler) SetupWithManager(ctx context.Con
 			&infrav1.AzureManagedControlPlane{},
 			handler.EnqueueRequestsFromMapFunc(azureManagedControlPlaneMapper),
 		).
+		Owns(&asocontainerservicev1.ManagedClustersAgentPool{}).
 		Build(r)
 	if err != nil {
 		return errors.Wrap(err, "error creating controller")

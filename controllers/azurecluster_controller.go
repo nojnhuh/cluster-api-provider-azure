@@ -20,6 +20,9 @@ import (
 	"context"
 	"fmt"
 
+	asonetworkv1api20201101 "github.com/Azure/azure-service-operator/v2/api/network/v1api20201101"
+	asonetworkv1api20220701 "github.com/Azure/azure-service-operator/v2/api/network/v1api20220701"
+	asoresourcesv1 "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -86,6 +89,12 @@ func (acr *AzureClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 		For(&infrav1.AzureCluster{}).
 		WithEventFilter(predicates.ResourceHasFilterLabel(log, acr.WatchFilterValue)).
 		WithEventFilter(predicates.ResourceIsNotExternallyManaged(log)).
+		Owns(&asoresourcesv1.ResourceGroup{}).
+		Owns(&asonetworkv1api20201101.VirtualNetwork{}).
+		Owns(&asonetworkv1api20220701.NatGateway{}).
+		Owns(&asonetworkv1api20201101.VirtualNetworksSubnet{}).
+		Owns(&asonetworkv1api20220701.PrivateEndpoint{}).
+		Owns(&asonetworkv1api20220701.BastionHost{}).
 		Build(r)
 	if err != nil {
 		return errors.Wrap(err, "error creating controller")

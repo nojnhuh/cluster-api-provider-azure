@@ -20,6 +20,12 @@ import (
 	"context"
 	"fmt"
 
+	asocontainerservicev1preview "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20230315preview"
+	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20231001"
+	asokubernetesconfigurationv1 "github.com/Azure/azure-service-operator/v2/api/kubernetesconfiguration/v1api20230501"
+	asonetworkv1api20201101 "github.com/Azure/azure-service-operator/v2/api/network/v1api20201101"
+	asonetworkv1api20220701 "github.com/Azure/azure-service-operator/v2/api/network/v1api20220701"
+	asoresourcesv1 "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -91,6 +97,13 @@ func (amcpr *AzureManagedControlPlaneReconciler) SetupWithManager(ctx context.Co
 			&expv1.MachinePool{},
 			handler.EnqueueRequestsFromMapFunc(azureManagedMachinePoolMapper),
 		).
+		Owns(&asoresourcesv1.ResourceGroup{}).
+		Owns(&asonetworkv1api20201101.VirtualNetwork{}).
+		Owns(&asonetworkv1api20201101.VirtualNetworksSubnet{}).
+		Owns(&asocontainerservicev1.ManagedCluster{}).
+		Owns(&asonetworkv1api20220701.PrivateEndpoint{}).
+		Owns(&asocontainerservicev1preview.FleetsMember{}).
+		Owns(&asokubernetesconfigurationv1.Extension{}).
 		Build(r)
 	if err != nil {
 		return errors.Wrap(err, "error creating controller")
