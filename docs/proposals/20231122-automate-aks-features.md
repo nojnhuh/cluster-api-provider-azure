@@ -6,6 +6,7 @@ reviewers:
   - "@CecileRobertMichon"
   - "@matthchr"
   - "@dtzar"
+  - "@mtougeron"
 creation-date: 2023-11-22
 last-updated: 2023-11-28
 status: provisional
@@ -20,7 +21,6 @@ see-also:
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-- [Glossary](#glossary)
 - [Summary](#summary)
 - [Motivation](#motivation)
   - [Goals](#goals)
@@ -35,6 +35,7 @@ see-also:
     - [Option 2: CAPZ resource references a non-functional ASO "template" resource](#option-2-capz-resource-references-a-non-functional-aso-template-resource)
     - [Option 3: CAPZ resource defines an entire unstructured ASO resource inline](#option-3-capz-resource-defines-an-entire-unstructured-aso-resource-inline)
     - [Option 4: CAPZ resource defines an entire typed ASO resource inline](#option-4-capz-resource-defines-an-entire-typed-aso-resource-inline)
+    - [Option 5: No change: CAPZ resource evolution proceeds the way it currently does](#option-5-no-change-capz-resource-evolution-proceeds-the-way-it-currently-does)
     - [Decision](#decision)
   - [Security Model](#security-model)
   - [Risks and Mitigations](#risks-and-mitigations)
@@ -47,8 +48,6 @@ see-also:
 - [Implementation History](#implementation-history)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
-
-## Glossary
 
 ## Summary
 
@@ -120,13 +119,11 @@ AzureManagedMachinePool and ManagedClustersAgentPool.
 
 #### Option 1: CAPZ resource references an existing ASO resource
 
-Here, the AzureManagedControlPlane spec would be updated with a field that references an ASO ManagedCluster
+Here, the AzureManagedControlPlane spec would include only a field that references an ASO ManagedCluster
 resource:
 
 ```go
 type AzureManagedControlPlaneSpec struct {
-	...
-	
 	// ManagedClusterRef is a reference to the ASO ManagedCluster backing this AzureManagedControlPlane.
 	ManagedClusterRef corev1.ObjectReference `json:"managedClusterRef"`
 }
@@ -165,17 +162,17 @@ Other main roadblocks with this method relate to ClusterClass. If CAPZ's AzureMa
 not responsible for creating the ASO ManagedCluster resource, then users would need to manage those
 separately, defeating much of the purpose of ClusterClass. Additionally, since each AzureManagedControlPlane
 will be referring to a distinct ManagedCluster, the new `ManagedClusterRef` field should not be defined in an
-AzureManagedControlPlaneTemplate.
+AzureManagedControlPlaneTemplate. Upstream CAPI components could possibly be changed to better enable this use
+case by allowing templating of arbitrary Kubernetes resources alongside other cluster resources.
 
 #### Option 2: CAPZ resource references a non-functional ASO "template" resource
 
-This method is similar to [Option 1]. To better enable ClusterClass, instead of defining a full reference to
-the ManagedCluster resource, a reference to a "template" resource is defined instead:
+This method is similar to [Option 1]. To better enable ClusterClass without changes to CAPI, instead of
+defining a full reference to the ManagedCluster resource, a reference to a "template" resource is defined
+instead:
 
 ```go
 type AzureManagedControlPlaneClassSpec struct {
-	...
-	
 	// ManagedClusterTemplateRef is a reference to the ASO ManagedCluster to be used as a template from which
 	// new ManagedClusters will be created.
 	ManagedClusterTemplateref corev1.ObjectReference `json:"managedClusterTemplateRef"`
@@ -217,8 +214,6 @@ within the AzureManagedControlPlane:
 
 ```go
 type AzureManagedControlPlaneClassSpec struct {
-	...
-	
 	// ManagedClusterTemplate is the ASO ManagedCluster to be used as a template from which new
 	// ManagedClusters will be created.
 	ManagedClusterTemplate map[string]interface{} `json:"managedClusterTemplate"`
@@ -240,8 +235,6 @@ as an ASO ManagedCluster:
 
 ```go
 type AzureManagedControlPlaneClassSpec struct {
-	...
-	
 	// ManagedClusterSpec defines the spec of the ASO ManagedCluster managed by this AzureManagedControlPlane.
 	ManagedClusterSpec v1api20230201.ManagedCluster_Spec `json:"managedClusterSpec"`
 }
@@ -256,6 +249,13 @@ being used at a time. Alternatively, users may set fields only present in a newe
 ManagedCluster after creation (if allowed by AKS) because CAPZ will not override user-provided fields for
 which it does not have its own opinion on ASO resources.
 
+Updating the embedded ASO API version in the CAPZ resources may not be possible to do safely without also
+bumping the CAPZ API version, however. Because ASO implements conversion webhook logic between several API
+versions for each AKS resource type, simply bumping the ASO API version in the CAPZ type without bumping the
+CAPZ API version would not allow that same conversion to be applied. This could lead to issues where a new
+version of CAPZ suddenly starts constructing invalid ASO resources and user intervention is required to
+perform the conversion manually.
+
 While it couples CAPZ to one ASO API version, this approach allows CAPZ to move a more calculated pace with
 regards to AKS API versions the way it's done today. This also narrows CAPZ's scope of responsibility which
 reduces CAPZ's exposure to potential incompatibilities with certain ASO API versions.
@@ -269,10 +269,22 @@ could use.
 Similarly, CAPZ's webhooks are also better able to validate and default the ASO configuration and ensure
 fields like ManagedCluster's `spec.owner` that should not be modified by users are set correctly.
 
+#### Option 5: No change: CAPZ resource evolution proceeds the way it currently does
+
+The final option proposed in this document is the option not to make any changes to how the CAPZ API is
+generally structured for AKS resources. CAPZ API types will continue to be curated manually without inheriting
+anything from the ASO API.
+
+Benefits of continuing on our current path include:
+- Familiarity with the existing pattern by users and contributors
+- Zero up-front cost to implement or transition to a new pattern
+- No requirement for users to have ASO knowledge
+- Greater freedom to change API implementations which we've recently leveraged to transition between the older
+  and newer Azure SDKs and to ASO.
+
 #### Decision
 
-We are opting to move forward with [Option 4]. That approach is most consistent with how the API is defined
-today and would make for the smoothest transition for users.
+TBD
 
 ### Security Model
 
@@ -306,20 +318,14 @@ for the effort to be worthwhile.
 
 ## Upgrade Strategy
 
-Each of the [options above](#api-design-options) suggest additive, backwards-compatible API changes. Users
-will not need to perform any action after upgrading to the first version of CAPZ that implements this
-proposal.
+Each of the first four [options above](#api-design-options) would existing in a new v2alpha1 CAPZ API version for
+AzureManagedControlPlane and AzureManagedMachinePool. The existing v1beta1 types will continue to be served so
+users do not need to take any action for their existing clusters to continue to function as they have been.
 
-The new API field allowing the entire ASO resource to be defined in the CAPZ API will overlap with several
-existing CAPZ API fields. e.g. with [Option 4], AzureManagedControlPlane's `spec.location` maps to the same
-ASO API field as `spec.managedClusterSpec.location`. If both are defined, then the validating webhook will
-reject that and instruct the user to prefer the `spec.managedCluster.*` field. If only `spec.location` is
-defined, its value will still be used to construct the desired state for the ManagedCluster.
-
-An alternative available with [Option 3] and [Option 4] is to introduce a new CAPZ API version for
-AzureManagedControlPlane and AzureManagedMachinePool, such as v1beta2, which includes only the ASO type and
-other non-overlapping fields. Then, conversion webhooks can be implemented to convert between v1beta1 and
-v1beta2.
+An alternative available with [Option 3] and [Option 4] is to introduce a new backwards-compatible CAPZ API
+version for AzureManagedControlPlane and AzureManagedMachinePool, such as v1beta2. Then, conversion webhooks
+can be implemented to convert between v1beta1 and v1beta2. This option isn't possible with [Option 1] or
+[Option 2] because a conversion webhook would not be able to create the new standalone ASO resources.
 
 ## Additional Details
 
@@ -330,9 +336,9 @@ that the new API fields proposed here behave as expected.
 
 ### Graduation Criteria
 
-In CAPZ version `1.N` which first implements this proposal, setting any new CAPZ API fields introduced by this
-proposal will not be allowed without enabling an `AKSASOAPI` feature flag in CAPZ. The feature flag will be
-required throughout `1.N+2` and dropped for `1.N+3` where the feature will be enabled by default.
+The new CAPZ API versions will be available and enabled by default as soon as they are functional and stable
+enough for users to try. Requirements for a v2alpha1 to v2beta1 graduation and deprecation of the v1 API are
+TBD.
 
 ### Version Skew Strategy
 
@@ -350,3 +356,4 @@ between versions.
 [Option 2]: #option-2-capz-resource-references-a-non-functional-aso-template-resource
 [Option 3]: #option-3-capz-resource-defines-an-entire-unstructured-aso-resource-inline
 [Option 4]: #option-4-capz-resource-defines-an-entire-typed-aso-resource-inline
+[Option 5]: #option-5-no-change-capz-resource-evolution-proceeds-the-way-it-currently-does
