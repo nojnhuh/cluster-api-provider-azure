@@ -284,7 +284,8 @@ Benefits of continuing on our current path include:
 
 #### Decision
 
-TBD
+[Option 5], we plan to stick with the current approach. All of the other options have significant drawbacks
+without any clear signs that any one of the sets of caveats is acceptable to carry long-term.
 
 ### Security Model
 
