@@ -36,10 +36,11 @@ see-also:
     - [Option 3: CAPZ resource defines an entire unstructured ASO resource inline](#option-3-capz-resource-defines-an-entire-unstructured-aso-resource-inline)
     - [Option 4: CAPZ resource defines an entire typed ASO resource inline](#option-4-capz-resource-defines-an-entire-typed-aso-resource-inline)
     - [Option 5: No change: CAPZ resource evolution proceeds the way it currently does](#option-5-no-change-capz-resource-evolution-proceeds-the-way-it-currently-does)
+    - [Option 6: Generate CAPZ code equivalent to what's added manually today](#option-6-generate-capz-code-equivalent-to-whats-added-manually-today)
+    - [Option 7: CAPZ resource defines patches to ASO resource](#option-7-capz-resource-defines-patches-to-aso-resource)
     - [Decision](#decision)
   - [Security Model](#security-model)
   - [Risks and Mitigations](#risks-and-mitigations)
-- [Alternatives](#alternatives)
 - [Upgrade Strategy](#upgrade-strategy)
 - [Additional Details](#additional-details)
   - [Test Plan](#test-plan)
@@ -87,6 +88,7 @@ be reflected in Cluster API.
 ### Non-Goals/Future Work
 
 - Automate the features available from other Azure services besides AKS.
+- Automatically modify AKS cluster definitions to transparently enable new AKS features.
 
 ## Proposal
 
@@ -157,6 +159,8 @@ Drawbacks with this approach include:
   network, subnets).
 - An increased risk of users conflicting with CAPZ if users and CAPZ are both expected to modify mutually
   exclusive sets of fields on the same resources.
+- A new inability for CAPZ to automatically make adjustments to AKS-specific parameters that we may determine
+  are worthwhile to apply on behalf of users.
 
 Other main roadblocks with this method relate to ClusterClass. If CAPZ's AzureManagedControlPlane controller is
 not responsible for creating the ASO ManagedCluster resource, then users would need to manage those
@@ -271,9 +275,8 @@ fields like ManagedCluster's `spec.owner` that should not be modified by users a
 
 #### Option 5: No change: CAPZ resource evolution proceeds the way it currently does
 
-The final option proposed in this document is the option not to make any changes to how the CAPZ API is
-generally structured for AKS resources. CAPZ API types will continue to be curated manually without inheriting
-anything from the ASO API.
+This method describes not making any changes to how the CAPZ API is generally structured for AKS resources.
+CAPZ API types will continue to be curated manually without inheriting anything from the ASO API.
 
 Benefits of continuing on our current path include:
 - Familiarity with the existing pattern by users and contributors
@@ -282,10 +285,52 @@ Benefits of continuing on our current path include:
 - Greater freedom to change API implementations which we've recently leveraged to transition between the older
   and newer Azure SDKs and to ASO.
 
+#### Option 6: Generate CAPZ code equivalent to what's added manually today
+
+For this option, a new code generation pipeline would be created to automatically scaffold the code that is
+currently manually written to expose additional AKS API fields to CAPZ.
+
+Once implemented, this method would drastically reduce the amount of developer effort to get started adding
+new AKS features. There would continue to be some amount of ongoing cost though to identify and handle nuances
+for each feature though, which may include issues outside of CAPZ's control like AKS API quirks.
+
+The main drawback of this approach from a developer perspective is the up-front effort to implement and
+ongoing cost to maintain the code generation itself. The existing AKS feature set exposed by CAPZ provides a
+decent foundation that can help identify regressions by testing the pipeline against features already
+implemented and tested. ASO also already implements a full code generation pipeline to transform Azure API
+specs into Kubernetes resource definitions, so some of that could possibly be reused by CAPZ.
+
+#### Option 7: CAPZ resource defines patches to ASO resource
+
+This method describes adding a new `spec.asoManagedClusterPatches` field to the existing
+AzureManagedControlPlane:
+
+```go
+type AzureManagedControlPlaneClassSpec struct {
+	...
+
+	// ASOManagedClusterPatches defines patches to be applied to the generated ASO ManagedCluster resource.
+	ASOManagedClusterPatches []string `json:"asoManagedClusterPatches,omitempty"`
+}
+```
+
+After CAPZ calculates the ASO ManagedCluster for a given AzureManagedControlPlane during a reconciliation, it
+will apply these patches in order to the ManagedCluster before ultimately submitting that to ASO. This allows
+users to specify any AKS feature declaratively within the existing CAPZ spec. The exact format of the patches
+is TBD, but likely one or all of the formats described here:
+https://kubernetes.io/docs/tasks/manage-kubernetes-objects/update-api-object-kubectl-patch/
+
+The main drawback of this approach is the fragility of the patches themselves, which can break underneath
+users with a new version of ASO or CAPZ. There is also increased risk that a user could modify the ASO
+resource in a way that breaks CAPZ's ability to reconcile it, though CAPZ could perhaps add some extra
+validation that particularly sensitive fields do not get modified by a set of patches. Compared to other
+options, the syntax for specifying a patch is also more cumbersome than if its equivalent had its own CAPZ API
+field. Given the intent of setting patches is to enable niche use-cases for advanced users, these drawbacks
+may be acceptable.
+
 #### Decision
 
-[Option 5], we plan to stick with the current approach. All of the other options have significant drawbacks
-without any clear signs that any one of the sets of caveats is acceptable to carry long-term.
+TBD
 
 ### Security Model
 
@@ -309,14 +354,6 @@ announcements have yet been made regarding ASO's end-of-life and the project con
 since ASO's resource representations are mostly straightforward reflections of the Azure API spec, shifting
 away from ASO to another Azure API abstraction should be mostly mechanical.
 
-## Alternatives
-
-The main alternative to leveraging ASO to expose the entire AKS API from CAPZ would be for CAPZ to build its
-own code generation pipeline which takes as input the Azure API specs and ultimately produces definitions for
-AzureManagedControlPlane and AzureManagedMachinePool and mappings to ASO's ManagedCluster and
-ManagedClustersAgentPool. Such a solution would likely end up being too similar to what ASO already provides
-for the effort to be worthwhile.
-
 ## Upgrade Strategy
 
 Each of the first four [options above](#api-design-options) would existing in a new v2alpha1 CAPZ API version for
@@ -337,9 +374,9 @@ that the new API fields proposed here behave as expected.
 
 ### Graduation Criteria
 
-The new CAPZ API versions will be available and enabled by default as soon as they are functional and stable
-enough for users to try. Requirements for a v2alpha1 to v2beta1 graduation and deprecation of the v1 API are
-TBD.
+Any new CAPZ API versions or added API fields would be available and enabled by default as soon as they are
+functional and stable enough for users to try. Requirements for a v2alpha1 to v2beta1 graduation and
+deprecation of the v1 API are TBD.
 
 ### Version Skew Strategy
 
