@@ -38,6 +38,7 @@ see-also:
     - [Option 5: No change: CAPZ resource evolution proceeds the way it currently does](#option-5-no-change-capz-resource-evolution-proceeds-the-way-it-currently-does)
     - [Option 6: Generate CAPZ code equivalent to what's added manually today](#option-6-generate-capz-code-equivalent-to-whats-added-manually-today)
     - [Option 7: CAPZ resource defines patches to ASO resource](#option-7-capz-resource-defines-patches-to-aso-resource)
+    - [Option 8: Users bring-their-own ASO ManagedCluster resource](#option-8-users-bring-their-own-aso-managedcluster-resource)
     - [Decision](#decision)
   - [Security Model](#security-model)
   - [Risks and Mitigations](#risks-and-mitigations)
@@ -327,6 +328,31 @@ validation that particularly sensitive fields do not get modified by a set of pa
 options, the syntax for specifying a patch is also more cumbersome than if its equivalent had its own CAPZ API
 field. Given the intent of setting patches is to enable niche use-cases for advanced users, these drawbacks
 may be acceptable.
+
+#### Option 8: Users bring-their-own ASO ManagedCluster resource
+
+CAPZ can already incorporate existing ASO resources into Cluster API Cluster configurations. BYO ASO resources
+are never modified or deleted by CAPZ directly but are still read and play in to the status of CAPZ resources.
+
+The flow for this method is roughly:
+1. User creates an ASO ManagedCluster before or at the same time as the other Cluster API and CAPZ resources.
+1. Any updates to the AKS cluster are done by the user through the ASO resource.
+1. The user may control whether or not the ASO ManagedCluster gets deleted with the rest of the Cluster API
+   Cluster by choosing whether or not to pre-create the ASO ResourceGroup.
+
+Benefits of this approach:
+- Minimal or zero additional cost for CAPZ to implement outside of a new test. Users can try this today with
+  the latest version of CAPZ.
+- Freedom for users to craft the ASO ManagedCluster and other resources exactly how they like, even a
+  different API version (including preview).
+- Protection from CAPZ being responsible for managing AKS configuration that it does not understand.
+
+Drawbacks:
+- Requires users to rework templates to add ASO resources, but only if they want AKS features not exposed by
+  CAPZ.
+- Doesn't support ClusterClass.
+- CAPZ may no longer be able to fulfill CAPI's contract by modifying fields like Kubernetes version or replica
+  counts as defined by a MachinePool. Internal changes to CAPZ may be able to overcome this.
 
 #### Decision
 
