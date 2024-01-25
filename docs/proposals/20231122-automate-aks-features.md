@@ -356,7 +356,8 @@ Drawbacks:
 
 #### Decision
 
-TBD
+We are moving forward with [Option 8] for now as it will take the least amount of effort from developers to
+enable users and comes with significantly less risk than all of the other options.
 
 ### Security Model
 
@@ -421,3 +422,4 @@ between versions.
 [Option 3]: #option-3-capz-resource-defines-an-entire-unstructured-aso-resource-inline
 [Option 4]: #option-4-capz-resource-defines-an-entire-typed-aso-resource-inline
 [Option 5]: #option-5-no-change-capz-resource-evolution-proceeds-the-way-it-currently-does
+[Option 8]: #option-8-users-bring-their-own-aso-managedcluster-resource
