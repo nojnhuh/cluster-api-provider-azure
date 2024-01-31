@@ -116,9 +116,8 @@ meet user demand.
 
 There are a few different ways the entire AKS API surface area could be exposed from the CAPZ API. The
 following options all rely on ASO's ManagedCluster and ManagedClustersAgentPool resources to define the full
-AKS API, roughly organized in order of increasing responsibility for CAPZ. The examples below use
-AzureManagedControlPlane and ManagedCluster to help illustrate, but all of the same ideas should also apply to
-AzureManagedMachinePool and ManagedClustersAgentPool.
+AKS API. The examples below use AzureManagedControlPlane and ManagedCluster to help illustrate, but all of the
+same ideas should also apply to AzureManagedMachinePool and ManagedClustersAgentPool.
 
 #### Option 1: CAPZ resource references an existing ASO resource
 
@@ -348,6 +347,9 @@ Benefits of this approach:
 - Protection from CAPZ being responsible for managing AKS configuration that it does not understand.
 
 Drawbacks:
+- Requires users to mimic CAPZ and create the ManagedCluster with `spec.agentPoolProfiles` as required by AKS,
+  then remove them once created so as not to conflict with the corresponding AzureManagedMachinePool
+  definitions, which can't be done in a single install operation.
 - Requires users to rework templates to add ASO resources, but only if they want AKS features not exposed by
   CAPZ.
 - Doesn't support ClusterClass.
@@ -356,8 +358,9 @@ Drawbacks:
 
 #### Decision
 
-We are moving forward with [Option 8] for now as it will take the least amount of effort from developers to
-enable users and comes with significantly less risk than all of the other options.
+We are moving forward with [Option 7] for now as it requires the least amount of change to the CAPZ API and
+does not introduce any significant usability issues while still allowing users to declaratively enable
+features outside of those explicitly defined by CAPZ.
 
 ### Security Model
 
@@ -422,4 +425,4 @@ between versions.
 [Option 3]: #option-3-capz-resource-defines-an-entire-unstructured-aso-resource-inline
 [Option 4]: #option-4-capz-resource-defines-an-entire-typed-aso-resource-inline
 [Option 5]: #option-5-no-change-capz-resource-evolution-proceeds-the-way-it-currently-does
-[Option 8]: #option-8-users-bring-their-own-aso-managedcluster-resource
+[Option 7]: #option-7-capz-resource-defines-patches-to-aso-resource
