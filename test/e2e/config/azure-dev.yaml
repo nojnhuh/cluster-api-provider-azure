@@ -102,6 +102,8 @@ providers:
       - sourcePath: "../data/shared/v1beta1_provider/metadata.yaml"
       - sourcePath: "../data/infrastructure-azure/v1.13.0/cluster-template-prow.yaml"
         targetName: "cluster-template.yaml"
+      - sourcePath: "../data/infrastructure-azure/v1.13.0/cluster-template-prow-aks.yaml"
+        targetName: "cluster-template-aks.yaml"
       replacements:
       - old: "imagePullPolicy: Always"
         new: "imagePullPolicy: IfNotPresent"

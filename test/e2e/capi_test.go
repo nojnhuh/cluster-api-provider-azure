@@ -32,11 +32,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	e2e_namespace "sigs.k8s.io/cluster-api-provider-azure/test/e2e/kubernetes/namespace"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	clusterctlv1 "sigs.k8s.io/cluster-api/cmd/clusterctl/api/v1alpha3"
+	expv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
 	capi_e2e "sigs.k8s.io/cluster-api/test/e2e"
 	"sigs.k8s.io/cluster-api/test/framework"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 	"sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -288,6 +291,74 @@ var _ = Describe("Running the Cluster API E2E tests", func() {
 						InitWithBootstrapProviders:      []string{"kubeadm:" + e2eConfig.GetVariable(LatestCAPIUpgradeVersion)},
 						InitWithControlPlaneProviders:   []string{"kubeadm:" + e2eConfig.GetVariable(LatestCAPIUpgradeVersion)},
 						InitWithInfrastructureProviders: []string{"azure:" + e2eConfig.GetVariable(LatestProviderUpgradeVersion)},
+					}
+				})
+			})
+
+			Context("upgrade from the latest version of v1beta1 to current, and scale AKS workload clusters created in the old version", func() {
+				capi_e2e.ClusterctlUpgradeSpec(ctx, func() capi_e2e.ClusterctlUpgradeSpecInput {
+					kubernetesVersion, err := GetAKSKubernetesVersion(ctx, e2eConfig, AKSKubernetesVersion)
+					Expect(err).To(BeNil())
+
+					return capi_e2e.ClusterctlUpgradeSpecInput{
+						E2EConfig:                 e2eConfigNoAddons,
+						ClusterctlConfigPath:      clusterctlConfigPath,
+						BootstrapClusterProxy:     bootstrapClusterProxy,
+						ArtifactFolder:            artifactFolder,
+						SkipCleanup:               skipCleanup,
+						PreInit:                   getPreInitFunc(ctx),
+						InitWithProvidersContract: "v1beta1",
+						ControlPlaneWaiters: clusterctl.ControlPlaneWaiters{
+							WaitForControlPlaneInitialized: EnsureControlPlaneInitialized,
+						},
+						InitWithKubernetesVersion:       e2eConfig.GetVariable(KubernetesVersionAPIUpgradeFrom),
+						InitWithBinary:                  fmt.Sprintf("https://github.com/kubernetes-sigs/cluster-api/releases/download/%s/clusterctl-{OS}-{ARCH}", e2eConfig.GetVariable(LatestCAPIUpgradeVersion)),
+						InitWithCoreProvider:            "cluster-api:" + e2eConfig.GetVariable(LatestCAPIUpgradeVersion),
+						InitWithBootstrapProviders:      []string{"kubeadm:" + e2eConfig.GetVariable(LatestCAPIUpgradeVersion)},
+						InitWithControlPlaneProviders:   []string{"kubeadm:" + e2eConfig.GetVariable(LatestCAPIUpgradeVersion)},
+						InitWithInfrastructureProviders: []string{"azure:" + e2eConfig.GetVariable(LatestProviderUpgradeVersion)},
+						WorkloadFlavor:                  "aks",
+						WorkloadKubernetesVersion:       kubernetesVersion,
+						// CAPI only waits for Machines by default for upgrade tests.
+						PreWaitForCluster: func(managementClusterProxy framework.ClusterProxy, workloadClusterNamespace, workloadClusterName string) {
+							By("Waiting for MachinePools to be Running")
+							Eventually(func() (bool, error) {
+								mps := &expv1.MachinePoolList{}
+								err := managementClusterProxy.GetClient().List(
+									ctx,
+									mps,
+									client.InNamespace(workloadClusterNamespace),
+									client.MatchingLabels{clusterv1.ClusterNameLabel: workloadClusterName},
+								)
+								if err != nil {
+									Logf("error listing machine pools: %v", err)
+									return false, err
+								}
+								for _, mp := range mps.Items {
+									if mp.Status.Phase != string(expv1.MachinePoolPhaseRunning) {
+										Logf("machine pool %s/%s is in phase %s", mp.Namespace, mp.Name, mp.Status.Phase)
+										return false, nil
+									}
+								}
+								return true, nil
+							}, e2eConfigNoAddons.GetIntervals("", "wait-machine-pool-nodes")...).Should(BeTrue(), "Timed out waiting for MachinePools to enter the Running phase")
+						},
+						// CAPI only tests against the workload cluster's Machines, not MachinePools.
+						PostUpgrade: func(managementClusterProxy framework.ClusterProxy, clusterNamespace, clusterName string) {
+							By("Scaling a machine pool in the workload cluster")
+							cluster := &clusterv1.Cluster{}
+							Expect(managementClusterProxy.GetClient().Get(ctx, client.ObjectKey{Namespace: clusterNamespace, Name: clusterName}, cluster)).To(Succeed())
+							mps := &expv1.MachinePoolList{}
+							Expect(managementClusterProxy.GetClient().List(ctx, mps)).To(Succeed())
+							mp := &mps.Items[0]
+							framework.ScaleMachinePoolAndWait(ctx, framework.ScaleMachinePoolAndWaitInput{
+								ClusterProxy:              managementClusterProxy,
+								Cluster:                   cluster,
+								MachinePools:              []*expv1.MachinePool{mp},
+								Replicas:                  ptr.Deref[int32](mp.Spec.Replicas, 0) + 1,
+								WaitForMachinePoolToScale: e2eConfigNoAddons.GetIntervals("", "wait-machine-pool-nodes"),
+							})
+						},
 					}
 				})
 			})
