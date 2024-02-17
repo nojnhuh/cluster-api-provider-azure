@@ -20,22 +20,30 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // ASOManagedControlPlaneSpec defines the desired state of ASOManagedControlPlane
 type ASOManagedControlPlaneSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of ASOManagedControlPlane. Edit asomanagedcontrolplane_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// Version is the Kubernetes version of the control plane. It fulfills Cluster API's control plane
+	// provider contract.
+	Version string `json:"version,omitempty"`
 }
 
 // ASOManagedControlPlaneStatus defines the observed state of ASOManagedControlPlane
 type ASOManagedControlPlaneStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Initialized represents whether or not the API server has been provisioned. It fulfills Cluster API's
+	// control plane provider contract.
+	Initialized bool `json:"initialized"`
+
+	// Ready represents whether or not the API server is ready to receive requests. It fulfills Cluster API's
+	// control plane provider contract.
+	Ready bool `json:"ready"`
+
+	// Version is the observed Kubernetes version of the control plane. It fulfills Cluster API's control
+	// plane provider contract.
+	Version string `json:"version,omitempty"`
+
+	// ExternalManagedControlPlane is always set to true since control plane components for AKS do not exist
+	// in Nodes. It fulfills Cluster API's control plane provider contract.
+	ExternalManagedControlPlane bool `json:"externalManagedControlPlane"`
 }
 
 //+kubebuilder:object:root=true

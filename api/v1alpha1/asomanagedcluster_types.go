@@ -18,24 +18,22 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
-
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // ASOManagedClusterSpec defines the desired state of ASOManagedCluster
 type ASOManagedClusterSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of ASOManagedCluster. Edit asomanagedcluster_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// ControlPlaneEndpoint is the location of the API server within the control plane. It fulfills Cluster
+	// API's cluster infrastructure provider contract.
+	//+optional
+	ControlPlaneEndpoint clusterv1.APIEndpoint `json:"controlPlaneEndpoint"`
 }
 
 // ASOManagedClusterStatus defines the observed state of ASOManagedCluster
 type ASOManagedClusterStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Ready represents whether or not the cluster has been provisioned and is ready. It fulfills Cluster
+	// API's cluster infrastructure provider contract.
+	Ready bool `json:"ready"`
 }
 
 //+kubebuilder:object:root=true

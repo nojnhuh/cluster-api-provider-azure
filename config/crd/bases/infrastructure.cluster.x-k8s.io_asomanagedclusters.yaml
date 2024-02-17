@@ -39,13 +39,33 @@ spec:
           spec:
             description: ASOManagedClusterSpec defines the desired state of ASOManagedCluster
             properties:
-              foo:
-                description: Foo is an example field of ASOManagedCluster. Edit asomanagedcluster_types.go
-                  to remove/update
-                type: string
+              controlPlaneEndpoint:
+                description: |-
+                  ControlPlaneEndpoint is the location of the API server within the control plane. It fulfills Cluster
+                  API's cluster infrastructure provider contract.
+                properties:
+                  host:
+                    description: The hostname on which the API server is serving.
+                    type: string
+                  port:
+                    description: The port on which the API server is serving.
+                    format: int32
+                    type: integer
+                required:
+                - host
+                - port
+                type: object
             type: object
           status:
             description: ASOManagedClusterStatus defines the observed state of ASOManagedCluster
+            properties:
+              ready:
+                description: |-
+                  Ready represents whether or not the cluster has been provisioned and is ready. It fulfills Cluster
+                  API's cluster infrastructure provider contract.
+                type: boolean
+            required:
+            - ready
             type: object
         type: object
     served: true

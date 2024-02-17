@@ -40,14 +40,22 @@ spec:
           spec:
             description: ASOManagedMachinePoolSpec defines the desired state of ASOManagedMachinePool
             properties:
-              foo:
-                description: Foo is an example field of ASOManagedMachinePool. Edit
-                  asomanagedmachinepool_types.go to remove/update
+              providerIDList:
+                description: ProviderIDList is the list of cloud provider IDs for
+                  the instances.
                 type: string
             type: object
           status:
             description: ASOManagedMachinePoolStatus defines the observed state of
               ASOManagedMachinePool
+            properties:
+              ready:
+                description: |-
+                  Ready represents whether or not the infrastructure is ready to be used. It fulfills Cluster API's
+                  machine pool infrastructure provider contract.
+                type: boolean
+            required:
+            - ready
             type: object
         type: object
     served: true

@@ -20,22 +20,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // ASOManagedMachinePoolSpec defines the desired state of ASOManagedMachinePool
 type ASOManagedMachinePoolSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of ASOManagedMachinePool. Edit asomanagedmachinepool_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// ProviderIDList is the list of cloud provider IDs for the instances.
+	ProviderIDList string `json:"providerIDList,omitempty"`
 }
 
 // ASOManagedMachinePoolStatus defines the observed state of ASOManagedMachinePool
 type ASOManagedMachinePoolStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Ready represents whether or not the infrastructure is ready to be used. It fulfills Cluster API's
+	// machine pool infrastructure provider contract.
+	Ready bool `json:"ready"`
 }
 
 //+kubebuilder:object:root=true
