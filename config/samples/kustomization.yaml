@@ -1,0 +1,6 @@
+## Append samples of your project ##
+resources:
+- infrastructure_v1alpha1_asomanagedcluster.yaml
+- infrastructure_v1alpha1_asomanagedcontrolplane.yaml
+- infrastructure_v1alpha1_asomanagedmachinepool.yaml
+#+kubebuilder:scaffold:manifestskustomizesamples
