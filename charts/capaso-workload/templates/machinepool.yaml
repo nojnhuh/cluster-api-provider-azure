@@ -1,0 +1,25 @@
+{{- range $mpName, $mp := .Values.machinePools }}
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachinePool
+metadata:
+  name: {{ $.Values.clusterName }}-{{ $mpName }}
+spec:
+  clusterName: {{ $.Values.clusterName }}
+  replicas: {{ $mp.replicas }}
+  template:
+    spec:
+      bootstrap:
+        dataSecretName: ""
+      clusterName: {{ $.Values.clusterName }}
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: ASOManagedMachinePool
+        name: {{ $.Values.clusterName }}-{{ $mpName }}
+      version: {{ default $.Values.kubernetesVersion $mp.kubernetesVersion }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ASOManagedMachinePool
+metadata:
+  name: {{ $.Values.clusterName }}-{{ $mpName }}
+---
+{{- end }}

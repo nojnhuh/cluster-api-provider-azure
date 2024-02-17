@@ -1,0 +1,29 @@
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: {{ .Values.clusterName }}
+spec:
+  {{- if .Values.clusterNetwork }}
+  clusterNetwork:
+    {{- toYaml .Values.clusterNetwork | nindent 4 }}
+  {{- end }}
+  controlPlaneRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+    kind: AzureManagedControlPlane
+    name: {{ .Values.clusterName }}
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+    kind: AzureManagedCluster
+    name: {{ .Values.clusterName }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ASOManagedCluster
+metadata:
+  name: {{ .Values.clusterName }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ASOManagedControlPlane
+metadata:
+  name: {{ .Values.clusterName }}
+spec:
+  version: {{ .Values.kubernetesVersion }}
