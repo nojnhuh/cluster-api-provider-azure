@@ -26,6 +26,8 @@ spec:
     kind: ResourceGroup
     metadata:
       name: {{ .Values.clusterName }}
+      annotations:
+        {{- include "capaso.asoResourceAnnotations" . | nindent 8 }}
     spec:
       azureName: {{ .Values.clusterName }}
       location: eastus

@@ -1,3 +1,9 @@
+credentialSecretName: "aso-credentials"
+subscriptionID: ""
+tenantID: ""
+clientID: ""
+clientSecret: ""
+
 clusterName: dev
 clusterNetwork: null
 kubernetesVersion: v1.28.3
