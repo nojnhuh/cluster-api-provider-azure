@@ -8,6 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -39,6 +40,14 @@ func (r *InfraReconciler) Reconcile(ctx context.Context) error {
 
 	newStatuses := r.owner.GetResourceStatuses()
 
+	type reconcileKey struct {
+		group string
+		kind  string
+		// version may change throughout the lifetime of a resource
+		name string
+	}
+	reconciled := map[reconcileKey]struct{}{}
+
 	for _, resource := range r.resources {
 		spec := &unstructured.Unstructured{}
 		err := spec.UnmarshalJSON(resource.Raw)
@@ -56,11 +65,13 @@ func (r *InfraReconciler) Reconcile(ctx context.Context) error {
 		err = r.Get(ctx, client.ObjectKeyFromObject(spec), u)
 		if apierrors.IsNotFound(err) {
 			u = spec
+			log.Info("creating resource")
 			err = r.Create(ctx, u)
 		} else if err == nil {
 			// TODO: also update labels and annotations, but make sure not to delete ones that already exist
 			// since they might be managed by something else like ASO.
 			u.Object["spec"] = spec.Object["spec"]
+			log.Info("updating resource")
 			err = r.Update(ctx, u)
 		}
 		if err != nil {
@@ -80,7 +91,6 @@ func (r *InfraReconciler) Reconcile(ctx context.Context) error {
 		foundStatus := false
 		for i, status := range r.owner.GetResourceStatuses() {
 			if newStatus.Group == status.Group &&
-				newStatus.Version == status.Version &&
 				newStatus.Kind == status.Kind &&
 				newStatus.Name == status.Name {
 				newStatuses[i] = newStatus
@@ -91,15 +101,41 @@ func (r *InfraReconciler) Reconcile(ctx context.Context) error {
 		if !foundStatus {
 			newStatuses = append(newStatuses, newStatus)
 		}
+
+		reconciled[reconcileKey{gvk.Group, gvk.Kind, u.GetName()}] = struct{}{}
 	}
 
-	r.owner.SetResourceStatuses(newStatuses)
+	// filteredStatuses does not contain status for resources that have been deleted and are gone.
+	var filteredStatuses []infrastructurev1alpha1.ResourceStatus
+	for _, status := range newStatuses {
+		if _, reconciled := reconciled[reconcileKey{status.Group, status.Kind, status.Name}]; reconciled {
+			filteredStatuses = append(filteredStatuses, status)
+			continue
+		}
+		d := &unstructured.Unstructured{}
+		d.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   status.Group,
+			Version: status.Version,
+			Kind:    status.Kind,
+		})
+		d.SetName(status.Name)
+		d.SetNamespace(r.owner.GetNamespace())
+		log.Info("deleting resource")
+		err := r.Client.Delete(ctx, d)
+		if !apierrors.IsNotFound(err) {
+			filteredStatuses = append(filteredStatuses, status)
+			if err != nil {
+				return fmt.Errorf("failed to delete resource: %w", err)
+			}
+		}
+	}
+
+	r.owner.SetResourceStatuses(filteredStatuses)
 
 	return nil
 }
 
 func readyStatus(u *unstructured.Unstructured) (*bool, string) {
-
 	statusConditions, found, err := unstructured.NestedSlice(u.Object, "status", "conditions")
 	if !found || err != nil {
 		return nil, ""
@@ -139,6 +175,9 @@ func readyStatus(u *unstructured.Unstructured) (*bool, string) {
 
 // Delete deletes the specified resources.
 func (r *InfraReconciler) Delete(ctx context.Context) error {
+	log := log.FromContext(ctx)
+	log.Info("deleting resources")
+
 	for _, resource := range r.resources {
 		u := &unstructured.Unstructured{}
 		err := u.UnmarshalJSON(resource.Raw)
