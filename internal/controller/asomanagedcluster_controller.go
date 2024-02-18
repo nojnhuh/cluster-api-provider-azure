@@ -32,11 +32,15 @@ import (
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
 )
@@ -160,9 +164,19 @@ func (r *ASOManagedClusterReconciler) SetupWithManager(ctx context.Context, mgr 
 	c, err := ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.ASOManagedCluster{}).
 		WithEventFilter(predicates.ResourceIsNotExternallyManaged(log)).
-		Watches(&clusterv1.Cluster{}, handler.EnqueueRequestsFromMapFunc(util.ClusterToInfrastructureMapFunc(ctx, infrav1.GroupVersion.WithKind("ASOManagedCluster"), mgr.GetClient(), &infrav1.ASOManagedCluster{}))).
-		// TODO:
-		// watch ASOManagedControlPlane for control plane endpoint
+		Watches(
+			&clusterv1.Cluster{},
+			handler.EnqueueRequestsFromMapFunc(
+				util.ClusterToInfrastructureMapFunc(ctx, infrav1.GroupVersion.WithKind("ASOManagedCluster"), mgr.GetClient(), &infrav1.ASOManagedCluster{}),
+			),
+		).
+		Watches(
+			&infrav1.ASOManagedControlPlane{},
+			handler.EnqueueRequestsFromMapFunc(r.asoManagedControlPlaneToManagedClusterMap()),
+			builder.WithPredicates(
+				asoManagedControlPlaneEndpointUpdated(),
+			),
+		).
 		Build(r)
 	if err != nil {
 		return err
@@ -174,6 +188,44 @@ func (r *ASOManagedClusterReconciler) SetupWithManager(ctx context.Context, mgr 
 	}
 
 	return nil
+}
+
+func (r *ASOManagedClusterReconciler) asoManagedControlPlaneToManagedClusterMap() handler.MapFunc {
+	return func(ctx context.Context, o client.Object) []reconcile.Request {
+		asoControlPlane := o.(*infrav1.ASOManagedControlPlane)
+
+		cluster, err := util.GetOwnerCluster(ctx, r.Client, asoControlPlane.ObjectMeta)
+		if err != nil {
+			return nil
+		}
+
+		if cluster == nil ||
+			cluster.Spec.InfrastructureRef == nil ||
+			cluster.Spec.InfrastructureRef.Kind != "ASOManagedCluster" {
+			return nil
+		}
+
+		return []reconcile.Request{
+			{
+				NamespacedName: client.ObjectKey{
+					Namespace: cluster.Spec.InfrastructureRef.Namespace,
+					Name:      cluster.Spec.InfrastructureRef.Name,
+				},
+			},
+		}
+	}
+}
+
+func asoManagedControlPlaneEndpointUpdated() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(_ event.CreateEvent) bool { return true },
+		UpdateFunc: func(ev event.UpdateEvent) bool {
+			oldControlPlane := ev.ObjectOld.(*infrav1.ASOManagedControlPlane)
+			newControlPlane := ev.ObjectNew.(*infrav1.ASOManagedControlPlane)
+			return oldControlPlane.Status.ControlPlaneEndpoint !=
+				newControlPlane.Status.ControlPlaneEndpoint
+		},
+	}
 }
 
 func ignorePatchErrNotFound(err error) error {
