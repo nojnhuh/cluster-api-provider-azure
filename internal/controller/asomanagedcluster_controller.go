@@ -21,14 +21,18 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	"sigs.k8s.io/cluster-api/controllers/external"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -39,7 +43,9 @@ import (
 type ASOManagedClusterReconciler struct {
 	client.Client
 	Scheme          *runtime.Scheme
+	controller      controller.Controller
 	infraReconciler *InfraReconciler
+	externalTracker *external.ObjectTracker
 }
 
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=asomanagedclusters,verbs=get;list;watch;create;update;patch;delete
@@ -60,6 +66,22 @@ func (r *ASOManagedClusterReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 	defer func() {
 		err := patchHelper.Patch(ctx, asoCluster)
+		if !asoCluster.GetDeletionTimestamp().IsZero() {
+			notFound := apierrors.IsNotFound(err)
+			if !notFound {
+				if agg, ok := err.(kerrors.Aggregate); ok {
+					for _, aggErr := range kerrors.Flatten(agg).Errors() {
+						if apierrors.IsNotFound(aggErr) {
+							notFound = true
+							break
+						}
+					}
+				}
+			}
+			if notFound {
+				return
+			}
+		}
 		if err != nil && resultErr == nil {
 			resultErr = err
 			result = ctrl.Result{}
@@ -72,9 +94,10 @@ func (r *ASOManagedClusterReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	r.infraReconciler = &InfraReconciler{
-		Client:    r.Client,
-		resources: asoCluster.Spec.Resources,
-		owner:     asoCluster,
+		Client:          r.Client,
+		resources:       asoCluster.Spec.Resources,
+		owner:           asoCluster,
+		externalTracker: r.externalTracker,
 	}
 
 	if !asoCluster.GetDeletionTimestamp().IsZero() {
@@ -124,7 +147,6 @@ func (r *ASOManagedClusterReconciler) reconcileDelete(ctx context.Context, asoCl
 		return ctrl.Result{}, nil
 	}
 
-	// delete resources, waiting for them to be gone
 	err := r.infraReconciler.Delete(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -136,11 +158,21 @@ func (r *ASOManagedClusterReconciler) reconcileDelete(ctx context.Context, asoCl
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ASOManagedClusterReconciler) SetupWithManager(mgr ctrl.Manager, log logr.Logger) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	c, err := ctrl.NewControllerManagedBy(mgr).
 		For(&infrastructurev1alpha1.ASOManagedCluster{}).
 		WithEventFilter(predicates.ResourceIsNotExternallyManaged(log)).
 		// TODO:
 		// watch Cluster
 		// watch ASOManagedControlPlane for control plane endpoint
-		Complete(r)
+		Build(r)
+	if err != nil {
+		return err
+	}
+
+	r.externalTracker = &external.ObjectTracker{
+		Cache:      mgr.GetCache(),
+		Controller: c,
+	}
+
+	return nil
 }

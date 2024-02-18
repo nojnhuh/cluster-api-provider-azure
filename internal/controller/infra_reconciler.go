@@ -9,9 +9,12 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/cluster-api/controllers/external"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
@@ -20,11 +23,9 @@ import (
 
 type InfraReconciler struct {
 	client.Client
-	resources []runtime.RawExtension
-	owner     resourceStatusObject
-	// TODO: some status interface.
-	// - applied resources (with ready conditions)
-	// TODO: remote object tracker to watch applied resources.
+	resources       []runtime.RawExtension
+	owner           resourceStatusObject
+	externalTracker *external.ObjectTracker
 }
 
 type resourceStatusObject interface {
@@ -55,9 +56,16 @@ func (r *InfraReconciler) Reconcile(ctx context.Context) error {
 			return err
 		}
 		spec.SetNamespace(r.owner.GetNamespace())
+		gvk := spec.GroupVersionKind()
+
+		log := log.WithValues("resource", klog.KObj(spec), "resourceVersion", gvk.GroupVersion(), "resourceKind", gvk.Kind)
 
 		if err := controllerutil.SetControllerReference(r.owner, spec, r.Scheme()); err != nil {
 			return fmt.Errorf("failed to apply owner reference: %w", err)
+		}
+
+		if err := r.externalTracker.Watch(log, spec, handler.EnqueueRequestForOwner(r.Client.Scheme(), r.Client.RESTMapper(), r.owner)); err != nil {
+			return fmt.Errorf("failed to watch resource: %w", err)
 		}
 
 		u := &unstructured.Unstructured{}
@@ -78,7 +86,6 @@ func (r *InfraReconciler) Reconcile(ctx context.Context) error {
 			return fmt.Errorf("failed to create or update object: %w", err)
 		}
 
-		gvk := u.GroupVersionKind()
 		newStatus := infrastructurev1alpha1.ResourceStatus{
 			Group:   gvk.Group,
 			Version: gvk.Version,
