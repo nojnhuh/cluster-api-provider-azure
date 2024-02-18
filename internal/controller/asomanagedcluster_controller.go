@@ -34,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	infrastructurev1alpha1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
@@ -157,12 +158,12 @@ func (r *ASOManagedClusterReconciler) reconcileDelete(ctx context.Context, asoCl
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *ASOManagedClusterReconciler) SetupWithManager(mgr ctrl.Manager, log logr.Logger) error {
+func (r *ASOManagedClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, log logr.Logger) error {
 	c, err := ctrl.NewControllerManagedBy(mgr).
 		For(&infrastructurev1alpha1.ASOManagedCluster{}).
 		WithEventFilter(predicates.ResourceIsNotExternallyManaged(log)).
+		Watches(&clusterv1.Cluster{}, handler.EnqueueRequestsFromMapFunc(util.ClusterToInfrastructureMapFunc(ctx, infrastructurev1alpha1.GroupVersion.WithKind("ASOManagedCluster"), mgr.GetClient(), &infrastructurev1alpha1.ASOManagedCluster{}))).
 		// TODO:
-		// watch Cluster
 		// watch ASOManagedControlPlane for control plane endpoint
 		Build(r)
 	if err != nil {

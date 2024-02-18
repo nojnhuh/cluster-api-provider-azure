@@ -72,6 +72,8 @@ func main() {
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
+	ctx := ctrl.SetupSignalHandler()
+
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
@@ -125,7 +127,7 @@ func main() {
 	if err = (&controller.ASOManagedClusterReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr, setupLog); err != nil {
+	}).SetupWithManager(ctx, mgr, setupLog); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ASOManagedCluster")
 		os.Exit(1)
 	}
@@ -155,7 +157,7 @@ func main() {
 	}
 
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
