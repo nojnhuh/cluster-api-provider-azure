@@ -25,6 +25,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/controllers/external"
 	"sigs.k8s.io/cluster-api/util"
@@ -138,6 +139,12 @@ func (r *ASOManagedClusterReconciler) reconcileNormal(ctx context.Context, asoCl
 
 	asoCluster.Spec.ControlPlaneEndpoint = asoControlPlane.Status.ControlPlaneEndpoint
 	asoCluster.Status.Ready = true
+	for _, status := range asoCluster.GetResourceStatuses() {
+		if !ptr.Deref(status.Ready, true) {
+			asoCluster.Status.Ready = false
+			break
+		}
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -151,6 +158,10 @@ func (r *ASOManagedClusterReconciler) reconcileDelete(ctx context.Context, asoCl
 	err := r.infraReconciler.Delete(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
+	}
+	if len(asoCluster.GetResourceStatuses()) > 0 {
+		// waiting for resources to be deleted
+		return ctrl.Result{}, nil
 	}
 
 	controllerutil.RemoveFinalizer(asoCluster, clusterv1.ClusterFinalizer)

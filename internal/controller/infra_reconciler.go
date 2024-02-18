@@ -86,15 +86,15 @@ func (r *InfraReconciler) Reconcile(ctx context.Context) error {
 			return fmt.Errorf("failed to create or update object: %w", err)
 		}
 
+		ready, message := readyStatus(u)
 		newStatus := infrav1.ResourceStatus{
 			Group:   gvk.Group,
 			Version: gvk.Version,
 			Kind:    gvk.Kind,
 			Name:    u.GetName(),
+			Ready:   ready,
+			Message: message,
 		}
-		ready, message := readyStatus(u)
-		newStatus.Ready = ready
-		newStatus.Message = message
 		foundStatus := false
 		for i, status := range r.owner.GetResourceStatuses() {
 			if newStatus.Group == status.Group &&
@@ -185,6 +185,8 @@ func (r *InfraReconciler) Delete(ctx context.Context) error {
 	log := log.FromContext(ctx)
 	log.Info("deleting resources")
 
+	var statuses []infrav1.ResourceStatus
+
 	for _, resource := range r.resources {
 		u := &unstructured.Unstructured{}
 		err := u.UnmarshalJSON(resource.Raw)
@@ -192,13 +194,34 @@ func (r *InfraReconciler) Delete(ctx context.Context) error {
 			return err
 		}
 		u.SetNamespace(r.owner.GetNamespace())
+		gvk := u.GroupVersionKind()
 
 		err = r.Client.Delete(ctx, u)
-		if client.IgnoreNotFound(err) != nil {
-			return err
+		if !apierrors.IsNotFound(err) {
+			if err != nil {
+				return fmt.Errorf("failed to delete resource: %w", err)
+			}
+			err := r.Get(ctx, client.ObjectKeyFromObject(u), u)
+			if apierrors.IsNotFound(err) {
+				// object has been deleted
+				continue
+			}
+			if err != nil {
+				return fmt.Errorf("failed to get status for deleted resource: %w", err)
+			}
+			ready, message := readyStatus(u)
+			statuses = append(statuses, infrav1.ResourceStatus{
+				Group:   gvk.Group,
+				Version: gvk.Version,
+				Kind:    gvk.Kind,
+				Name:    u.GetName(),
+				Ready:   ready,
+				Message: message,
+			})
 		}
-		// TODO: wait for objects to be deleted
 	}
+
+	r.owner.SetResourceStatuses(statuses)
 
 	return nil
 }
