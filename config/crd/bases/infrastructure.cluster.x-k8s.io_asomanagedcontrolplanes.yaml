@@ -40,6 +40,13 @@ spec:
           spec:
             description: ASOManagedControlPlaneSpec defines the desired state of ASOManagedControlPlane
             properties:
+              resources:
+                description: Resources are embedded ASO resources to be managed by
+                  this resource.
+                items:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                type: array
               version:
                 description: |-
                   Version is the Kubernetes version of the control plane. It fulfills Cluster API's control plane
@@ -80,6 +87,35 @@ spec:
                   Ready represents whether or not the API server is ready to receive requests. It fulfills Cluster API's
                   control plane provider contract.
                 type: boolean
+              resources:
+                description: Resources represents the status of the resources defined
+                  in the spec.
+                items:
+                  description: ResourceStatus represents the status of a resource.
+                  properties:
+                    group:
+                      type: string
+                    kind:
+                      type: string
+                    message:
+                      description: Message gives more information as to why a resource
+                        is not ready.
+                      type: string
+                    name:
+                      type: string
+                    ready:
+                      description: Ready reflects a Ready condition on the resource,
+                        if one is defined.
+                      type: boolean
+                    version:
+                      type: string
+                  required:
+                  - group
+                  - kind
+                  - name
+                  - version
+                  type: object
+                type: array
               version:
                 description: |-
                   Version is the observed Kubernetes version of the control plane. It fulfills Cluster API's control

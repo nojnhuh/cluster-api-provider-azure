@@ -30,7 +30,7 @@ spec:
         {{- include "capaso.asoResourceAnnotations" . | nindent 8 }}
     spec:
       azureName: {{ .Values.clusterName }}
-      location: eastus
+      location: {{ .Values.location }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: ASOManagedControlPlane
@@ -38,3 +38,25 @@ metadata:
   name: {{ .Values.clusterName }}
 spec:
   version: {{ .Values.kubernetesVersion }}
+  resources:
+  - apiVersion: containerservice.azure.com/v1api20231001
+    kind: ManagedCluster
+    metadata:
+      name: {{ .Values.clusterName }}
+      annotations:
+        {{- include "capaso.asoResourceAnnotations" . | nindent 8 }}
+    spec:
+      azureName: {{ .Values.clusterName }}
+      location: {{ .Values.location }}
+      agentPoolProfiles:
+        - vmSize: standard_d2_v2
+          name: pool0
+          count: 1
+          mode: System
+      dnsPrefix: {{ .Values.clusterName }}
+      identity:
+        type: SystemAssigned
+      owner:
+        name: {{ .Values.clusterName }}
+      servicePrincipalProfile:
+        clientId: msi

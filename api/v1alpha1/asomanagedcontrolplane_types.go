@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
@@ -26,6 +27,9 @@ type ASOManagedControlPlaneSpec struct {
 	// Version is the Kubernetes version of the control plane. It fulfills Cluster API's control plane
 	// provider contract.
 	Version string `json:"version,omitempty"`
+
+	// Resources are embedded ASO resources to be managed by this resource.
+	Resources []runtime.RawExtension `json:"resources,omitempty"`
 }
 
 // ASOManagedControlPlaneStatus defines the observed state of ASOManagedControlPlane
@@ -48,6 +52,9 @@ type ASOManagedControlPlaneStatus struct {
 
 	// ControlPlaneEndpoint represents the endpoint for the cluster's API server.
 	ControlPlaneEndpoint clusterv1.APIEndpoint `json:"controlPlaneEndpoint"`
+
+	// Resources represents the status of the resources defined in the spec.
+	Resources []ResourceStatus `json:"resources,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -60,6 +67,14 @@ type ASOManagedControlPlane struct {
 
 	Spec   ASOManagedControlPlaneSpec   `json:"spec,omitempty"`
 	Status ASOManagedControlPlaneStatus `json:"status,omitempty"`
+}
+
+func (a *ASOManagedControlPlane) GetResourceStatuses() []ResourceStatus {
+	return a.Status.Resources
+}
+
+func (a *ASOManagedControlPlane) SetResourceStatuses(r []ResourceStatus) {
+	a.Status.Resources = r
 }
 
 //+kubebuilder:object:root=true

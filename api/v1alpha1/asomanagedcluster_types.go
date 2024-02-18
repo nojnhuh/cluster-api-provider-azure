@@ -43,14 +43,6 @@ type ASOManagedClusterStatus struct {
 	Resources []ResourceStatus `json:"resources,omitempty"`
 }
 
-func (a *ASOManagedCluster) GetResourceStatuses() []ResourceStatus {
-	return a.Status.Resources
-}
-
-func (a *ASOManagedCluster) SetResourceStatuses(r []ResourceStatus) {
-	a.Status.Resources = r
-}
-
 // ResourceStatus represents the status of a resource.
 type ResourceStatus struct {
 	Group   string `json:"group"`
@@ -75,6 +67,14 @@ type ASOManagedCluster struct {
 
 	Spec   ASOManagedClusterSpec   `json:"spec,omitempty"`
 	Status ASOManagedClusterStatus `json:"status,omitempty"`
+}
+
+func (a *ASOManagedCluster) GetResourceStatuses() []ResourceStatus {
+	return a.Status.Resources
+}
+
+func (a *ASOManagedCluster) SetResourceStatuses(r []ResourceStatus) {
+	a.Status.Resources = r
 }
 
 //+kubebuilder:object:root=true

@@ -69,20 +69,7 @@ func (r *ASOManagedClusterReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	defer func() {
 		err := patchHelper.Patch(ctx, asoCluster)
 		if !asoCluster.GetDeletionTimestamp().IsZero() {
-			notFound := apierrors.IsNotFound(err)
-			if !notFound {
-				if agg, ok := err.(kerrors.Aggregate); ok {
-					for _, aggErr := range kerrors.Flatten(agg).Errors() {
-						if apierrors.IsNotFound(aggErr) {
-							notFound = true
-							break
-						}
-					}
-				}
-			}
-			if notFound {
-				return
-			}
+			err = ignorePatchErrNotFound(err)
 		}
 		if err != nil && resultErr == nil {
 			resultErr = err
@@ -187,4 +174,22 @@ func (r *ASOManagedClusterReconciler) SetupWithManager(ctx context.Context, mgr 
 	}
 
 	return nil
+}
+
+func ignorePatchErrNotFound(err error) error {
+	notFound := apierrors.IsNotFound(err)
+	if !notFound {
+		if agg, ok := err.(kerrors.Aggregate); ok {
+			for _, aggErr := range kerrors.Flatten(agg).Errors() {
+				if apierrors.IsNotFound(aggErr) {
+					notFound = true
+					break
+				}
+			}
+		}
+	}
+	if notFound {
+		return nil
+	}
+	return err
 }

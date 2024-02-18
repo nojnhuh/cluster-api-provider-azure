@@ -4,7 +4,8 @@ tenantID: ""
 clientID: ""
 clientSecret: ""
 
-clusterName: dev
+clusterName: capaso
+location: eastus
 clusterNetwork: null
 kubernetesVersion: v1.28.3
 
