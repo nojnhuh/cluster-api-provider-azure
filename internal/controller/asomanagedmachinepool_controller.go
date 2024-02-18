@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	infrastructurev1alpha1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
+	infrav1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
 )
 
 // ASOManagedMachinePoolReconciler reconciles a ASOManagedMachinePool object
@@ -57,6 +57,6 @@ func (r *ASOManagedMachinePoolReconciler) Reconcile(ctx context.Context, req ctr
 // SetupWithManager sets up the controller with the Manager.
 func (r *ASOManagedMachinePoolReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&infrastructurev1alpha1.ASOManagedMachinePool{}).
+		For(&infrav1.ASOManagedMachinePool{}).
 		Complete(r)
 }

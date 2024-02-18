@@ -27,7 +27,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	infrastructurev1alpha1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
+	infrav1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
 )
 
 var _ = Describe("ASOManagedControlPlane Controller", func() {
@@ -40,13 +40,13 @@ var _ = Describe("ASOManagedControlPlane Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		asomanagedcontrolplane := &infrastructurev1alpha1.ASOManagedControlPlane{}
+		asomanagedcontrolplane := &infrav1.ASOManagedControlPlane{}
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind ASOManagedControlPlane")
 			err := k8sClient.Get(ctx, typeNamespacedName, asomanagedcontrolplane)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &infrastructurev1alpha1.ASOManagedControlPlane{
+				resource := &infrav1.ASOManagedControlPlane{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
@@ -59,7 +59,7 @@ var _ = Describe("ASOManagedControlPlane Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &infrastructurev1alpha1.ASOManagedControlPlane{}
+			resource := &infrav1.ASOManagedControlPlane{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 

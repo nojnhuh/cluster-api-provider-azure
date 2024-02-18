@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -17,8 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	infrastructurev1alpha1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
+	infrav1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
 )
 
 type InfraReconciler struct {
@@ -30,8 +30,8 @@ type InfraReconciler struct {
 
 type resourceStatusObject interface {
 	client.Object
-	GetResourceStatuses() []infrastructurev1alpha1.ResourceStatus
-	SetResourceStatuses([]infrastructurev1alpha1.ResourceStatus)
+	GetResourceStatuses() []infrav1.ResourceStatus
+	SetResourceStatuses([]infrav1.ResourceStatus)
 }
 
 // Reconcile creates or updates the specified resources.
@@ -86,7 +86,7 @@ func (r *InfraReconciler) Reconcile(ctx context.Context) error {
 			return fmt.Errorf("failed to create or update object: %w", err)
 		}
 
-		newStatus := infrastructurev1alpha1.ResourceStatus{
+		newStatus := infrav1.ResourceStatus{
 			Group:   gvk.Group,
 			Version: gvk.Version,
 			Kind:    gvk.Kind,
@@ -113,7 +113,7 @@ func (r *InfraReconciler) Reconcile(ctx context.Context) error {
 	}
 
 	// filteredStatuses does not contain status for resources that have been deleted and are gone.
-	var filteredStatuses []infrastructurev1alpha1.ResourceStatus
+	var filteredStatuses []infrav1.ResourceStatus
 	for _, status := range newStatuses {
 		if _, reconciled := reconciled[reconcileKey{status.Group, status.Kind, status.Name}]; reconciled {
 			filteredStatuses = append(filteredStatuses, status)

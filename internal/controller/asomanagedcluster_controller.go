@@ -37,7 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	infrastructurev1alpha1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
+	infrav1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
 )
 
 // ASOManagedClusterReconciler reconciles a ASOManagedCluster object
@@ -55,7 +55,7 @@ type ASOManagedClusterReconciler struct {
 
 // Reconcile reconciles an ASOManagedCluster.
 func (r *ASOManagedClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, resultErr error) {
-	asoCluster := &infrastructurev1alpha1.ASOManagedCluster{}
+	asoCluster := &infrav1.ASOManagedCluster{}
 	err := r.Get(ctx, req.NamespacedName, asoCluster)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -108,7 +108,7 @@ func (r *ASOManagedClusterReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	return r.reconcileNormal(ctx, asoCluster, cluster)
 }
 
-func (r *ASOManagedClusterReconciler) reconcileNormal(ctx context.Context, asoCluster *infrastructurev1alpha1.ASOManagedCluster, cluster *clusterv1.Cluster) (ctrl.Result, error) {
+func (r *ASOManagedClusterReconciler) reconcileNormal(ctx context.Context, asoCluster *infrav1.ASOManagedCluster, cluster *clusterv1.Cluster) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
 	if cluster == nil {
@@ -125,7 +125,7 @@ func (r *ASOManagedClusterReconciler) reconcileNormal(ctx context.Context, asoCl
 		return ctrl.Result{}, err
 	}
 
-	asoControlPlane := &infrastructurev1alpha1.ASOManagedControlPlane{
+	asoControlPlane := &infrav1.ASOManagedControlPlane{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: cluster.Spec.ControlPlaneRef.Namespace,
 			Name:      cluster.Spec.ControlPlaneRef.Name,
@@ -142,7 +142,7 @@ func (r *ASOManagedClusterReconciler) reconcileNormal(ctx context.Context, asoCl
 	return ctrl.Result{}, nil
 }
 
-func (r *ASOManagedClusterReconciler) reconcileDelete(ctx context.Context, asoCluster *infrastructurev1alpha1.ASOManagedCluster, cluster *clusterv1.Cluster) (ctrl.Result, error) {
+func (r *ASOManagedClusterReconciler) reconcileDelete(ctx context.Context, asoCluster *infrav1.ASOManagedCluster, cluster *clusterv1.Cluster) (ctrl.Result, error) {
 	if cluster == nil {
 		controllerutil.RemoveFinalizer(asoCluster, clusterv1.ClusterFinalizer)
 		return ctrl.Result{}, nil
@@ -160,9 +160,9 @@ func (r *ASOManagedClusterReconciler) reconcileDelete(ctx context.Context, asoCl
 // SetupWithManager sets up the controller with the Manager.
 func (r *ASOManagedClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, log logr.Logger) error {
 	c, err := ctrl.NewControllerManagedBy(mgr).
-		For(&infrastructurev1alpha1.ASOManagedCluster{}).
+		For(&infrav1.ASOManagedCluster{}).
 		WithEventFilter(predicates.ResourceIsNotExternallyManaged(log)).
-		Watches(&clusterv1.Cluster{}, handler.EnqueueRequestsFromMapFunc(util.ClusterToInfrastructureMapFunc(ctx, infrastructurev1alpha1.GroupVersion.WithKind("ASOManagedCluster"), mgr.GetClient(), &infrastructurev1alpha1.ASOManagedCluster{}))).
+		Watches(&clusterv1.Cluster{}, handler.EnqueueRequestsFromMapFunc(util.ClusterToInfrastructureMapFunc(ctx, infrav1.GroupVersion.WithKind("ASOManagedCluster"), mgr.GetClient(), &infrav1.ASOManagedCluster{}))).
 		// TODO:
 		// watch ASOManagedControlPlane for control plane endpoint
 		Build(r)

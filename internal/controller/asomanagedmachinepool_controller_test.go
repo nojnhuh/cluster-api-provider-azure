@@ -27,7 +27,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	infrastructurev1alpha1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
+	infrav1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
 )
 
 var _ = Describe("ASOManagedMachinePool Controller", func() {
@@ -40,13 +40,13 @@ var _ = Describe("ASOManagedMachinePool Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		asomanagedmachinepool := &infrastructurev1alpha1.ASOManagedMachinePool{}
+		asomanagedmachinepool := &infrav1.ASOManagedMachinePool{}
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind ASOManagedMachinePool")
 			err := k8sClient.Get(ctx, typeNamespacedName, asomanagedmachinepool)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &infrastructurev1alpha1.ASOManagedMachinePool{
+				resource := &infrav1.ASOManagedMachinePool{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
@@ -59,7 +59,7 @@ var _ = Describe("ASOManagedMachinePool Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &infrastructurev1alpha1.ASOManagedMachinePool{}
+			resource := &infrav1.ASOManagedMachinePool{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 

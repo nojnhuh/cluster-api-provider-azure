@@ -30,7 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	infrastructurev1alpha1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
+	infrav1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
 )
 
 var _ = Describe("ASOManagedCluster Controller", func() {
@@ -65,7 +65,7 @@ var _ = Describe("ASOManagedCluster Controller", func() {
 		}
 		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
 
-		asoCluster := &infrastructurev1alpha1.ASOManagedCluster{
+		asoCluster := &infrav1.ASOManagedCluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      resourceName,
 				Namespace: namespace.Name,
@@ -78,7 +78,7 @@ var _ = Describe("ASOManagedCluster Controller", func() {
 					},
 				},
 			},
-			Spec: infrastructurev1alpha1.ASOManagedClusterSpec{
+			Spec: infrav1.ASOManagedClusterSpec{
 				Resources: []runtime.RawExtension{
 					{
 						Object: resource,
