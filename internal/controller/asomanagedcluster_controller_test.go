@@ -21,64 +21,91 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/rand"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrastructurev1alpha1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
 )
 
 var _ = Describe("ASOManagedCluster Controller", func() {
-	Context("When reconciling a resource", func() {
-		const resourceName = "test-resource"
+	const resourceName = "test-resource"
+	var namespace *corev1.Namespace
+	var typeNamespacedName types.NamespacedName
 
-		ctx := context.Background()
+	resource := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "configmap",
+		},
+	}
 
-		typeNamespacedName := types.NamespacedName{
+	ctx := context.Background()
+
+	BeforeEach(func() {
+		By("Creating initial state")
+		namespace = &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-" + rand.String(5)}}
+		Expect(k8sClient.Create(ctx, namespace)).To(Succeed())
+		resource.SetNamespace(namespace.Name)
+
+		typeNamespacedName = types.NamespacedName{
+			Namespace: namespace.Name,
 			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
 		}
-		asomanagedcluster := &infrastructurev1alpha1.ASOManagedCluster{}
 
-		BeforeEach(func() {
-			By("creating the custom resource for the Kind ASOManagedCluster")
-			err := k8sClient.Get(ctx, typeNamespacedName, asomanagedcluster)
-			if err != nil && errors.IsNotFound(err) {
-				resource := &infrastructurev1alpha1.ASOManagedCluster{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
-						Namespace: "default",
+		cluster := &clusterv1.Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace.Name,
+				Name:      "cluster",
+			},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+
+		asoCluster := &infrastructurev1alpha1.ASOManagedCluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      resourceName,
+				Namespace: namespace.Name,
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						APIVersion: clusterv1.GroupVersion.String(),
+						Kind:       clusterv1.ClusterKind,
+						Name:       cluster.Name,
+						UID:        cluster.UID,
 					},
-					// TODO(user): Specify other spec details if needed.
-				}
-				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
-			}
-		})
+				},
+			},
+			Spec: infrastructurev1alpha1.ASOManagedClusterSpec{
+				Resources: []runtime.RawExtension{
+					{
+						Object: resource,
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, asoCluster)).To(Succeed())
+	})
 
-		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &infrastructurev1alpha1.ASOManagedCluster{}
-			err := k8sClient.Get(ctx, typeNamespacedName, resource)
-			Expect(err).NotTo(HaveOccurred())
+	AfterEach(func() {
+		By("Cleanup the test namespace")
+		Expect(k8sClient.Delete(ctx, namespace)).To(Succeed())
+	})
 
-			By("Cleanup the specific resource instance ASOManagedCluster")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
-		})
-		It("should successfully reconcile the resource", func() {
-			By("Reconciling the created resource")
-			controllerReconciler := &ASOManagedClusterReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
-			}
+	It("should successfully reconcile the resource", func() {
+		By("Reconciling the created resource")
+		reconciler := &ASOManagedClusterReconciler{
+			Client: k8sClient,
+			Scheme: k8sClient.Scheme(),
+		}
 
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: typeNamespacedName,
-			})
-			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
+		_, err := reconciler.Reconcile(ctx, reconcile.Request{
+			NamespacedName: typeNamespacedName,
 		})
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(resource), resource)).To(Succeed())
 	})
 })

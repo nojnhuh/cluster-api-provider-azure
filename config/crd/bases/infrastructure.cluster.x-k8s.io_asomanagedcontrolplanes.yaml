@@ -50,6 +50,21 @@ spec:
             description: ASOManagedControlPlaneStatus defines the observed state of
               ASOManagedControlPlane
             properties:
+              controlPlaneEndpoint:
+                description: ControlPlaneEndpoint represents the endpoint for the
+                  cluster's API server.
+                properties:
+                  host:
+                    description: The hostname on which the API server is serving.
+                    type: string
+                  port:
+                    description: The port on which the API server is serving.
+                    format: int32
+                    type: integer
+                required:
+                - host
+                - port
+                type: object
               externalManagedControlPlane:
                 description: |-
                   ExternalManagedControlPlane is always set to true since control plane components for AKS do not exist
@@ -71,6 +86,7 @@ spec:
                   plane provider contract.
                 type: string
             required:
+            - controlPlaneEndpoint
             - externalManagedControlPlane
             - initialized
             - ready

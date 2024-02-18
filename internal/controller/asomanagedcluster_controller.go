@@ -18,10 +18,18 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/go-logr/logr"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	"sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/cluster-api/util/patch"
+	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	infrastructurev1alpha1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
@@ -30,33 +38,109 @@ import (
 // ASOManagedClusterReconciler reconciles a ASOManagedCluster object
 type ASOManagedClusterReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme          *runtime.Scheme
+	infraReconciler *InfraReconciler
 }
 
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=asomanagedclusters,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=asomanagedclusters/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=asomanagedclusters/finalizers,verbs=update
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the ASOManagedCluster object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.17.0/pkg/reconcile
-func (r *ASOManagedClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+// Reconcile reconciles an ASOManagedCluster.
+func (r *ASOManagedClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, resultErr error) {
+	asoCluster := &infrastructurev1alpha1.ASOManagedCluster{}
+	err := r.Get(ctx, req.NamespacedName, asoCluster)
+	if err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
 
-	// TODO(user): your logic here
+	patchHelper, err := patch.NewHelper(asoCluster, r.Client)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to init patch helper: %w", err)
+	}
+	defer func() {
+		err := patchHelper.Patch(ctx, asoCluster)
+		if err != nil && resultErr == nil {
+			resultErr = err
+			result = ctrl.Result{}
+		}
+	}()
+
+	cluster, err := util.GetOwnerCluster(ctx, r.Client, asoCluster.ObjectMeta)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	r.infraReconciler = &InfraReconciler{
+		Client:    r.Client,
+		resources: asoCluster.Spec.Resources,
+		owner:     asoCluster,
+	}
+
+	if !asoCluster.GetDeletionTimestamp().IsZero() {
+		return r.reconcileDelete(ctx, asoCluster, cluster)
+	}
+
+	return r.reconcileNormal(ctx, asoCluster, cluster)
+}
+
+func (r *ASOManagedClusterReconciler) reconcileNormal(ctx context.Context, asoCluster *infrastructurev1alpha1.ASOManagedCluster, cluster *clusterv1.Cluster) (ctrl.Result, error) {
+	log := log.FromContext(ctx)
+
+	if cluster == nil {
+		log.Info("Cluster Controller has not yet set OwnerRef")
+		return ctrl.Result{}, nil
+	}
+
+	if controllerutil.AddFinalizer(asoCluster, clusterv1.ClusterFinalizer) {
+		return ctrl.Result{Requeue: true}, nil
+	}
+
+	err := r.infraReconciler.Reconcile(ctx)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	asoControlPlane := &infrastructurev1alpha1.ASOManagedControlPlane{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: cluster.Spec.ControlPlaneRef.Namespace,
+			Name:      cluster.Spec.ControlPlaneRef.Name,
+		},
+	}
+	err = r.Get(ctx, client.ObjectKeyFromObject(asoControlPlane), asoControlPlane)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to get ASOManagedControlPlane %s/%s: %w", asoControlPlane.Namespace, asoControlPlane.Name, err)
+	}
+
+	asoCluster.Spec.ControlPlaneEndpoint = asoControlPlane.Status.ControlPlaneEndpoint
+	asoCluster.Status.Ready = true
 
 	return ctrl.Result{}, nil
 }
 
+func (r *ASOManagedClusterReconciler) reconcileDelete(ctx context.Context, asoCluster *infrastructurev1alpha1.ASOManagedCluster, cluster *clusterv1.Cluster) (ctrl.Result, error) {
+	if cluster == nil {
+		controllerutil.RemoveFinalizer(asoCluster, clusterv1.ClusterFinalizer)
+		return ctrl.Result{}, nil
+	}
+
+	// delete resources, waiting for them to be gone
+	err := r.infraReconciler.Delete(ctx)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	controllerutil.RemoveFinalizer(asoCluster, clusterv1.ClusterFinalizer)
+	return ctrl.Result{}, nil
+}
+
 // SetupWithManager sets up the controller with the Manager.
-func (r *ASOManagedClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *ASOManagedClusterReconciler) SetupWithManager(mgr ctrl.Manager, log logr.Logger) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrastructurev1alpha1.ASOManagedCluster{}).
+		WithEventFilter(predicates.ResourceIsNotExternallyManaged(log)).
+		// TODO:
+		// watch Cluster
+		// watch ASOManagedControlPlane for control plane endpoint
 		Complete(r)
 }

@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
 // ASOManagedControlPlaneSpec defines the desired state of ASOManagedControlPlane
@@ -44,6 +45,9 @@ type ASOManagedControlPlaneStatus struct {
 	// ExternalManagedControlPlane is always set to true since control plane components for AKS do not exist
 	// in Nodes. It fulfills Cluster API's control plane provider contract.
 	ExternalManagedControlPlane bool `json:"externalManagedControlPlane"`
+
+	// ControlPlaneEndpoint represents the endpoint for the cluster's API server.
+	ControlPlaneEndpoint clusterv1.APIEndpoint `json:"controlPlaneEndpoint"`
 }
 
 //+kubebuilder:object:root=true

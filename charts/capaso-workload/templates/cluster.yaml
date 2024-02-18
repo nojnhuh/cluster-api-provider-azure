@@ -8,18 +8,27 @@ spec:
     {{- toYaml .Values.clusterNetwork | nindent 4 }}
   {{- end }}
   controlPlaneRef:
-    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
-    kind: AzureManagedControlPlane
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: ASOManagedControlPlane
     name: {{ .Values.clusterName }}
   infrastructureRef:
-    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
-    kind: AzureManagedCluster
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: ASOManagedCluster
     name: {{ .Values.clusterName }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: ASOManagedCluster
 metadata:
   name: {{ .Values.clusterName }}
+spec:
+  resources:
+  - apiVersion: resources.azure.com/v1api20200601
+    kind: ResourceGroup
+    metadata:
+      name: {{ .Values.clusterName }}
+    spec:
+      azureName: {{ .Values.clusterName }}
+      location: eastus
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: ASOManagedControlPlane
