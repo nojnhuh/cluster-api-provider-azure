@@ -38,6 +38,31 @@ type ASOManagedClusterStatus struct {
 	// Ready represents whether or not the cluster has been provisioned and is ready. It fulfills Cluster
 	// API's cluster infrastructure provider contract.
 	Ready bool `json:"ready"`
+
+	// Resources represents the status of the resources defined in the spec.
+	Resources []ResourceStatus `json:"resources,omitempty"`
+}
+
+func (a *ASOManagedCluster) GetResourceStatuses() []ResourceStatus {
+	return a.Status.Resources
+}
+
+func (a *ASOManagedCluster) SetResourceStatuses(r []ResourceStatus) {
+	a.Status.Resources = r
+}
+
+// ResourceStatus represents the status of a resource.
+type ResourceStatus struct {
+	Group   string `json:"group"`
+	Version string `json:"version"`
+	Kind    string `json:"kind"`
+	Name    string `json:"name"`
+
+	// Ready reflects a Ready condition on the resource, if one is defined.
+	Ready *bool `json:"ready,omitempty"`
+
+	// Message gives more information as to why a resource is not ready.
+	Message string `json:"message,omitempty"`
 }
 
 //+kubebuilder:object:root=true

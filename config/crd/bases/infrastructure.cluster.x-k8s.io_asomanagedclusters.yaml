@@ -71,6 +71,35 @@ spec:
                   Ready represents whether or not the cluster has been provisioned and is ready. It fulfills Cluster
                   API's cluster infrastructure provider contract.
                 type: boolean
+              resources:
+                description: Resources represents the status of the resources defined
+                  in the spec.
+                items:
+                  description: ResourceStatus represents the status of a resource.
+                  properties:
+                    group:
+                      type: string
+                    kind:
+                      type: string
+                    message:
+                      description: Message gives more information as to why a resource
+                        is not ready.
+                      type: string
+                    name:
+                      type: string
+                    ready:
+                      description: Ready reflects a Ready condition on the resource,
+                        if one is defined.
+                      type: boolean
+                    version:
+                      type: string
+                  required:
+                  - group
+                  - kind
+                  - name
+                  - version
+                  type: object
+                type: array
             required:
             - ready
             type: object
