@@ -1,0 +1,6 @@
+name: aso
+config:
+  image: "controller"
+  live_reload_deps: ["api", "cmd", "internal", "go.mod", "go.sum"]
+  go_main: "cmd/main.go"
+  label: CAPASO

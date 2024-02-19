@@ -7,6 +7,7 @@
 *.dylib
 bin/*
 Dockerfile.cross
+/.tiltbuild/
 
 # Test binary, build with `go test -c`
 *.test
