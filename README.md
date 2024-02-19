@@ -1,8 +1,51 @@
-# capaso
-// TODO(user): Add simple overview of use/purpose
+# Cluster API Provider Azure Service Operator (CAPASO)
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+Cluster API Provider Azure Service Operator (CAPASO) aims to demonstrate an alternative approach to
+implementing a Cluster API infrastructure provider. The main goals of CAPASO are:
+
+- To fulfill advanced use cases by defining a low-level interface allowing the utmost flexibility for users to
+  customize the topology and other details of infrastructure components making up a Cluster
+- To fulfill basic use cases by exposing a higher-level interface building on top of CAPASO's low-level
+  interface.
+
+Here is an example of CAPASO's ASOManagedCluster resource:
+```
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ASOManagedCluster
+metadata:
+  name: capaso
+spec:
+  resources:
+  - apiVersion: resources.azure.com/v1api20200601
+    kind: ResourceGroup
+    metadata:
+      name: capaso
+    spec:
+      location: eastus
+```
+
+The main element of CAPASO's API types is a `spec.resources` field which defines arbitrary Kubernetes
+resources to be reconciled. CAPASO strives to make as few assumptions as possible about the details of these
+resources, simply applying these resources to the management cluster in its reconciliation loop and reflecting
+their status.
+
+CAPASO's main assumption is that each object in `spec.resources` is an Azure Service Operator (ASO)
+resource, which allows CAPASO to understand the state of the underlying Azure resources. It also must make
+some assumptions like that an ASOManagedControlPlane defines an ASO ManagedCluster resource. These assumptions
+are necessary to fulfill CAPASO's contract with Cluster API.
+
+This interface requires much more configuration than existing providers to represent the same underlying
+infrastructure, but allows users the flexibility to construct their clusters in virtually any of infinite
+possible configurations. To provide a simpler way for users to quickly deploy a "blessed" configuration,
+CAPASO provides a Helm chart defining a workload cluster, including the CAPI and CAPASO components and
+supporting resources like credentials. Creating a cluster based on the Helm chart may look something like:
+
+```shell
+% helm install my-workload ./charts/capaso-workload -f my-creds.yaml --set clusterName=my-cluster --set machinePools.pool0.replicas=3
+```
+
+CAPASO's workload cluster Helm chart aims to satisfy most use cases while serving as a reference upon which
+advanced users can build more tailored configuration.
 
 ## Getting Started
 
