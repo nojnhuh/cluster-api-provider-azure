@@ -20,6 +20,8 @@ apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: ASOManagedCluster
 metadata:
   name: {{ .Values.clusterName }}
+  annotations:
+    helm.sh/resource-policy: keep
 spec:
   resources:
   - apiVersion: resources.azure.com/v1api20200601
@@ -36,6 +38,8 @@ apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: ASOManagedControlPlane
 metadata:
   name: {{ .Values.clusterName }}
+  annotations:
+    helm.sh/resource-policy: keep
 spec:
   version: {{ .Values.kubernetesVersion }}
   resources:
