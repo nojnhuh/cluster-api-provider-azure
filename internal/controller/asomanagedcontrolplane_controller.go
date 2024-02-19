@@ -23,6 +23,7 @@ import (
 	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20231001"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,6 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
 )
@@ -150,6 +152,7 @@ func (r *ASOManagedControlPlaneReconciler) reconcileKubeconfig(ctx context.Conte
 		if err := u.UnmarshalJSON(resource.Raw); err != nil {
 			return fmt.Errorf("failed to unmarshal resource JSON: %w", err)
 		}
+		u.SetNamespace(cluster.Namespace)
 		if u.GroupVersionKind().Group == asocontainerservicev1.GroupVersion.Group &&
 			u.GroupVersionKind().Kind == "ManagedCluster" {
 			umc = u
@@ -157,7 +160,7 @@ func (r *ASOManagedControlPlaneReconciler) reconcileKubeconfig(ctx context.Conte
 		}
 	}
 	if umc == nil {
-		return fmt.Errorf("no %s ManagedCluster defined in ASOManagedControlPlane spec.resources", asocontainerservicev1.GroupVersion.Group)
+		return reconcile.TerminalError(fmt.Errorf("no %s ManagedCluster defined in ASOManagedControlPlane spec.resources", asocontainerservicev1.GroupVersion.Group))
 	}
 	// get a typed resource so we don't have to try to convert this unstructured ourselves since it might be a
 	// different API version than we know how to deal with.
@@ -176,23 +179,31 @@ func (r *ASOManagedControlPlaneReconciler) reconcileKubeconfig(ctx context.Conte
 		}
 	}
 	if secretRef == nil {
-		return fmt.Errorf("ManagedCluster must define at least one of spec.operatorSpec.secrets.{userCredentials,adminCredentials}")
+		return reconcile.TerminalError(fmt.Errorf("ManagedCluster must define at least one of spec.operatorSpec.secrets.{userCredentials,adminCredentials}"))
 	}
 	asoKubeconfig := &corev1.Secret{}
 	err = r.Get(ctx, client.ObjectKey{Namespace: cluster.Namespace, Name: secretRef.Name}, asoKubeconfig)
 	if err != nil {
-		return fmt.Errorf("failed to fetch secret created by ASO: %w", err)
+		err = fmt.Errorf("failed to fetch secret created by ASO: %w", err)
+		if apierrors.IsNotFound(err) {
+			// we will requeue when ASO finishes creating the secret
+			return reconcile.TerminalError(err)
+		}
+		return err
 	}
 
 	expectedSecret := &corev1.Secret{
+		TypeMeta: asoKubeconfig.TypeMeta,
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secret.Name(cluster.Name, secret.Kubeconfig),
 			Namespace: cluster.Namespace,
-			// Do we have to/should we set an owner reference to this ASOManagedControlPlane?
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(asoControlPlane, infrav1.GroupVersion.WithKind("ASOManagedControlPlane")),
+			},
 			Labels: map[string]string{clusterv1.ClusterNameLabel: cluster.Name},
 		},
 		Data: map[string][]byte{
-			secret.KubeconfigDataName: asoKubeconfig.Data[secret.KubeconfigDataName],
+			secret.KubeconfigDataName: asoKubeconfig.Data[secretRef.Key],
 		},
 	}
 
@@ -231,7 +242,7 @@ func (r *ASOManagedControlPlaneReconciler) SetupWithManager(ctx context.Context,
 				predicates.ClusterUnpausedAndInfrastructureReady(log.FromContext(ctx)),
 			),
 		).
-		// TODO: watch kubeconfig. does ASO set an controller owner reference on secrets it creates?
+		Owns(&corev1.Secret{}).
 		Build(r)
 	if err != nil {
 		return err
