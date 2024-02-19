@@ -73,6 +73,8 @@ func (r *ASOManagedControlPlaneReconciler) Reconcile(ctx context.Context, req ct
 	}()
 
 	asoControlPlane.Status.ExternalManagedControlPlane = true
+	asoControlPlane.Status.Ready = false
+	asoControlPlane.Status.Initialized = asoControlPlane.Status.Ready
 
 	cluster, err := util.GetOwnerCluster(ctx, r.Client, asoControlPlane.ObjectMeta)
 	if err != nil {

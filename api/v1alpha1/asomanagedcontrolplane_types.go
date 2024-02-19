@@ -36,10 +36,12 @@ type ASOManagedControlPlaneSpec struct {
 type ASOManagedControlPlaneStatus struct {
 	// Initialized represents whether or not the API server has been provisioned. It fulfills Cluster API's
 	// control plane provider contract.
+	//+optional
 	Initialized bool `json:"initialized"`
 
 	// Ready represents whether or not the API server is ready to receive requests. It fulfills Cluster API's
 	// control plane provider contract.
+	//+optional
 	Ready bool `json:"ready"`
 
 	// Version is the observed Kubernetes version of the control plane. It fulfills Cluster API's control
@@ -48,9 +50,11 @@ type ASOManagedControlPlaneStatus struct {
 
 	// ExternalManagedControlPlane is always set to true since control plane components for AKS do not exist
 	// in Nodes. It fulfills Cluster API's control plane provider contract.
+	//+optional
 	ExternalManagedControlPlane bool `json:"externalManagedControlPlane"`
 
 	// ControlPlaneEndpoint represents the endpoint for the cluster's API server.
+	//+optional
 	ControlPlaneEndpoint clusterv1.APIEndpoint `json:"controlPlaneEndpoint"`
 
 	// Resources represents the status of the resources defined in the spec.

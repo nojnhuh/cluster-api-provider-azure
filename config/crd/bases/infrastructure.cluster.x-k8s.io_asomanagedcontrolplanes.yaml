@@ -121,11 +121,6 @@ spec:
                   Version is the observed Kubernetes version of the control plane. It fulfills Cluster API's control
                   plane provider contract.
                 type: string
-            required:
-            - controlPlaneEndpoint
-            - externalManagedControlPlane
-            - initialized
-            - ready
             type: object
         type: object
     served: true

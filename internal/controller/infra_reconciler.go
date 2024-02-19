@@ -61,37 +61,25 @@ func (r *InfraReconciler) Reconcile(ctx context.Context) error {
 		log := log.WithValues("resource", klog.KObj(spec), "resourceVersion", gvk.GroupVersion(), "resourceKind", gvk.Kind)
 
 		if err := controllerutil.SetControllerReference(r.owner, spec, r.Scheme()); err != nil {
-			return fmt.Errorf("failed to apply owner reference: %w", err)
+			return fmt.Errorf("failed to set owner reference: %w", err)
 		}
 
 		if err := r.externalTracker.Watch(log, spec, handler.EnqueueRequestForOwner(r.Client.Scheme(), r.Client.RESTMapper(), r.owner)); err != nil {
 			return fmt.Errorf("failed to watch resource: %w", err)
 		}
 
-		u := &unstructured.Unstructured{}
-		u.SetGroupVersionKind(spec.GetObjectKind().GroupVersionKind())
-		err = r.Get(ctx, client.ObjectKeyFromObject(spec), u)
-		if apierrors.IsNotFound(err) {
-			u = spec
-			log.Info("creating resource")
-			err = r.Create(ctx, u)
-		} else if err == nil {
-			// TODO: also update labels and annotations, but make sure not to delete ones that already exist
-			// since they might be managed by something else like ASO.
-			u.Object["spec"] = spec.Object["spec"]
-			log.Info("updating resource")
-			err = r.Update(ctx, u)
-		}
+		log.Info("applying resource")
+		err = r.Patch(ctx, spec, client.Apply, client.FieldOwner("capaso"), client.ForceOwnership)
 		if err != nil {
-			return fmt.Errorf("failed to create or update object: %w", err)
+			return fmt.Errorf("failed to apply resource: %w", err)
 		}
 
-		ready, message := readyStatus(u)
+		ready, message := readyStatus(spec)
 		newStatus := infrav1.ResourceStatus{
 			Group:   gvk.Group,
 			Version: gvk.Version,
 			Kind:    gvk.Kind,
-			Name:    u.GetName(),
+			Name:    spec.GetName(),
 			Ready:   ready,
 			Message: message,
 		}
@@ -109,7 +97,7 @@ func (r *InfraReconciler) Reconcile(ctx context.Context) error {
 			newStatuses = append(newStatuses, newStatus)
 		}
 
-		reconciled[reconcileKey{gvk.Group, gvk.Kind, u.GetName()}] = struct{}{}
+		reconciled[reconcileKey{gvk.Group, gvk.Kind, spec.GetName()}] = struct{}{}
 	}
 
 	// filteredStatuses does not contain status for resources that have been deleted and are gone.
@@ -188,33 +176,33 @@ func (r *InfraReconciler) Delete(ctx context.Context) error {
 	var statuses []infrav1.ResourceStatus
 
 	for _, resource := range r.resources {
-		u := &unstructured.Unstructured{}
-		err := u.UnmarshalJSON(resource.Raw)
+		spec := &unstructured.Unstructured{}
+		err := spec.UnmarshalJSON(resource.Raw)
 		if err != nil {
 			return err
 		}
-		u.SetNamespace(r.owner.GetNamespace())
-		gvk := u.GroupVersionKind()
+		spec.SetNamespace(r.owner.GetNamespace())
+		gvk := spec.GroupVersionKind()
 
-		err = r.Client.Delete(ctx, u)
+		err = r.Client.Delete(ctx, spec)
 		if !apierrors.IsNotFound(err) {
 			if err != nil {
 				return fmt.Errorf("failed to delete resource: %w", err)
 			}
-			err := r.Get(ctx, client.ObjectKeyFromObject(u), u)
+			err := r.Get(ctx, client.ObjectKeyFromObject(spec), spec)
 			if apierrors.IsNotFound(err) {
 				// object has been deleted
 				continue
 			}
 			if err != nil {
-				return fmt.Errorf("failed to get status for deleted resource: %w", err)
+				return fmt.Errorf("failed to get status for resource being deleted: %w", err)
 			}
-			ready, message := readyStatus(u)
+			ready, message := readyStatus(spec)
 			statuses = append(statuses, infrav1.ResourceStatus{
 				Group:   gvk.Group,
 				Version: gvk.Version,
 				Kind:    gvk.Kind,
-				Name:    u.GetName(),
+				Name:    spec.GetName(),
 				Ready:   ready,
 				Message: message,
 			})
