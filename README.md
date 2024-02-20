@@ -1,7 +1,18 @@
 # Cluster API Provider Azure Service Operator (CAPASO)
 
 Cluster API Provider Azure Service Operator (CAPASO) aims to demonstrate an alternative approach to
-implementing a Cluster API infrastructure provider. The main goals of CAPASO are:
+implementing a Cluster API infrastructure provider motivated by the following observations from CAPZ:
+
+- CAPZ's custom resource types can only represent a fraction of what can be configured with Azure's REST APIs
+- Discovering, implementing, and validating the gaps in CAPZ's feature set is a continual source of
+  development overhead, especially for CAPZ's managed cluster stack
+- At the same time, many users appreciate having a narrow set of discrete features which makes it easy to get
+  up and running
+- Users looking to adopt CAPZ to manage existing clusters are often left hanging because each resource
+  represents a narrow set of topologies and can't express the set of the user's current resources
+  (AzureManagedControlPlane = resource group + vnet + subnet + managed cluster)
+
+The main goals of CAPASO are:
 
 - To fulfill advanced use cases by defining a low-level interface allowing the utmost flexibility for users to
   customize the topology and other details of infrastructure components making up a Cluster
@@ -9,7 +20,7 @@ implementing a Cluster API infrastructure provider. The main goals of CAPASO are
   interface.
 
 Here is an example of CAPASO's ASOManagedCluster resource:
-```
+```yaml
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: ASOManagedCluster
 metadata:
@@ -40,7 +51,7 @@ possible configurations. To provide a simpler way for users to quickly deploy a 
 CAPASO provides a Helm chart defining a workload cluster, including the CAPI and CAPASO components and
 supporting resources like credentials. Creating a cluster based on the Helm chart may look something like:
 
-```shell
+```sh
 % helm install my-workload ./charts/capaso-workload -f my-creds.yaml --set clusterName=my-cluster --set machinePools.pool0.replicas=3
 ```
 
