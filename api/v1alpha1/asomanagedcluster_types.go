@@ -37,6 +37,7 @@ type ASOManagedClusterSpec struct {
 type ASOManagedClusterStatus struct {
 	// Ready represents whether or not the cluster has been provisioned and is ready. It fulfills Cluster
 	// API's cluster infrastructure provider contract.
+	//+optional
 	Ready bool `json:"ready"`
 
 	// Resources represents the status of the resources defined in the spec.
@@ -50,8 +51,8 @@ type ResourceStatus struct {
 	Kind    string `json:"kind"`
 	Name    string `json:"name"`
 
-	// Ready reflects a Ready condition on the resource, if one is defined.
-	Ready *bool `json:"ready,omitempty"`
+	// Ready reflects a Ready condition on an ASO resource.
+	Ready bool `json:"ready"`
 
 	// Message gives more information as to why a resource is not ready.
 	Message string `json:"message,omitempty"`

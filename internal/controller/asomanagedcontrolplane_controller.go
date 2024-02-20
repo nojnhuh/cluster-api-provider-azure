@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20231001"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
@@ -120,20 +121,73 @@ func (r *ASOManagedControlPlaneReconciler) reconcileNormal(ctx context.Context, 
 		return ctrl.Result{}, nil
 	}
 
+	var umc *unstructured.Unstructured
+	for i, resource := range asoControlPlane.Spec.Resources {
+		u := &unstructured.Unstructured{}
+		if err := u.UnmarshalJSON(resource.Raw); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to unmarshal resource JSON: %w", err)
+		}
+		u.SetNamespace(cluster.Namespace)
+		if u.GroupVersionKind().Group == asocontainerservicev1.GroupVersion.Group &&
+			u.GroupVersionKind().Kind == "ManagedCluster" {
+			// TODO: default this in a webhook.
+			unstructured.SetNestedField(u.UnstructuredContent(), strings.TrimPrefix(asoControlPlane.Spec.Version, "v"), "spec", "kubernetesVersion")
+			var err error
+			asoControlPlane.Spec.Resources[i].Raw, err = u.MarshalJSON()
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+
+			umc = u
+			break
+		}
+	}
+	if umc == nil {
+		// TODO: move this to a webhook.
+		return ctrl.Result{}, reconcile.TerminalError(fmt.Errorf("no %s ManagedCluster defined in ASOManagedControlPlane spec.resources", asocontainerservicev1.GroupVersion.Group))
+	}
+
 	err := r.infraReconciler.Reconcile(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 	infraReady := true
 	for _, status := range asoControlPlane.GetResourceStatuses() {
-		if !ptr.Deref(status.Ready, true) {
+		if !status.Ready {
 			infraReady = false
 			break
 		}
 	}
 
+	// get a typed resource so we don't have to try to convert this unstructured ourselves since it might be a
+	// different API version than we know how to deal with.
+	managedCluster := &asocontainerservicev1.ManagedCluster{}
+	err = r.Get(ctx, client.ObjectKeyFromObject(umc), managedCluster)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("error getting ManagedCluster: %w", err)
+	}
+
+	if managedCluster.Status.Fqdn != nil {
+		asoControlPlane.Status.ControlPlaneEndpoint = clusterv1.APIEndpoint{
+			Host: ptr.Deref(managedCluster.Status.Fqdn, ""),
+			Port: 443,
+		}
+	}
+	if managedCluster.Status.ApiServerAccessProfile != nil &&
+		ptr.Deref(managedCluster.Status.ApiServerAccessProfile.EnablePrivateCluster, false) &&
+		!ptr.Deref(managedCluster.Status.ApiServerAccessProfile.EnablePrivateClusterPublicFQDN, false) {
+		asoControlPlane.Status.ControlPlaneEndpoint = clusterv1.APIEndpoint{
+			Host: ptr.Deref(managedCluster.Status.PrivateFQDN, ""),
+			Port: 443,
+		}
+	}
+
+	if managedCluster.Status.CurrentKubernetesVersion != nil {
+		asoControlPlane.Status.Version = "v" + *managedCluster.Status.CurrentKubernetesVersion
+	}
+
 	if infraReady {
-		err := r.reconcileKubeconfig(ctx, asoControlPlane, cluster)
+		err := r.reconcileKubeconfig(ctx, asoControlPlane, cluster, managedCluster)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to reconcile kubeconfig: %w", err)
 		}
@@ -145,44 +199,20 @@ func (r *ASOManagedControlPlaneReconciler) reconcileNormal(ctx context.Context, 
 	return ctrl.Result{}, nil
 }
 
-func (r *ASOManagedControlPlaneReconciler) reconcileKubeconfig(ctx context.Context, asoControlPlane *infrav1.ASOManagedControlPlane, cluster *clusterv1.Cluster) error {
-	var umc *unstructured.Unstructured
-	for _, resource := range asoControlPlane.Spec.Resources {
-		u := &unstructured.Unstructured{}
-		if err := u.UnmarshalJSON(resource.Raw); err != nil {
-			return fmt.Errorf("failed to unmarshal resource JSON: %w", err)
-		}
-		u.SetNamespace(cluster.Namespace)
-		if u.GroupVersionKind().Group == asocontainerservicev1.GroupVersion.Group &&
-			u.GroupVersionKind().Kind == "ManagedCluster" {
-			umc = u
-			break
-		}
-	}
-	if umc == nil {
-		return reconcile.TerminalError(fmt.Errorf("no %s ManagedCluster defined in ASOManagedControlPlane spec.resources", asocontainerservicev1.GroupVersion.Group))
-	}
-	// get a typed resource so we don't have to try to convert this unstructured ourselves since it might be a
-	// different API version than we know how to deal with.
-	mc := &asocontainerservicev1.ManagedCluster{}
-	err := r.Get(ctx, client.ObjectKeyFromObject(umc), mc)
-	if err != nil {
-		return fmt.Errorf("error getting ManagedCluster: %w", err)
-	}
-
+func (r *ASOManagedControlPlaneReconciler) reconcileKubeconfig(ctx context.Context, asoControlPlane *infrav1.ASOManagedControlPlane, cluster *clusterv1.Cluster, managedCluster *asocontainerservicev1.ManagedCluster) error {
 	var secretRef *genruntime.SecretDestination
-	if mc.Spec.OperatorSpec != nil &&
-		mc.Spec.OperatorSpec.Secrets != nil {
-		secretRef = mc.Spec.OperatorSpec.Secrets.UserCredentials
-		if mc.Spec.OperatorSpec.Secrets.AdminCredentials != nil {
-			secretRef = mc.Spec.OperatorSpec.Secrets.AdminCredentials
+	if managedCluster.Spec.OperatorSpec != nil &&
+		managedCluster.Spec.OperatorSpec.Secrets != nil {
+		secretRef = managedCluster.Spec.OperatorSpec.Secrets.UserCredentials
+		if managedCluster.Spec.OperatorSpec.Secrets.AdminCredentials != nil {
+			secretRef = managedCluster.Spec.OperatorSpec.Secrets.AdminCredentials
 		}
 	}
 	if secretRef == nil {
 		return reconcile.TerminalError(fmt.Errorf("ManagedCluster must define at least one of spec.operatorSpec.secrets.{userCredentials,adminCredentials}"))
 	}
 	asoKubeconfig := &corev1.Secret{}
-	err = r.Get(ctx, client.ObjectKey{Namespace: cluster.Namespace, Name: secretRef.Name}, asoKubeconfig)
+	err := r.Get(ctx, client.ObjectKey{Namespace: cluster.Namespace, Name: secretRef.Name}, asoKubeconfig)
 	if err != nil {
 		err = fmt.Errorf("failed to fetch secret created by ASO: %w", err)
 		if apierrors.IsNotFound(err) {

@@ -11,7 +11,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/cluster-api/controllers/external"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -130,10 +129,10 @@ func (r *InfraReconciler) Reconcile(ctx context.Context) error {
 	return nil
 }
 
-func readyStatus(u *unstructured.Unstructured) (*bool, string) {
+func readyStatus(u *unstructured.Unstructured) (bool, string) {
 	statusConditions, found, err := unstructured.NestedSlice(u.Object, "status", "conditions")
 	if !found || err != nil {
-		return nil, ""
+		return false, ""
 	}
 
 	for _, el := range statusConditions {
@@ -149,12 +148,9 @@ func readyStatus(u *unstructured.Unstructured) (*bool, string) {
 		if !found || err != nil {
 			continue
 		}
-		var ready *bool
+		ready := false
 		if status == string(metav1.ConditionTrue) {
-			ready = ptr.To(true)
-		}
-		if status == string(metav1.ConditionFalse) {
-			ready = ptr.To(false)
+			ready = true
 		}
 		// message might not always be defined
 		message, _, err := unstructured.NestedString(condition, "message")
@@ -165,7 +161,7 @@ func readyStatus(u *unstructured.Unstructured) (*bool, string) {
 		return ready, message
 	}
 
-	return nil, ""
+	return false, ""
 }
 
 // Delete deletes the specified resources.

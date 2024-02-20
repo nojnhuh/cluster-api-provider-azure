@@ -88,8 +88,7 @@ spec:
                     name:
                       type: string
                     ready:
-                      description: Ready reflects a Ready condition on the resource,
-                        if one is defined.
+                      description: Ready reflects a Ready condition on an ASO resource.
                       type: boolean
                     version:
                       type: string
@@ -97,11 +96,10 @@ spec:
                   - group
                   - kind
                   - name
+                  - ready
                   - version
                   type: object
                 type: array
-            required:
-            - ready
             type: object
         type: object
     served: true
