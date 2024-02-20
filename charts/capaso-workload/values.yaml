@@ -4,7 +4,8 @@ tenantID: ""
 clientID: ""
 clientSecret: ""
 
-clusterName: capaso
+# clusterName defaults to the name of the Helm release
+clusterName: ""
 location: eastus
 clusterNetwork: null
 kubernetesVersion: v1.28.3

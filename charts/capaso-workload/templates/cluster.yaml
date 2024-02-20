@@ -1,7 +1,7 @@
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: Cluster
 metadata:
-  name: {{ .Values.clusterName }}
+  name: {{ include "capaso.clusterName" .  | quote }}
   labels:
     {{- include "capaso.commonLabels" . | nindent 4 }}
 spec:
@@ -12,16 +12,16 @@ spec:
   controlPlaneRef:
     apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
     kind: ASOManagedControlPlane
-    name: {{ .Values.clusterName }}
+    name: {{ include "capaso.clusterName" .  | quote }}
   infrastructureRef:
     apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
     kind: ASOManagedCluster
-    name: {{ .Values.clusterName }}
+    name: {{ include "capaso.clusterName" .  | quote }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: ASOManagedCluster
 metadata:
-  name: {{ .Values.clusterName }}
+  name: {{ include "capaso.clusterName" .  | quote }}
   labels:
     {{- include "capaso.commonLabels" . | nindent 4 }}
   annotations:
@@ -31,45 +31,43 @@ spec:
   - apiVersion: resources.azure.com/v1api20200601
     kind: ResourceGroup
     metadata:
-      name: {{ .Values.clusterName }}
+      name: {{ include "capaso.clusterName" .  | quote }}
       annotations:
         {{- include "capaso.asoResourceAnnotations" . | nindent 8 }}
     spec:
-      azureName: {{ .Values.clusterName }}
       location: {{ .Values.location }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: ASOManagedControlPlane
 metadata:
-  name: {{ .Values.clusterName }}
+  name: {{ include "capaso.clusterName" .  | quote }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
-  version: {{ .Values.kubernetesVersion }}
+  version: {{ .Values.kubernetesVersion | quote  }}
   resources:
   - apiVersion: containerservice.azure.com/v1api20231001
     kind: ManagedCluster
     metadata:
-      name: {{ .Values.clusterName }}
+      name: {{ include "capaso.clusterName" .  | quote }}
       annotations:
         {{- include "capaso.asoResourceAnnotations" . | nindent 8 }}
     spec:
-      azureName: {{ .Values.clusterName }}
-      location: {{ .Values.location }}
+      location: {{ .Values.location | quote }}
       operatorSpec:
         secrets:
           adminCredentials:
-            name: {{ .Values.clusterName }}-kubeconfig
+            name: {{ printf "%s-kubeconfig" (include "capaso.clusterName" .) | quote }}
             key: value
       agentPoolProfiles:
         - vmSize: standard_d2_v2
           name: pool0
           count: 1
           mode: System
-      dnsPrefix: {{ .Values.clusterName }}
+      dnsPrefix: {{ include "capaso.clusterName" .  | quote }}
       identity:
         type: SystemAssigned
       owner:
-        name: {{ .Values.clusterName }}
+        name: {{ include "capaso.clusterName" .  | quote }}
       servicePrincipalProfile:
         clientId: msi

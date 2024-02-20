@@ -2,29 +2,29 @@
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachinePool
 metadata:
-  name: {{ $.Values.clusterName }}-{{ $mpName }}
+  name: {{ printf "%s-%s" (include "capaso.clusterName" $) $mpName | quote }}
   labels:
     {{- include "capaso.commonLabels" $ | nindent 4 }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
-  clusterName: {{ $.Values.clusterName }}
+  clusterName: {{ include "capaso.clusterName" $ | quote }}
   replicas: {{ $mp.replicas }}
   template:
     spec:
       bootstrap:
         dataSecretName: ""
-      clusterName: {{ $.Values.clusterName }}
+      clusterName: {{ include "capaso.clusterName" $ }}
       infrastructureRef:
         apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
         kind: ASOManagedMachinePool
-        name: {{ $.Values.clusterName }}-{{ $mpName }}
+        name: {{ printf "%s-%s" (include "capaso.clusterName" $) $mpName | quote }}
       version: {{ default $.Values.kubernetesVersion $mp.kubernetesVersion }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: ASOManagedMachinePool
 metadata:
-  name: {{ $.Values.clusterName }}-{{ $mpName }}
+  name: {{ printf "%s-%s" (include "capaso.clusterName" $) $mpName | quote }}
   labels:
     {{- include "capaso.commonLabels" $ | nindent 4 }}
   annotations:
