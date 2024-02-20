@@ -128,7 +128,11 @@ func (r *ASOManagedClusterReconciler) reconcileNormal(ctx context.Context, asoCl
 	}
 	err = r.Get(ctx, client.ObjectKeyFromObject(asoControlPlane), asoControlPlane)
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to get ASOManagedControlPlane %s/%s: %w", asoControlPlane.Namespace, asoControlPlane.Name, err)
+		if !apierrors.IsNotFound(err) {
+			return ctrl.Result{}, reconcile.TerminalError(fmt.Errorf("failed to get ASOManagedControlPlane %s/%s: %w", asoControlPlane.Namespace, asoControlPlane.Name, err))
+		}
+		// The cluster is probably being deleted. We don't care if the control plane doesn't exist.
+		return ctrl.Result{}, nil
 	}
 
 	asoCluster.Spec.ControlPlaneEndpoint = asoControlPlane.Status.ControlPlaneEndpoint
@@ -171,6 +175,10 @@ func (r *ASOManagedClusterReconciler) SetupWithManager(ctx context.Context, mgr 
 			&clusterv1.Cluster{},
 			handler.EnqueueRequestsFromMapFunc(
 				util.ClusterToInfrastructureMapFunc(ctx, infrav1.GroupVersion.WithKind("ASOManagedCluster"), mgr.GetClient(), &infrav1.ASOManagedCluster{}),
+			),
+			builder.WithPredicates(
+				// TODO: check for paused true -> false in addition to false -> true
+				predicates.ClusterUnpaused(ctrl.LoggerFrom(ctx)),
 			),
 		).
 		Watches(
