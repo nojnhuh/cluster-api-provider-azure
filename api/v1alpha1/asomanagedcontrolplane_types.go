@@ -57,6 +57,9 @@ type ASOManagedControlPlaneStatus struct {
 	//+optional
 	ControlPlaneEndpoint clusterv1.APIEndpoint `json:"controlPlaneEndpoint"`
 
+	// ObservedGeneration is the last metadata.generation of the object that has been reconciled.
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
 	// Resources represents the status of the resources defined in the spec.
 	Resources []ResourceStatus `json:"resources,omitempty"`
 }

@@ -144,6 +144,12 @@ func readyStatus(u *unstructured.Unstructured) (bool, string) {
 		if !found || err != nil || condType != conditions.ConditionTypeReady {
 			continue
 		}
+
+		observedGen, _, err := unstructured.NestedInt64(condition, "observedGeneration")
+		if observedGen < u.GetGeneration() {
+			return false, "the resource is being reconciled"
+		}
+
 		status, found, err := unstructured.NestedString(condition, "status")
 		if !found || err != nil {
 			continue
@@ -152,6 +158,7 @@ func readyStatus(u *unstructured.Unstructured) (bool, string) {
 		if status == string(metav1.ConditionTrue) {
 			ready = true
 		}
+
 		// message might not always be defined
 		message, _, err := unstructured.NestedString(condition, "message")
 		if err != nil {

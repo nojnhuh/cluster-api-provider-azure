@@ -74,6 +74,10 @@ func (r *ASOManagedClusterReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, fmt.Errorf("failed to init patch helper: %w", err)
 	}
 	defer func() {
+		if resultErr == nil {
+			asoCluster.Status.ObservedGeneration = asoCluster.Generation
+		}
+
 		err := patchHelper.Patch(ctx, asoCluster)
 		if !asoCluster.GetDeletionTimestamp().IsZero() {
 			err = ignorePatchErrNotFound(err)

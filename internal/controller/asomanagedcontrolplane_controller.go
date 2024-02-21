@@ -71,6 +71,10 @@ func (r *ASOManagedControlPlaneReconciler) Reconcile(ctx context.Context, req ct
 		return ctrl.Result{}, fmt.Errorf("failed to init patch helper: %w", err)
 	}
 	defer func() {
+		if resultErr == nil {
+			asoControlPlane.Status.ObservedGeneration = asoControlPlane.Generation
+		}
+
 		err := patchHelper.Patch(ctx, asoControlPlane)
 		if !asoControlPlane.GetDeletionTimestamp().IsZero() {
 			err = ignorePatchErrNotFound(err)

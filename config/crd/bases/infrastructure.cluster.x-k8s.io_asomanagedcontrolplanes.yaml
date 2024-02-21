@@ -82,6 +82,11 @@ spec:
                   Initialized represents whether or not the API server has been provisioned. It fulfills Cluster API's
                   control plane provider contract.
                 type: boolean
+              observedGeneration:
+                description: ObservedGeneration is the last metadata.generation of
+                  the object that has been reconciled.
+                format: int64
+                type: integer
               ready:
                 description: |-
                   Ready represents whether or not the API server is ready to receive requests. It fulfills Cluster API's
