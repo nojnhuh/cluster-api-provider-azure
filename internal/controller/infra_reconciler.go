@@ -187,29 +187,34 @@ func (r *InfraReconciler) Delete(ctx context.Context) error {
 		spec.SetNamespace(r.owner.GetNamespace())
 		gvk := spec.GroupVersionKind()
 
+		log := log.WithValues("resource", klog.KObj(spec), "resourceVersion", gvk.GroupVersion(), "resourceKind", gvk.Kind)
+
+		log.Info("deleting resource")
 		err = r.Client.Delete(ctx, spec)
-		if !apierrors.IsNotFound(err) {
-			if err != nil {
-				return fmt.Errorf("failed to delete resource: %w", err)
-			}
-			err := r.Get(ctx, client.ObjectKeyFromObject(spec), spec)
-			if apierrors.IsNotFound(err) {
-				// object has been deleted
-				continue
-			}
-			if err != nil {
-				return fmt.Errorf("failed to get status for resource being deleted: %w", err)
-			}
-			ready, message := readyStatus(spec)
-			statuses = append(statuses, infrav1.ResourceStatus{
-				Group:   gvk.Group,
-				Version: gvk.Version,
-				Kind:    gvk.Kind,
-				Name:    spec.GetName(),
-				Ready:   ready,
-				Message: message,
-			})
+		if apierrors.IsNotFound(err) {
+			log.Info("resource has been deleted")
+			continue
 		}
+		if err != nil {
+			return fmt.Errorf("failed to delete resource: %w", err)
+		}
+		err = r.Get(ctx, client.ObjectKeyFromObject(spec), spec)
+		if apierrors.IsNotFound(err) {
+			log.Info("resource has been deleted")
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("failed to get status for resource being deleted: %w", err)
+		}
+		ready, message := readyStatus(spec)
+		statuses = append(statuses, infrav1.ResourceStatus{
+			Group:   gvk.Group,
+			Version: gvk.Version,
+			Kind:    gvk.Kind,
+			Name:    spec.GetName(),
+			Ready:   ready,
+			Message: message,
+		})
 	}
 
 	r.owner.SetResourceStatuses(statuses)

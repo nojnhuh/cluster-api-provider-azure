@@ -44,6 +44,10 @@ type ASOManagedMachinePoolStatus struct {
 
 	// Resources represents the status of the resources defined in the spec.
 	Resources []ResourceStatus `json:"resources,omitempty"`
+
+	// Replicas is the current number of provisioned replicas.
+	//+optional
+	Replicas int32 `json:"replicas"`
 }
 
 //+kubebuilder:object:root=true

@@ -61,7 +61,7 @@ spec:
             key: value
       agentPoolProfiles:
         - vmSize: standard_d2_v2
-          name: pool0
+          name: stub
           count: 1
           mode: System
       dnsPrefix: {{ include "capaso.clusterName" .  | quote }}

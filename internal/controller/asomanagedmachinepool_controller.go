@@ -76,6 +76,8 @@ func (r *ASOManagedMachinePoolReconciler) Reconcile(ctx context.Context, req ctr
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	asoMachinePool.Status.Ready = false
+
 	machinePool, err := utilexp.GetOwnerMachinePool(ctx, r.Client, asoMachinePool.ObjectMeta)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -112,7 +114,7 @@ func (r *ASOManagedMachinePoolReconciler) Reconcile(ctx context.Context, req ctr
 		if resultErr == nil {
 			asoMachinePool.Status.ObservedGeneration = asoMachinePool.Generation
 		}
-
+		log.Info("patching with ready", "ready", asoMachinePool.Status.Ready, "resource", asoMachinePool)
 		err := patchHelper.Patch(ctx, asoMachinePool)
 		if !asoMachinePool.GetDeletionTimestamp().IsZero() {
 			err = ignorePatchErrNotFound(err)
@@ -148,7 +150,7 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 	}
 
 	var ump *unstructured.Unstructured
-	for _, resource := range asoMachinePool.Spec.Resources {
+	for i, resource := range asoMachinePool.Spec.Resources {
 		u := &unstructured.Unstructured{}
 		if err := u.UnmarshalJSON(resource.Raw); err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to unmarshal resource JSON: %w", err)
@@ -156,6 +158,16 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 		u.SetNamespace(cluster.Namespace)
 		if u.GroupVersionKind().Group == asocontainerservicev1.GroupVersion.Group &&
 			u.GroupVersionKind().Kind == "ManagedClustersAgentPool" {
+			// TODO: autoscaling
+			// TODO: do this in a webhook
+			err := unstructured.SetNestedField(u.UnstructuredContent(), int64(ptr.Deref(machinePool.Spec.Replicas, 1)), "spec", "count")
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			asoMachinePool.Spec.Resources[i].Raw, err = u.MarshalJSON()
+			if err != nil {
+				return ctrl.Result{}, err
+			}
 			ump = u
 			break
 		}
@@ -169,8 +181,9 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	infraReady := true
 	for _, status := range asoMachinePool.GetResourceStatuses() {
+		// TODO: status.ready isn't reporting false while changes are being reconciled
+		ctrl.LoggerFrom(ctx).Info("status for resource", "name", status.Name, "ready", status.Ready, "object", asoMachinePool.Status.Ready)
 		if !status.Ready {
 			return ctrl.Result{}, nil
 		}
@@ -201,7 +214,7 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 		}
 		var vmss *armcompute.VirtualMachineScaleSet
 		for _, v := range vmsss {
-			if true { // TODO
+			if ptr.Deref(v.Tags["aks-managed-poolName"], "") == agentPool.AzureName() {
 				vmss = v
 				break
 			}
@@ -216,7 +229,7 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to list VMSS instances: %w", err)
 	}
-	asoMachinePool.Spec.ProviderIDList = make([]string, ptr.Deref(agentPool.Status.Count, 0), len(instances))
+	asoMachinePool.Spec.ProviderIDList = make([]string, 0, len(instances))
 	for _, instance := range instances {
 		providerID, err := azprovider.ConvertResourceGroupNameToLower("azure://" + *instance.ID)
 		if err != nil {
@@ -224,8 +237,9 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 		}
 		asoMachinePool.Spec.ProviderIDList = append(asoMachinePool.Spec.ProviderIDList, providerID)
 	}
+	asoMachinePool.Status.Replicas = int32(ptr.Deref(agentPool.Status.Count, 0))
 
-	asoMachinePool.Status.Ready = infraReady
+	asoMachinePool.Status.Ready = true
 
 	return ctrl.Result{}, nil
 }
@@ -240,7 +254,7 @@ func (r *ASOManagedMachinePoolReconciler) reconcileDelete(ctx context.Context, a
 		return ctrl.Result{}, nil
 	}
 
-	controllerutil.RemoveFinalizer(asoMachinePool, clusterv1.ClusterFinalizer)
+	controllerutil.RemoveFinalizer(asoMachinePool, infrav1.ASOManagedMachinePoolFinalizer)
 	return ctrl.Result{}, nil
 }
 

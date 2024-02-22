@@ -14,3 +14,4 @@ machinePools:
   pool0:
     replicas: 1
     kubernetesVersion: ""
+    mode: System
