@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
@@ -76,6 +77,25 @@ func (r *ASOManagedMachinePoolReconciler) Reconcile(ctx context.Context, req ctr
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	patchHelper, err := patch.NewHelper(asoMachinePool, r.Client)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to init patch helper: %w", err)
+	}
+	defer func() {
+		if resultErr == nil {
+			asoMachinePool.Status.ObservedGeneration = asoMachinePool.Generation
+		}
+
+		err := patchHelper.Patch(ctx, asoMachinePool)
+		if !asoMachinePool.GetDeletionTimestamp().IsZero() {
+			err = ignorePatchErrNotFound(err)
+		}
+		if err != nil && resultErr == nil {
+			resultErr = err
+			result = ctrl.Result{}
+		}
+	}()
+
 	asoMachinePool.Status.Ready = false
 
 	machinePool, err := utilexp.GetOwnerMachinePool(ctx, r.Client, asoMachinePool.ObjectMeta)
@@ -105,25 +125,6 @@ func (r *ASOManagedMachinePoolReconciler) Reconcile(ctx context.Context, req ctr
 
 	log = log.WithValues("Cluster", klog.KObj(cluster))
 	ctx = ctrl.LoggerInto(ctx, log)
-
-	patchHelper, err := patch.NewHelper(asoMachinePool, r.Client)
-	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to init patch helper: %w", err)
-	}
-	defer func() {
-		if resultErr == nil {
-			asoMachinePool.Status.ObservedGeneration = asoMachinePool.Generation
-		}
-		log.Info("patching with ready", "ready", asoMachinePool.Status.Ready, "resource", asoMachinePool)
-		err := patchHelper.Patch(ctx, asoMachinePool)
-		if !asoMachinePool.GetDeletionTimestamp().IsZero() {
-			err = ignorePatchErrNotFound(err)
-		}
-		if err != nil && resultErr == nil {
-			resultErr = err
-			result = ctrl.Result{}
-		}
-	}()
 
 	r.infraReconciler = &InfraReconciler{
 		Client:          r.Client,
@@ -159,8 +160,14 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 		if u.GroupVersionKind().Group == asocontainerservicev1.GroupVersion.Group &&
 			u.GroupVersionKind().Kind == "ManagedClustersAgentPool" {
 			// TODO: autoscaling
-			// TODO: do this in a webhook
+			// TODO: do this in a webhook. Or not? maybe never let users set this in the ASO resource and
+			// silently propagate it here so the CAPASO manifest doesn't have two fields that mean the same
+			// thing where it's not obvious which one is authoritative?
 			err := unstructured.SetNestedField(u.UnstructuredContent(), int64(ptr.Deref(machinePool.Spec.Replicas, 1)), "spec", "count")
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			err = unstructured.SetNestedField(u.UnstructuredContent(), strings.TrimPrefix(ptr.Deref(machinePool.Spec.Template.Spec.Version, ""), "v"), "spec", "orchestratorVersion")
 			if err != nil {
 				return ctrl.Result{}, err
 			}
