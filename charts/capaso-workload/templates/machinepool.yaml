@@ -29,5 +29,17 @@ metadata:
     {{- include "capaso.commonLabels" $ | nindent 4 }}
   annotations:
     helm.sh/resource-policy: keep
+spec:
+  resources:
+    - apiVersion: containerservice.azure.com/v1api20231001
+      kind: ManagedClustersAgentPool
+      metadata:
+        name: {{ $mpName | quote }}
+      spec:
+        owner:
+          name: {{ include "capaso.clusterName" $  | quote }}
+        count: {{ $mp.replicas }}
+        vmSize: Standard_DS2_v2
+        mode: {{ $mp.mode | quote }}
 ---
 {{- end }}

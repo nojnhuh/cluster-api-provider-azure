@@ -18,19 +18,32 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
+
+const ASOManagedMachinePoolFinalizer = "asomanagedMachinePool.infrastructure.cluster.x-k8s.io"
 
 // ASOManagedMachinePoolSpec defines the desired state of ASOManagedMachinePool
 type ASOManagedMachinePoolSpec struct {
 	// ProviderIDList is the list of cloud provider IDs for the instances.
-	ProviderIDList string `json:"providerIDList,omitempty"`
+	ProviderIDList []string `json:"providerIDList,omitempty"`
+
+	// Resources are embedded ASO resources to be managed by this resource.
+	Resources []runtime.RawExtension `json:"resources,omitempty"`
 }
 
 // ASOManagedMachinePoolStatus defines the observed state of ASOManagedMachinePool
 type ASOManagedMachinePoolStatus struct {
 	// Ready represents whether or not the infrastructure is ready to be used. It fulfills Cluster API's
 	// machine pool infrastructure provider contract.
+	//+optional
 	Ready bool `json:"ready"`
+
+	// ObservedGeneration is the last generation that was successfully reconciled.
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// Resources represents the status of the resources defined in the spec.
+	Resources []ResourceStatus `json:"resources,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -43,6 +56,14 @@ type ASOManagedMachinePool struct {
 
 	Spec   ASOManagedMachinePoolSpec   `json:"spec,omitempty"`
 	Status ASOManagedMachinePoolStatus `json:"status,omitempty"`
+}
+
+func (a *ASOManagedMachinePool) GetResourceStatuses() []ResourceStatus {
+	return a.Status.Resources
+}
+
+func (a *ASOManagedMachinePool) SetResourceStatuses(r []ResourceStatus) {
+	a.Status.Resources = r
 }
 
 //+kubebuilder:object:root=true
