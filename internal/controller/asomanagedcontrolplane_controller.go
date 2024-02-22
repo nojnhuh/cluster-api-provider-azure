@@ -135,8 +135,11 @@ func (r *ASOManagedControlPlaneReconciler) reconcileNormal(ctx context.Context, 
 		if u.GroupVersionKind().Group == asocontainerservicev1.GroupVersion.Group &&
 			u.GroupVersionKind().Kind == "ManagedCluster" {
 			// TODO: default this in a webhook.
-			unstructured.SetNestedField(u.UnstructuredContent(), strings.TrimPrefix(asoControlPlane.Spec.Version, "v"), "spec", "kubernetesVersion")
-			var err error
+			// TODO: auto upgrades?
+			err := unstructured.SetNestedField(u.UnstructuredContent(), strings.TrimPrefix(asoControlPlane.Spec.Version, "v"), "spec", "kubernetesVersion")
+			if err != nil {
+				return ctrl.Result{}, err
+			}
 			asoControlPlane.Spec.Resources[i].Raw, err = u.MarshalJSON()
 			if err != nil {
 				return ctrl.Result{}, err
