@@ -1,4 +1,4 @@
-{{- range $mpName, $mp := .Values.machinePools }}
+{{- range $mpName, $mp := .Values.managedMachinePoolSpecs }}
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachinePool
 metadata:
@@ -9,7 +9,9 @@ metadata:
     helm.sh/resource-policy: keep
 spec:
   clusterName: {{ include "capaso.clusterName" $ | quote }}
-  replicas: {{ $mp.replicas }}
+  {{- if (ne nil $mp.count) }}
+  replicas: {{ $mp.count }}
+  {{- end }}
   template:
     spec:
       bootstrap:
@@ -19,7 +21,7 @@ spec:
         apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
         kind: ASOManagedMachinePool
         name: {{ printf "%s-%s" (include "capaso.clusterName" $) $mpName | quote }}
-      version: {{ default $.Values.kubernetesVersion $mp.kubernetesVersion }}
+      version: {{ default $.Values.kubernetesVersion $mp.orchestratorVersion | quote }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: ASOManagedMachinePool
@@ -39,10 +41,11 @@ spec:
         {{- include "capaso.asoResourceAnnotations" $ | nindent 8 }}
     spec:
       azureName: {{ $mpName | quote }}
+      {{- if $mp.owner }}
+        {{- fail (printf ".Values.managedMachinePoolSpecs.%s.owner is not allowed to be set." $mpName) }}
+      {{- end }}
       owner:
         name: {{ include "capaso.clusterName" $  | quote }}
-      count: {{ $mp.replicas }}
-      vmSize: Standard_DS2_v2
-      mode: {{ $mp.mode | quote }}
+      {{- toYaml $mp | nindent 6}}
 ---
 {{- end }}

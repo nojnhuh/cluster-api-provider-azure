@@ -53,21 +53,21 @@ spec:
       annotations:
         {{- include "capaso.asoResourceAnnotations" . | nindent 8 }}
     spec:
-      location: {{ .Values.location | quote }}
+      owner:
+        name: {{ include "capaso.clusterName" .  | quote }}
+      location: {{ default .Values.location .Values.managedClusterSpec.location | quote }}
+      dnsPrefix: {{ include "capaso.clusterName" .  | quote }}
+      {{- toYaml (unset .Values.managedClusterSpec "location") | nindent 6}}
+      agentPoolProfiles:
+        # TODO: This agent pool only exists to facilitate managing agent pools
+        # separately from managed clusters:
+        # https://github.com/Azure/azure-service-operator/issues/2791
+        - vmSize: Standard_DS2_v2
+          name: stub
+          count: 1
+          mode: System
       operatorSpec:
         secrets:
           adminCredentials:
             name: {{ printf "%s-kubeconfig" (include "capaso.clusterName" .) | quote }}
             key: value
-      agentPoolProfiles:
-        - vmSize: standard_d2_v2
-          name: stub
-          count: 1
-          mode: System
-      dnsPrefix: {{ include "capaso.clusterName" .  | quote }}
-      identity:
-        type: SystemAssigned
-      owner:
-        name: {{ include "capaso.clusterName" .  | quote }}
-      servicePrincipalProfile:
-        clientId: msi
