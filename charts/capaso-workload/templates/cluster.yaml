@@ -46,7 +46,7 @@ metadata:
 spec:
   version: {{ .Values.kubernetesVersion | quote  }}
   resources:
-  - apiVersion: containerservice.azure.com/v1api20231001
+  - apiVersion: "containerservice.azure.com/{{ .Values.managedClusterAPIVersion }}"
     kind: ManagedCluster
     metadata:
       name: {{ include "capaso.clusterName" .  | quote }}

@@ -33,7 +33,7 @@ metadata:
     helm.sh/resource-policy: keep
 spec:
   resources:
-  - apiVersion: containerservice.azure.com/v1api20231001
+  - apiVersion: "containerservice.azure.com/{{ $.Values.managedMachinePoolAPIVersion }}"
     kind: ManagedClustersAgentPool
     metadata:
       name: {{ printf "%s-%s" (include "capaso.clusterName" $) $mpName | quote }}

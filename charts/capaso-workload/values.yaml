@@ -10,15 +10,16 @@ location: eastus
 clusterNetwork: null
 kubernetesVersion: v1.28.3
 
+managedClusterAPIVersion: v1api20231001
 managedClusterSpec:
   identity:
     type: SystemAssigned
   servicePrincipalProfile:
     clientId: msi
 
+managedMachinePoolAPIVersion: v1api20231001
 managedMachinePoolSpecs:
   pool0:
-    owner: jon
     count: 1
     mode: System
-    vmSku: Standard_DS2_v2
+    vmSize: Standard_DS2_v2
