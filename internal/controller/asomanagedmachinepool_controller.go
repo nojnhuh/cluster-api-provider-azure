@@ -96,8 +96,6 @@ func (r *ASOManagedMachinePoolReconciler) Reconcile(ctx context.Context, req ctr
 		}
 	}()
 
-	asoMachinePool.Status.Ready = false
-
 	machinePool, err := utilexp.GetOwnerMachinePool(ctx, r.Client, asoMachinePool.ObjectMeta)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -150,6 +148,8 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 		return ctrl.Result{}, reconcile.TerminalError(fmt.Errorf("ASOManagedMachinePool does not use spec.template.spec.bootstrap.dataSecretName, set this to any value in MachinePool %s/%s to continue", machinePool.Namespace, machinePool.Name))
 	}
 
+	asoMachinePool.Status.Ready = false
+
 	var ump *unstructured.Unstructured
 	for i, resource := range asoMachinePool.Spec.Resources {
 		u := &unstructured.Unstructured{}
@@ -189,8 +189,6 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 		return ctrl.Result{}, err
 	}
 	for _, status := range asoMachinePool.GetResourceStatuses() {
-		// TODO: status.ready isn't reporting false while changes are being reconciled
-		ctrl.LoggerFrom(ctx).Info("status for resource", "name", status.Name, "ready", status.Ready, "object", asoMachinePool.Status.Ready)
 		if !status.Ready {
 			return ctrl.Result{}, nil
 		}
@@ -252,13 +250,17 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 }
 
 func (r *ASOManagedMachinePoolReconciler) reconcileDelete(ctx context.Context, asoMachinePool *infrav1.ASOManagedMachinePool, cluster *clusterv1.Cluster) (ctrl.Result, error) {
-	err := r.infraReconciler.Delete(ctx)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	if len(asoMachinePool.GetResourceStatuses()) > 0 {
-		// waiting for resources to be deleted
-		return ctrl.Result{}, nil
+	// If the entire cluster is being deleted, this ASO ManagedClustersAgentPool will be deleted with the rest
+	// of the ManagedCluster.
+	if cluster.DeletionTimestamp.IsZero() {
+		err := r.infraReconciler.Delete(ctx)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if len(asoMachinePool.GetResourceStatuses()) > 0 {
+			// waiting for resources to be deleted
+			return ctrl.Result{}, nil
+		}
 	}
 
 	controllerutil.RemoveFinalizer(asoMachinePool, infrav1.ASOManagedMachinePoolFinalizer)

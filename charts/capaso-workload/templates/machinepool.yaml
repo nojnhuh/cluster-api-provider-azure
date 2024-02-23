@@ -34,10 +34,11 @@ spec:
   - apiVersion: containerservice.azure.com/v1api20231001
     kind: ManagedClustersAgentPool
     metadata:
-      name: {{ $mpName | quote }}
+      name: {{ printf "%s-%s" (include "capaso.clusterName" $) $mpName | quote }}
       annotations:
         {{- include "capaso.asoResourceAnnotations" $ | nindent 8 }}
     spec:
+      azureName: {{ $mpName | quote }}
       owner:
         name: {{ include "capaso.clusterName" $  | quote }}
       count: {{ $mp.replicas }}

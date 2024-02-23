@@ -147,7 +147,7 @@ func readyStatus(u *unstructured.Unstructured) (bool, string) {
 
 		observedGen, _, err := unstructured.NestedInt64(condition, "observedGeneration")
 		if observedGen < u.GetGeneration() {
-			return false, "the resource is being reconciled"
+			return false, "Waiting for ASO to reconcile the resource"
 		}
 
 		status, found, err := unstructured.NestedString(condition, "status")

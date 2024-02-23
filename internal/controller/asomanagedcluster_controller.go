@@ -115,14 +115,23 @@ func (r *ASOManagedClusterReconciler) reconcileNormal(ctx context.Context, asoCl
 		log.Info("Cluster Controller has not yet set OwnerRef")
 		return ctrl.Result{}, nil
 	}
+	if cluster.Spec.ControlPlaneRef == nil || cluster.Spec.ControlPlaneRef.Kind != "ASOManagedControlPlane" {
+		return ctrl.Result{}, reconcile.TerminalError(fmt.Errorf("ASOManagedCluster cannot be used without ASOManagedControlPlane"))
+	}
 
 	if controllerutil.AddFinalizer(asoCluster, clusterv1.ClusterFinalizer) {
 		return ctrl.Result{Requeue: true}, nil
 	}
 
+	asoCluster.Status.Ready = false
 	err := r.infraReconciler.Reconcile(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
+	}
+	for _, status := range asoCluster.GetResourceStatuses() {
+		if !status.Ready {
+			return ctrl.Result{}, nil
+		}
 	}
 
 	asoControlPlane := &infrav1.ASOManagedControlPlane{
@@ -141,13 +150,7 @@ func (r *ASOManagedClusterReconciler) reconcileNormal(ctx context.Context, asoCl
 	}
 
 	asoCluster.Spec.ControlPlaneEndpoint = asoControlPlane.Status.ControlPlaneEndpoint
-	asoCluster.Status.Ready = true
-	for _, status := range asoCluster.GetResourceStatuses() {
-		if !status.Ready {
-			asoCluster.Status.Ready = false
-			break
-		}
-	}
+	asoCluster.Status.Ready = !asoCluster.Spec.ControlPlaneEndpoint.IsZero()
 
 	return ctrl.Result{}, nil
 }

@@ -86,8 +86,6 @@ func (r *ASOManagedControlPlaneReconciler) Reconcile(ctx context.Context, req ct
 	}()
 
 	asoControlPlane.Status.ExternalManagedControlPlane = true
-	asoControlPlane.Status.Ready = false
-	asoControlPlane.Status.Initialized = asoControlPlane.Status.Ready
 
 	cluster, err := util.GetOwnerCluster(ctx, r.Client, asoControlPlane.ObjectMeta)
 	if err != nil {
@@ -115,15 +113,16 @@ func (r *ASOManagedControlPlaneReconciler) reconcileNormal(ctx context.Context, 
 		log.Info("Cluster Controller has not yet set OwnerRef")
 		return ctrl.Result{}, nil
 	}
+	if cluster.Spec.InfrastructureRef == nil || cluster.Spec.InfrastructureRef.Kind != "ASOManagedCluster" {
+		return ctrl.Result{}, reconcile.TerminalError(fmt.Errorf("ASOManagedControlPlane cannot be used without ASOManagedCluster"))
+	}
 
 	if controllerutil.AddFinalizer(asoControlPlane, clusterv1.ClusterFinalizer) {
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	if !cluster.Status.InfrastructureReady {
-		log.Info("Cluster infrastructure is not ready")
-		return ctrl.Result{}, nil
-	}
+	asoControlPlane.Status.Ready = false
+	asoControlPlane.Status.Initialized = asoControlPlane.Status.Ready
 
 	var umc *unstructured.Unstructured
 	for i, resource := range asoControlPlane.Spec.Resources {
@@ -158,11 +157,9 @@ func (r *ASOManagedControlPlaneReconciler) reconcileNormal(ctx context.Context, 
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	infraReady := true
 	for _, status := range asoControlPlane.GetResourceStatuses() {
 		if !status.Ready {
-			infraReady = false
-			break
+			return ctrl.Result{}, nil
 		}
 	}
 
@@ -193,14 +190,12 @@ func (r *ASOManagedControlPlaneReconciler) reconcileNormal(ctx context.Context, 
 		asoControlPlane.Status.Version = "v" + *managedCluster.Status.CurrentKubernetesVersion
 	}
 
-	if infraReady {
-		err := r.reconcileKubeconfig(ctx, asoControlPlane, cluster, managedCluster)
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to reconcile kubeconfig: %w", err)
-		}
+	err = r.reconcileKubeconfig(ctx, asoControlPlane, cluster, managedCluster)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to reconcile kubeconfig: %w", err)
 	}
 
-	asoControlPlane.Status.Ready = infraReady
+	asoControlPlane.Status.Ready = true
 	asoControlPlane.Status.Initialized = asoControlPlane.Status.Ready
 
 	return ctrl.Result{}, nil
