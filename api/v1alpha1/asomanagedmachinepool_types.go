@@ -45,6 +45,10 @@ type ASOManagedMachinePoolStatus struct {
 	// Resources represents the status of the resources defined in the spec.
 	Resources []ResourceStatus `json:"resources,omitempty"`
 
+	// AKSAgentPoolName is the name of the agent pool associated with this ASOManagedMachinePool as it exists in
+	// Azure.
+	AKSAgentPoolName string `json:"agentPoolName,omitempty"`
+
 	// Replicas is the current number of provisioned replicas.
 	//+optional
 	Replicas int32 `json:"replicas"`

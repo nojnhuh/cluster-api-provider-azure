@@ -196,6 +196,25 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("error getting ManagedClustersAgentPool: %w", err)
 	}
+	oldAgentPoolName := asoMachinePool.Status.AKSAgentPoolName
+	asoMachinePool.Status.AKSAgentPoolName = agentPool.AzureName()
+	if oldAgentPoolName != asoMachinePool.Status.AKSAgentPoolName {
+		// Ensure a watch on Nodes is only started after this change has been persisted.
+		return ctrl.Result{Requeue: true}, nil
+	}
+
+	err = r.Tracker.Watch(ctx, remote.WatchInput{
+		Name:    "asomanagedmachinepool-watchNodes",
+		Cluster: util.ObjectKey(cluster),
+		Watcher: r.controller,
+		Kind:    &corev1.Node{},
+		// TODO: predicates to filter out node events we don't care about. (I think we only care about any
+		// create/delete and changes to provider id)
+		EventHandler: handler.EnqueueRequestsFromMapFunc(r.nodeToASOManagedMachinePool),
+	})
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to watch nodes on workload cluster: %w", err)
+	}
 
 	managedCluster := &asocontainerservicev1.ManagedCluster{}
 	err = r.Get(ctx, client.ObjectKey{Namespace: agentPool.Namespace, Name: agentPool.Owner().Name}, managedCluster)
@@ -205,19 +224,7 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 	if managedCluster.Status.NodeResourceGroup == nil {
 		return ctrl.Result{}, nil
 	}
-	// TODO: cache this in ASOManagedMachinePool status if we can assume this won't change.
 	rg := *managedCluster.Status.NodeResourceGroup
-
-	err = r.Tracker.Watch(ctx, remote.WatchInput{
-		Name:         "asomanagedmachinepool-watchNodes",
-		Cluster:      util.ObjectKey(cluster),
-		Watcher:      r.controller,
-		Kind:         &corev1.Node{},
-		EventHandler: handler.EnqueueRequestsFromMapFunc(r.nodeToASOManagedMachinePool),
-	})
-	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to watch nodes on workload cluster: %w", err)
-	}
 
 	clusterClient, err := r.Tracker.GetClient(ctx, util.ObjectKey(cluster))
 	if err != nil {
@@ -226,7 +233,7 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 	nodes := &corev1.NodeList{}
 	err = clusterClient.List(ctx, nodes,
 		client.MatchingLabels{
-			"kubernetes.azure.com/agentpool": agentPool.AzureName(),
+			"kubernetes.azure.com/agentpool": asoMachinePool.Status.AKSAgentPoolName,
 			"kubernetes.azure.com/cluster":   rg,
 		},
 	)
@@ -311,7 +318,7 @@ func (r *ASOManagedMachinePoolReconciler) SetupWithManager(ctx context.Context, 
 }
 
 func (r *ASOManagedMachinePoolReconciler) nodeToASOManagedMachinePool(ctx context.Context, o client.Object) []reconcile.Request {
-	// TODO: log errors here
+	// TODO: log errors here and in other mapping functions.
 	node := o.(*corev1.Node)
 
 	var filters []client.ListOption
@@ -337,26 +344,8 @@ func (r *ASOManagedMachinePoolReconciler) nodeToASOManagedMachinePool(ctx contex
 	}
 
 	for _, amp := range asoMachinePoolList.Items {
-		var agentPoolName string
-		for _, resource := range amp.Spec.Resources {
-			u := &unstructured.Unstructured{}
-			if err := u.UnmarshalJSON(resource.Raw); err != nil {
-				return nil
-			}
-			u.SetNamespace(amp.Namespace)
-			if u.GroupVersionKind().Group == asocontainerservicev1.GroupVersion.Group &&
-				u.GroupVersionKind().Kind == "ManagedClustersAgentPool" {
-				agentPool := &asocontainerservicev1.ManagedClustersAgentPool{}
-				err := r.Get(ctx, client.ObjectKeyFromObject(u), agentPool)
-				if err != nil {
-					return nil
-				}
-				// TODO: cache this in ASOManagedMachinePool status.
-				agentPoolName = agentPool.AzureName()
-				break
-			}
-		}
-		if agentPoolName == node.Labels["kubernetes.azure.com/agentpool"] {
+		// TODO: create an index on AKSAgentPoolName.
+		if amp.Status.AKSAgentPoolName == node.Labels["kubernetes.azure.com/agentpool"] {
 			return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: amp.Namespace, Name: amp.Name}}}
 		}
 	}
