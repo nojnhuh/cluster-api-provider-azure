@@ -19,18 +19,17 @@ package controller
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
-	azprovider "sigs.k8s.io/cloud-provider-azure/pkg/provider"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/controllers/external"
+	"sigs.k8s.io/cluster-api/controllers/remote"
 	expv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
 	utilexp "sigs.k8s.io/cluster-api/exp/util"
 	"sigs.k8s.io/cluster-api/util"
@@ -39,6 +38,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -52,17 +52,12 @@ import (
 type ASOManagedMachinePoolReconciler struct {
 	client.Client
 	Scheme          *runtime.Scheme
-	infraReconciler *InfraReconciler
+	Tracker         *remote.ClusterCacheTracker
+	controller      controller.Controller
 	externalTracker *external.ObjectTracker
-	vmssLister      vmssLister
-	vmssName        string
 }
 
-type vmssLister interface {
-	ListVMSS(ctx context.Context, resourceGroup string) ([]*armcompute.VirtualMachineScaleSet, error)
-	ListVMSSInstances(ctx context.Context, resourceGroup, vmssName string) ([]*armcompute.VirtualMachineScaleSetVM, error)
-}
-
+//+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=asomanagedmachinepools,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=asomanagedmachinepools/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=asomanagedmachinepools/finalizers,verbs=update
@@ -124,13 +119,6 @@ func (r *ASOManagedMachinePoolReconciler) Reconcile(ctx context.Context, req ctr
 	log = log.WithValues("Cluster", klog.KObj(cluster))
 	ctx = ctrl.LoggerInto(ctx, log)
 
-	r.infraReconciler = &InfraReconciler{
-		Client:          r.Client,
-		resources:       asoMachinePool.Spec.Resources,
-		owner:           asoMachinePool,
-		externalTracker: r.externalTracker,
-	}
-
 	if !asoMachinePool.DeletionTimestamp.IsZero() {
 		return r.reconcileDelete(ctx, asoMachinePool, cluster)
 	}
@@ -150,6 +138,7 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 
 	asoMachinePool.Status.Ready = false
 
+	// TODO: extract this "get ASO resource from CAPASO resource" into a function
 	var ump *unstructured.Unstructured
 	for i, resource := range asoMachinePool.Spec.Resources {
 		u := &unstructured.Unstructured{}
@@ -184,7 +173,14 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 		return ctrl.Result{}, reconcile.TerminalError(fmt.Errorf("no %s ManagedClustersAgentPools defined in ASOManagedMachinePool spec.resources", asocontainerservicev1.GroupVersion.Group))
 	}
 
-	err := r.infraReconciler.Reconcile(ctx)
+	// TODO: make this change in the other controllers to make infraReconciler a local per-reconcile thing.
+	infraReconciler := &InfraReconciler{
+		Client:          r.Client,
+		resources:       asoMachinePool.Spec.Resources,
+		owner:           asoMachinePool,
+		externalTracker: r.externalTracker,
+	}
+	err := infraReconciler.Reconcile(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -210,50 +206,57 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 	if managedCluster.Status.NodeResourceGroup == nil {
 		return ctrl.Result{}, nil
 	}
+	// TODO: cache this in ASOManagedMachinePool status if we can assume this won't change.
 	rg := *managedCluster.Status.NodeResourceGroup
 
-	if r.vmssName == "" {
-		vmsss, err := r.vmssLister.ListVMSS(ctx, rg)
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to list VMSSes in resource group %s: %w", rg, err)
-		}
-		var vmss *armcompute.VirtualMachineScaleSet
-		for _, v := range vmsss {
-			if ptr.Deref(v.Tags["aks-managed-poolName"], "") == agentPool.AzureName() {
-				vmss = v
-				break
-			}
-		}
-		if vmss == nil {
-			return ctrl.Result{}, reconcile.TerminalError(fmt.Errorf("VMSS not found for ASOManagedMachinePool %s/%s in resource group %s", asoMachinePool.Namespace, asoMachinePool.Name, rg))
-		}
-		r.vmssName = *vmss.Name
-	}
-
-	instances, err := r.vmssLister.ListVMSSInstances(ctx, rg, r.vmssName)
+	err = r.Tracker.Watch(ctx, remote.WatchInput{
+		Name:         "asomanagedmachinepool-watchNodes",
+		Cluster:      util.ObjectKey(cluster),
+		Watcher:      r.controller,
+		Kind:         &corev1.Node{},
+		EventHandler: handler.EnqueueRequestsFromMapFunc(r.nodeToASOManagedMachinePool),
+	})
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to list VMSS instances: %w", err)
+		return ctrl.Result{}, fmt.Errorf("failed to watch nodes on workload cluster: %w", err)
 	}
-	asoMachinePool.Spec.ProviderIDList = make([]string, 0, len(instances))
-	for _, instance := range instances {
-		providerID, err := azprovider.ConvertResourceGroupNameToLower("azure://" + *instance.ID)
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to parse instance ID %s: %w", *instance.ID, err)
-		}
-		asoMachinePool.Spec.ProviderIDList = append(asoMachinePool.Spec.ProviderIDList, providerID)
-	}
-	asoMachinePool.Status.Replicas = int32(ptr.Deref(agentPool.Status.Count, 0))
 
+	clusterClient, err := r.Tracker.GetClient(ctx, util.ObjectKey(cluster))
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	nodes := &corev1.NodeList{}
+	err = clusterClient.List(ctx, nodes,
+		client.MatchingLabels{
+			"kubernetes.azure.com/agentpool": agentPool.AzureName(),
+			"kubernetes.azure.com/cluster":   rg,
+		},
+	)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to list nodes in workload cluster: %w", err)
+	}
+	providerIDs := make([]string, 0, len(nodes.Items))
+	for _, node := range nodes.Items {
+		providerIDs = append(providerIDs, node.Spec.ProviderID)
+	}
+	asoMachinePool.Spec.ProviderIDList = providerIDs
+	asoMachinePool.Status.Replicas = int32(ptr.Deref(agentPool.Status.Count, 0))
 	asoMachinePool.Status.Ready = true
 
 	return ctrl.Result{}, nil
 }
 
 func (r *ASOManagedMachinePoolReconciler) reconcileDelete(ctx context.Context, asoMachinePool *infrav1.ASOManagedMachinePool, cluster *clusterv1.Cluster) (ctrl.Result, error) {
+	infraReconciler := &InfraReconciler{
+		Client:          r.Client,
+		resources:       asoMachinePool.Spec.Resources,
+		owner:           asoMachinePool,
+		externalTracker: r.externalTracker,
+	}
+
 	// If the entire cluster is being deleted, this ASO ManagedClustersAgentPool will be deleted with the rest
 	// of the ManagedCluster.
 	if cluster.DeletionTimestamp.IsZero() {
-		err := r.infraReconciler.Delete(ctx)
+		err := infraReconciler.Delete(ctx)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -298,61 +301,66 @@ func (r *ASOManagedMachinePoolReconciler) SetupWithManager(ctx context.Context, 
 	if err != nil {
 		return err
 	}
+	r.controller = c
 
 	r.externalTracker = &external.ObjectTracker{
 		Cache:      mgr.GetCache(),
 		Controller: c,
 	}
 
-	// TODO: move these creds
-	subscriptionID := os.Getenv("AZURE_SUBSCRIPTION_ID")
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
-	if err != nil {
-		return err
-	}
-	computeClientFactory, err := armcompute.NewClientFactory(subscriptionID, cred, nil)
-	if err != nil {
-		return err
-	}
-	r.vmssLister = &sdkVMSSLister{
-		vmss: computeClientFactory.NewVirtualMachineScaleSetsClient(),
-		vm:   computeClientFactory.NewVirtualMachineScaleSetVMsClient(),
-	}
-
 	return nil
 }
 
-type sdkVMSSLister struct {
-	vmss *armcompute.VirtualMachineScaleSetsClient
-	vm   *armcompute.VirtualMachineScaleSetVMsClient
-}
+func (r *ASOManagedMachinePoolReconciler) nodeToASOManagedMachinePool(ctx context.Context, o client.Object) []reconcile.Request {
+	// TODO: log errors here
+	node := o.(*corev1.Node)
 
-func (c *sdkVMSSLister) ListVMSS(ctx context.Context, resourceGroup string) ([]*armcompute.VirtualMachineScaleSet, error) {
-	ctrl.LoggerFrom(ctx).Info("DOING AZURE API CALLS HOLD YOUR HORSES LIST VMSS")
-	// TODO: throttle these calls
-	var vmss []*armcompute.VirtualMachineScaleSet
-	pager := c.vmss.NewListPager(resourceGroup, nil)
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return nil, err
-		}
-		vmss = append(vmss, page.Value...)
-	}
-	return vmss, nil
-}
+	var filters []client.ListOption
 
-func (c *sdkVMSSLister) ListVMSSInstances(ctx context.Context, resourceGroup string, vmssName string) ([]*armcompute.VirtualMachineScaleSetVM, error) {
-	ctrl.LoggerFrom(ctx).Info("DOING AZURE API CALLS HOLD YOUR HORSES LIST VMSS INSTANCES")
-	// TODO: throttle these calls
-	var vms []*armcompute.VirtualMachineScaleSetVM
-	pager := c.vm.NewListPager(resourceGroup, vmssName, nil)
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return nil, err
-		}
-		vms = append(vms, page.Value...)
+	// Match by clusterName when the node has the annotation.
+	if clusterName, ok := node.GetAnnotations()[clusterv1.ClusterNameAnnotation]; ok {
+		filters = append(filters, client.MatchingLabels{
+			clusterv1.ClusterNameLabel: clusterName,
+		})
 	}
-	return vms, nil
+
+	// Match by namespace when the node has the annotation.
+	if namespace, ok := node.GetAnnotations()[clusterv1.ClusterNamespaceAnnotation]; ok {
+		filters = append(filters, client.InNamespace(namespace))
+	}
+
+	asoMachinePoolList := &infrav1.ASOManagedMachinePoolList{}
+	if err := r.Client.List(
+		ctx,
+		asoMachinePoolList,
+		filters...); err != nil {
+		return nil
+	}
+
+	for _, amp := range asoMachinePoolList.Items {
+		var agentPoolName string
+		for _, resource := range amp.Spec.Resources {
+			u := &unstructured.Unstructured{}
+			if err := u.UnmarshalJSON(resource.Raw); err != nil {
+				return nil
+			}
+			u.SetNamespace(amp.Namespace)
+			if u.GroupVersionKind().Group == asocontainerservicev1.GroupVersion.Group &&
+				u.GroupVersionKind().Kind == "ManagedClustersAgentPool" {
+				agentPool := &asocontainerservicev1.ManagedClustersAgentPool{}
+				err := r.Get(ctx, client.ObjectKeyFromObject(u), agentPool)
+				if err != nil {
+					return nil
+				}
+				// TODO: cache this in ASOManagedMachinePool status.
+				agentPoolName = agentPool.AzureName()
+				break
+			}
+		}
+		if agentPoolName == node.Labels["kubernetes.azure.com/agentpool"] {
+			return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: amp.Namespace, Name: amp.Name}}}
+		}
+	}
+
+	return nil
 }
