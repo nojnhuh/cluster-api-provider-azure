@@ -173,7 +173,6 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 		return ctrl.Result{}, reconcile.TerminalError(fmt.Errorf("no %s ManagedClustersAgentPools defined in ASOManagedMachinePool spec.resources", asocontainerservicev1.GroupVersion.Group))
 	}
 
-	// TODO: make this change in the other controllers to make infraReconciler a local per-reconcile thing.
 	infraReconciler := &InfraReconciler{
 		Client:          r.Client,
 		resources:       asoMachinePool.Spec.Resources,

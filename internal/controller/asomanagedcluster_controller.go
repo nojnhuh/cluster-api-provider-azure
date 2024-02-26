@@ -49,7 +49,6 @@ type ASOManagedClusterReconciler struct {
 	client.Client
 	Scheme          *runtime.Scheme
 	controller      controller.Controller
-	infraReconciler *InfraReconciler
 	externalTracker *external.ObjectTracker
 }
 
@@ -94,13 +93,6 @@ func (r *ASOManagedClusterReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, err
 	}
 
-	r.infraReconciler = &InfraReconciler{
-		Client:          r.Client,
-		resources:       asoCluster.Spec.Resources,
-		owner:           asoCluster,
-		externalTracker: r.externalTracker,
-	}
-
 	if !asoCluster.GetDeletionTimestamp().IsZero() {
 		return r.reconcileDelete(ctx, asoCluster, cluster)
 	}
@@ -124,7 +116,13 @@ func (r *ASOManagedClusterReconciler) reconcileNormal(ctx context.Context, asoCl
 	}
 
 	asoCluster.Status.Ready = false
-	err := r.infraReconciler.Reconcile(ctx)
+	infraReconciler := &InfraReconciler{
+		Client:          r.Client,
+		resources:       asoCluster.Spec.Resources,
+		owner:           asoCluster,
+		externalTracker: r.externalTracker,
+	}
+	err := infraReconciler.Reconcile(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -161,7 +159,13 @@ func (r *ASOManagedClusterReconciler) reconcileDelete(ctx context.Context, asoCl
 		return ctrl.Result{}, nil
 	}
 
-	err := r.infraReconciler.Delete(ctx)
+	infraReconciler := &InfraReconciler{
+		Client:          r.Client,
+		resources:       asoCluster.Spec.Resources,
+		owner:           asoCluster,
+		externalTracker: r.externalTracker,
+	}
+	err := infraReconciler.Delete(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}

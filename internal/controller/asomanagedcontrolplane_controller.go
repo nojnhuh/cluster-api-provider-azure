@@ -50,7 +50,6 @@ import (
 type ASOManagedControlPlaneReconciler struct {
 	client.Client
 	Scheme          *runtime.Scheme
-	infraReconciler *InfraReconciler
 	externalTracker *external.ObjectTracker
 }
 
@@ -90,13 +89,6 @@ func (r *ASOManagedControlPlaneReconciler) Reconcile(ctx context.Context, req ct
 	cluster, err := util.GetOwnerCluster(ctx, r.Client, asoControlPlane.ObjectMeta)
 	if err != nil {
 		return ctrl.Result{}, err
-	}
-
-	r.infraReconciler = &InfraReconciler{
-		Client:          r.Client,
-		resources:       asoControlPlane.Spec.Resources,
-		owner:           asoControlPlane,
-		externalTracker: r.externalTracker,
 	}
 
 	if !asoControlPlane.GetDeletionTimestamp().IsZero() {
@@ -153,7 +145,13 @@ func (r *ASOManagedControlPlaneReconciler) reconcileNormal(ctx context.Context, 
 		return ctrl.Result{}, reconcile.TerminalError(fmt.Errorf("no %s ManagedCluster defined in ASOManagedControlPlane spec.resources", asocontainerservicev1.GroupVersion.Group))
 	}
 
-	err := r.infraReconciler.Reconcile(ctx)
+	infraReconciler := &InfraReconciler{
+		Client:          r.Client,
+		resources:       asoControlPlane.Spec.Resources,
+		owner:           asoControlPlane,
+		externalTracker: r.externalTracker,
+	}
+	err := infraReconciler.Reconcile(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -249,7 +247,14 @@ func (r *ASOManagedControlPlaneReconciler) reconcileDelete(ctx context.Context, 
 		return ctrl.Result{}, nil
 	}
 
-	err := r.infraReconciler.Delete(ctx)
+	infraReconciler := &InfraReconciler{
+		Client:          r.Client,
+		resources:       asoControlPlane.Spec.Resources,
+		owner:           asoControlPlane,
+		externalTracker: r.externalTracker,
+	}
+
+	err := infraReconciler.Delete(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
