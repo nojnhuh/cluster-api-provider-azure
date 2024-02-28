@@ -18,19 +18,17 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
 // ASOManagedClusterSpec defines the desired state of ASOManagedCluster
 type ASOManagedClusterSpec struct {
+	ASOManagedClusterTemplateResourceSpec `json:",inline"`
+
 	// ControlPlaneEndpoint is the location of the API server within the control plane. It fulfills Cluster
 	// API's cluster infrastructure provider contract.
 	//+optional
 	ControlPlaneEndpoint clusterv1.APIEndpoint `json:"controlPlaneEndpoint"`
-
-	// Resources are embedded ASO resources to be managed by this resource.
-	Resources []runtime.RawExtension `json:"resources,omitempty"`
 }
 
 // ASOManagedClusterStatus defines the observed state of ASOManagedCluster

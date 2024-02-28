@@ -116,38 +116,43 @@ func (r *ASOManagedControlPlaneReconciler) reconcileNormal(ctx context.Context, 
 	asoControlPlane.Status.Ready = false
 	asoControlPlane.Status.Initialized = asoControlPlane.Status.Ready
 
-	var umc *unstructured.Unstructured
-	for i, resource := range asoControlPlane.Spec.Resources {
+	// resources is a copy of the resources as they are defined in the spec, with some fields defaulted based
+	// on other fields that are defined in the CAPI contract. These defaults are not persisted to keep the
+	// ClusterClass controller from trying to overwrite them.
+	var resources []runtime.RawExtension
+	var managedClusterName string
+	for _, resource := range asoControlPlane.Spec.Resources {
 		u := &unstructured.Unstructured{}
 		if err := u.UnmarshalJSON(resource.Raw); err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to unmarshal resource JSON: %w", err)
 		}
-		u.SetNamespace(cluster.Namespace)
 		if u.GroupVersionKind().Group == asocontainerservicev1.GroupVersion.Group &&
-			u.GroupVersionKind().Kind == "ManagedCluster" {
-			// TODO: default this in a webhook.
+			u.GroupVersionKind().Kind == "ManagedCluster" &&
+			managedClusterName == "" {
+			managedClusterName = u.GetName()
+			// TODO: default this in a webhook. Check to make sure ClusterClass controller doesn't fight with
+			// a webhook-defaulted value
 			// TODO: auto upgrades?
 			err := unstructured.SetNestedField(u.UnstructuredContent(), strings.TrimPrefix(asoControlPlane.Spec.Version, "v"), "spec", "kubernetesVersion")
 			if err != nil {
 				return ctrl.Result{}, err
 			}
-			asoControlPlane.Spec.Resources[i].Raw, err = u.MarshalJSON()
-			if err != nil {
-				return ctrl.Result{}, err
-			}
-
-			umc = u
-			break
 		}
+
+		defaulted, err := u.MarshalJSON()
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		resources = append(resources, runtime.RawExtension{Raw: defaulted})
 	}
-	if umc == nil {
+	if managedClusterName == "" {
 		// TODO: move this to a webhook.
 		return ctrl.Result{}, reconcile.TerminalError(fmt.Errorf("no %s ManagedCluster defined in ASOManagedControlPlane spec.resources", asocontainerservicev1.GroupVersion.Group))
 	}
 
 	infraReconciler := &InfraReconciler{
 		Client:          r.Client,
-		resources:       asoControlPlane.Spec.Resources,
+		resources:       resources,
 		owner:           asoControlPlane,
 		externalTracker: r.externalTracker,
 	}
@@ -164,7 +169,7 @@ func (r *ASOManagedControlPlaneReconciler) reconcileNormal(ctx context.Context, 
 	// get a typed resource so we don't have to try to convert this unstructured ourselves since it might be a
 	// different API version than we know how to deal with.
 	managedCluster := &asocontainerservicev1.ManagedCluster{}
-	err = r.Get(ctx, client.ObjectKeyFromObject(umc), managedCluster)
+	err = r.Get(ctx, client.ObjectKey{Namespace: asoControlPlane.Namespace, Name: managedClusterName}, managedCluster)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("error getting ManagedCluster: %w", err)
 	}

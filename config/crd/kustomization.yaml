@@ -6,8 +6,11 @@ commonLabels:
 
 resources:
 - bases/infrastructure.cluster.x-k8s.io_asomanagedclusters.yaml
+- bases/infrastructure.cluster.x-k8s.io_asomanagedclustertemplates.yaml
 - bases/infrastructure.cluster.x-k8s.io_asomanagedcontrolplanes.yaml
+- bases/infrastructure.cluster.x-k8s.io_asomanagedcontrolplanetemplates.yaml
 - bases/infrastructure.cluster.x-k8s.io_asomanagedmachinepools.yaml
+- bases/infrastructure.cluster.x-k8s.io_asomanagedmachinepooltemplates.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 patches:

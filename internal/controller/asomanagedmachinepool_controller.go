@@ -131,10 +131,12 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	// Make sure bootstrap data is available and populated.
-	if machinePool.Spec.Template.Spec.Bootstrap.DataSecretName == nil {
-		return ctrl.Result{}, reconcile.TerminalError(fmt.Errorf("ASOManagedMachinePool does not use spec.template.spec.bootstrap.dataSecretName, set this to any value in MachinePool %s/%s to continue", machinePool.Namespace, machinePool.Name))
-	}
+	// MachinePools created by ClusterClass have no spec.template.spec.bootstrap.dataSecretName defined.
+	// TODO: see if we really need a kubeadm config for clusterclass machinepools.
+	// // Make sure bootstrap data is available and populated.
+	// if machinePool.Spec.Template.Spec.Bootstrap.DataSecretName == nil {
+	// 	return ctrl.Result{}, reconcile.TerminalError(fmt.Errorf("ASOManagedMachinePool does not use spec.template.spec.bootstrap.dataSecretName, set this to any value in MachinePool %s/%s to continue", machinePool.Namespace, machinePool.Name))
+	// }
 
 	asoMachinePool.Status.Ready = false
 
@@ -203,6 +205,7 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 		return ctrl.Result{Requeue: true}, nil
 	}
 
+	// TODO: I'm not entirely convinced we need to watch nodes here.
 	err = r.Tracker.Watch(ctx, remote.WatchInput{
 		Name:    "asomanagedmachinepool-watchNodes",
 		Cluster: util.ObjectKey(cluster),

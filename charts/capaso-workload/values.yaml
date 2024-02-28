@@ -1,8 +1,10 @@
 credentialSecretName: "aso-credentials"
+createCredentials: true
 subscriptionID: ""
 tenantID: ""
 clientID: ""
 clientSecret: ""
+authMode: ""
 
 # clusterName defaults to the name of the Helm release
 clusterName: ""
@@ -23,3 +25,7 @@ managedMachinePoolSpecs:
     count: 1
     mode: System
     vmSize: Standard_DS2_v2
+
+clusterClassName: ""
+withClusterClass: false
+withClusterTopology: false

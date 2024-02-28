@@ -18,18 +18,12 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
 // ASOManagedControlPlaneSpec defines the desired state of ASOManagedControlPlane
 type ASOManagedControlPlaneSpec struct {
-	// Version is the Kubernetes version of the control plane. It fulfills Cluster API's control plane
-	// provider contract.
-	Version string `json:"version,omitempty"`
-
-	// Resources are embedded ASO resources to be managed by this resource.
-	Resources []runtime.RawExtension `json:"resources,omitempty"`
+	ASOManagedControlPlaneTemplateResourceSpec `json:",inline"`
 }
 
 // ASOManagedControlPlaneStatus defines the observed state of ASOManagedControlPlane

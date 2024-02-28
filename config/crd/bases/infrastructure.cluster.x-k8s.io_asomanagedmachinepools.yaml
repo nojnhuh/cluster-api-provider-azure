@@ -41,8 +41,9 @@ spec:
             description: ASOManagedMachinePoolSpec defines the desired state of ASOManagedMachinePool
             properties:
               providerIDList:
-                description: ProviderIDList is the list of cloud provider IDs for
-                  the instances.
+                description: |-
+                  ProviderIDList is the list of cloud provider IDs for the instances. It fulfills Cluster API's machine
+                  pool infrastructure provider contract.
                 items:
                   type: string
                 type: array

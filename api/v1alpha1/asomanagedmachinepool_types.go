@@ -18,18 +18,13 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 )
 
 const ASOManagedMachinePoolFinalizer = "asomanagedMachinePool.infrastructure.cluster.x-k8s.io"
 
 // ASOManagedMachinePoolSpec defines the desired state of ASOManagedMachinePool
 type ASOManagedMachinePoolSpec struct {
-	// ProviderIDList is the list of cloud provider IDs for the instances.
-	ProviderIDList []string `json:"providerIDList,omitempty"`
-
-	// Resources are embedded ASO resources to be managed by this resource.
-	Resources []runtime.RawExtension `json:"resources,omitempty"`
+	ASOManagedMachinePoolTemplateResourceSpec `json:",inline"`
 }
 
 // ASOManagedMachinePoolStatus defines the observed state of ASOManagedMachinePool
