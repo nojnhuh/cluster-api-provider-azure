@@ -55,7 +55,7 @@ resources:
     operatorSpec:
       secrets:
         adminCredentials:
-          name: {{ printf "%s-kubeconfig" $clusterName | quote }}
+          name: {{ printf "%s-kubeconfig" $clusterName | quote }} # TODO: make sure clusterctl get kubeconfig works here for clusterclass clusters
           key: value
 {{- end }}
 
