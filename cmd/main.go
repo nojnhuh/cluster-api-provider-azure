@@ -74,6 +74,9 @@ func main() {
 		"If set the metrics endpoint is served securely")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	// TODO: secure metrics
+	// TODO: remove kube-rbac-proxy sidecar
+	// TODO: watch filter
 	opts := zap.Options{
 		Development: true,
 	}

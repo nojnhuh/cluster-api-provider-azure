@@ -252,19 +252,15 @@ func asoManagedControlPlaneEndpointUpdated() predicate.Funcs {
 }
 
 func ignorePatchErrNotFound(err error) error {
-	notFound := apierrors.IsNotFound(err)
-	if !notFound {
-		if agg, ok := err.(kerrors.Aggregate); ok {
-			for _, aggErr := range kerrors.Flatten(agg).Errors() {
-				if apierrors.IsNotFound(aggErr) {
-					notFound = true
-					break
-				}
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if agg, ok := err.(kerrors.Aggregate); ok {
+		for _, aggErr := range kerrors.Flatten(agg).Errors() {
+			if apierrors.IsNotFound(aggErr) {
+				return nil
 			}
 		}
-	}
-	if notFound {
-		return nil
 	}
 	return err
 }

@@ -24,7 +24,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -205,20 +204,7 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	// TODO: I'm not entirely convinced we need to watch nodes here.
-	err = r.Tracker.Watch(ctx, remote.WatchInput{
-		Name:    "asomanagedmachinepool-watchNodes",
-		Cluster: util.ObjectKey(cluster),
-		Watcher: r.controller,
-		Kind:    &corev1.Node{},
-		// TODO: predicates to filter out node events we don't care about. (I think we only care about any
-		// create/delete and changes to provider id)
-		EventHandler: handler.EnqueueRequestsFromMapFunc(r.nodeToASOManagedMachinePool),
-	})
-	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to watch nodes on workload cluster: %w", err)
-	}
-
+	// I'm not entirely convinced we need to watch nodes here.
 	managedCluster := &asocontainerservicev1.ManagedCluster{}
 	err = r.Get(ctx, client.ObjectKey{Namespace: agentPool.Namespace, Name: agentPool.Owner().Name}, managedCluster)
 	if err != nil {
@@ -315,42 +301,6 @@ func (r *ASOManagedMachinePoolReconciler) SetupWithManager(ctx context.Context, 
 	r.externalTracker = &external.ObjectTracker{
 		Cache:      mgr.GetCache(),
 		Controller: c,
-	}
-
-	return nil
-}
-
-func (r *ASOManagedMachinePoolReconciler) nodeToASOManagedMachinePool(ctx context.Context, o client.Object) []reconcile.Request {
-	// TODO: log errors here and in other mapping functions.
-	node := o.(*corev1.Node)
-
-	var filters []client.ListOption
-
-	// Match by clusterName when the node has the annotation.
-	if clusterName, ok := node.GetAnnotations()[clusterv1.ClusterNameAnnotation]; ok {
-		filters = append(filters, client.MatchingLabels{
-			clusterv1.ClusterNameLabel: clusterName,
-		})
-	}
-
-	// Match by namespace when the node has the annotation.
-	if namespace, ok := node.GetAnnotations()[clusterv1.ClusterNamespaceAnnotation]; ok {
-		filters = append(filters, client.InNamespace(namespace))
-	}
-
-	asoMachinePoolList := &infrav1.ASOManagedMachinePoolList{}
-	if err := r.Client.List(
-		ctx,
-		asoMachinePoolList,
-		filters...); err != nil {
-		return nil
-	}
-
-	for _, amp := range asoMachinePoolList.Items {
-		// TODO: create an index on AKSAgentPoolName.
-		if amp.Status.AKSAgentPoolName == node.Labels["kubernetes.azure.com/agentpool"] {
-			return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: amp.Namespace, Name: amp.Name}}}
-		}
 	}
 
 	return nil
