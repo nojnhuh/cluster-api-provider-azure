@@ -50,7 +50,8 @@ import (
 // ASOManagedMachinePoolReconciler reconciles a ASOManagedMachinePool object
 type ASOManagedMachinePoolReconciler struct {
 	client.Client
-	Scheme          *runtime.Scheme
+	Scheme *runtime.Scheme
+	// TODO: add pod metadata to this controller pod to fix "Couldn't find controller pod metadata" log
 	Tracker         *remote.ClusterCacheTracker
 	controller      controller.Controller
 	externalTracker *external.ObjectTracker

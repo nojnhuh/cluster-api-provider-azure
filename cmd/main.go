@@ -25,7 +25,11 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
-	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20231001"
+	asocontainerservicev1api20210501 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20210501"
+	asocontainerservicev1api20230201 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20230201"
+	asocontainerservicev1api20230202preview "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20230202preview"
+	asocontainerservicev1api20231001 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20231001"
+	asocontainerservicev1api20231102preview "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20231102preview"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -53,7 +57,14 @@ func init() {
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(clusterv1.AddToScheme(scheme))
 	utilruntime.Must(expv1.AddToScheme(scheme))
-	utilruntime.Must(asocontainerservicev1.AddToScheme(scheme))
+	// All versions for ASO ManagedCluster and ManagedClustersAgentPool are represented here to facilitate
+	// conversion to work around https://github.com/Azure/azure-service-operator/issues/2791. When that issue
+	// is implemented, we should only need any one version here that we choose to use internally.
+	utilruntime.Must(asocontainerservicev1api20210501.AddToScheme(scheme))
+	utilruntime.Must(asocontainerservicev1api20230201.AddToScheme(scheme))
+	utilruntime.Must(asocontainerservicev1api20230202preview.AddToScheme(scheme))
+	utilruntime.Must(asocontainerservicev1api20231001.AddToScheme(scheme))
+	utilruntime.Must(asocontainerservicev1api20231102preview.AddToScheme(scheme))
 
 	utilruntime.Must(infrav1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme

@@ -39,11 +39,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/conversion"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
+	"github.com/nojnhuh/cluster-api-provider-aso/internal/aks"
 )
 
 // ASOManagedControlPlaneReconciler reconciles a ASOManagedControlPlane object
@@ -130,13 +132,79 @@ func (r *ASOManagedControlPlaneReconciler) reconcileNormal(ctx context.Context, 
 			u.GroupVersionKind().Kind == "ManagedCluster" &&
 			managedClusterName == "" {
 			managedClusterName = u.GetName()
-			// TODO: default this in a webhook. Check to make sure ClusterClass controller doesn't fight with
+			// TODO: default/validate this isn't set in a webhook. Check to make sure ClusterClass controller doesn't fight with
 			// a webhook-defaulted value
 			// TODO: auto upgrades?
+			// TODO: maybe conversion can help us work with a typed object here instead?
 			err := unstructured.SetNestedField(u.UnstructuredContent(), strings.TrimPrefix(asoControlPlane.Spec.Version, "v"), "spec", "kubernetesVersion")
 			if err != nil {
 				return ctrl.Result{}, err
 			}
+
+			// TODO: also forbid setting agentPoolProfiles in CAPASO spec
+			getMC := &asocontainerservicev1.ManagedCluster{}
+			err = r.Get(ctx, client.ObjectKey{Namespace: asoControlPlane.Namespace, Name: managedClusterName}, getMC)
+			if client.IgnoreNotFound(err) != nil {
+				return ctrl.Result{}, err
+			}
+			if len(getMC.Status.AgentPoolProfiles) == 0 {
+				log.Info("gathering agent pool profiles to include in ManagedCluster create")
+				// AKS requires ManagedClusters to be created with agent pools: https://github.com/Azure/azure-service-operator/issues/2791
+				asoManagedMachinePools := &infrav1.ASOManagedMachinePoolList{}
+				err := r.List(ctx, asoManagedMachinePools,
+					client.InNamespace(asoControlPlane.Namespace),
+					client.MatchingLabels{
+						clusterv1.ClusterNameLabel: cluster.Name,
+					},
+				)
+				if err != nil {
+					return ctrl.Result{}, fmt.Errorf("failed to list ASOManagedMachinePools: %w", err)
+				}
+				if len(asoManagedMachinePools.Items) == 0 {
+					// TODO: watch ASOManagedMachinePools instead of requeueing here? Or maybe this is good enough?
+					return ctrl.Result{Requeue: true}, nil
+				}
+				var agentPools []conversion.Convertible
+				for _, asoManagedMachinePool := range asoManagedMachinePools.Items {
+					for _, resource := range asoManagedMachinePool.Spec.Resources {
+						u := &unstructured.Unstructured{}
+						if err := u.UnmarshalJSON(resource.Raw); err != nil {
+							return ctrl.Result{}, fmt.Errorf("failed to unmarshal resource JSON: %w", err)
+						}
+						if u.GroupVersionKind().Group != asocontainerservicev1.GroupVersion.Group ||
+							u.GroupVersionKind().Kind != "ManagedClustersAgentPool" {
+							continue
+						}
+
+						agentPool, err := r.Scheme.New(u.GroupVersionKind())
+						if err != nil {
+							return ctrl.Result{}, fmt.Errorf("error creating new %v: %w", u.GroupVersionKind(), err)
+						}
+						err = r.Scheme.Convert(u, agentPool, nil)
+						if err != nil {
+							return ctrl.Result{}, err
+						}
+
+						agentPools = append(agentPools, agentPool.(conversion.Convertible))
+						break
+					}
+				}
+
+				mc, err := r.Scheme.New(u.GroupVersionKind())
+				if err != nil {
+					return ctrl.Result{}, err
+				}
+				err = r.Scheme.Convert(u, mc, nil)
+				if err != nil {
+					return ctrl.Result{}, err
+				}
+				err = aks.SetAgentPoolProfilesFromAgentPools(mc.(conversion.Convertible), agentPools)
+				err = r.Scheme.Convert(mc, u, nil)
+				if err != nil {
+					return ctrl.Result{}, err
+				}
+			}
+
 		}
 
 		defaulted, err := u.MarshalJSON()

@@ -44,14 +44,6 @@ resources:
     dnsPrefix: {{ quote $clusterName }}
     location: {{ default $.Values.location $.Values.managedClusterSpec.location | quote }}
     {{- toYaml (unset $.Values.managedClusterSpec "location") | nindent 4 }}
-    agentPoolProfiles:
-      # TODO: This agent pool only exists to facilitate managing agent pools
-      # separately from managed clusters:
-      # https://github.com/Azure/azure-service-operator/issues/2791
-      - vmSize: Standard_DS2_v2
-        name: stub
-        count: 1
-        mode: System
     operatorSpec:
       secrets:
         adminCredentials:
