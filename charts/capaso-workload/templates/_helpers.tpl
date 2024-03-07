@@ -70,5 +70,5 @@ resources:
     {{- end }}
     owner:
       name: {{ quote $clusterName }}
-    {{- toYaml $mp | nindent 4 }}
+    {{- toYaml (unset $mp "count") | nindent 4 }}
 {{- end }}
