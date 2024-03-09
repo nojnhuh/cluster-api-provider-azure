@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	asoresourcesv1 "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
@@ -94,37 +95,28 @@ func TestInfraReconcilerReconcile(t *testing.T) {
 			Client: &FakePatcherClient{c},
 			resources: []runtime.RawExtension{
 				{
-					Raw: []byte(`{
-						"apiVersion": "resources.azure.com/v1api20200601",
-						"kind": "ResourceGroup",
-						"metadata": {
-							"name": "rg1"
+					Raw: rgJSON(t, &asoresourcesv1.ResourceGroup{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "rg1",
 						},
-						"spec": {
-							"location": "eastus"
-						},
-						"status": {
-							"conditions": [
+						// status is supplied here to simulate the API server response after patching.
+						Status: asoresourcesv1.ResourceGroup_STATUS{
+							Conditions: conditions.Conditions{
 								{
-									"type": "Ready",
-									"status": "False",
-									"message": "rg1 message"
-								}
-							]
-						}
-					}`), // ^ status is supplied here to simulate the API server response after patching.
+									Type:    conditions.ConditionTypeReady,
+									Status:  metav1.ConditionFalse,
+									Message: "rg1 message",
+								},
+							},
+						},
+					}),
 				},
 				{
-					Raw: []byte(`{
-						"apiVersion": "resources.azure.com/v1api20200601",
-						"kind": "ResourceGroup",
-						"metadata": {
-							"name": "rg2"
+					Raw: rgJSON(t, &asoresourcesv1.ResourceGroup{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "rg2",
 						},
-						"spec": {
-							"location": "eastus"
-						}
-					}`),
+					}),
 				},
 			},
 			owner: &infrav1.ASOManagedCluster{
@@ -310,28 +302,18 @@ func TestInfraReconcilerDelete(t *testing.T) {
 			Client: &FakeDeleterClient{c},
 			resources: []runtime.RawExtension{
 				{
-					Raw: []byte(`{
-						"apiVersion": "resources.azure.com/v1api20200601",
-						"kind": "ResourceGroup",
-						"metadata": {
-							"name": "rg1"
+					Raw: rgJSON(t, &asoresourcesv1.ResourceGroup{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "rg1",
 						},
-						"spec": {
-							"location": "eastus"
-						}
-					}`),
+					}),
 				},
 				{
-					Raw: []byte(`{
-						"apiVersion": "resources.azure.com/v1api20200601",
-						"kind": "ResourceGroup",
-						"metadata": {
-							"name": "rg2"
+					Raw: rgJSON(t, &asoresourcesv1.ResourceGroup{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "rg2",
 						},
-						"spec": {
-							"location": "eastus"
-						}
-					}`),
+					}),
 				},
 			},
 			owner: owner,
@@ -578,6 +560,14 @@ func TestReadyStatus(t *testing.T) {
 			})
 		}
 	})
+}
+
+func rgJSON(t *testing.T, rg *asoresourcesv1.ResourceGroup) []byte {
+	t.Helper()
+	rg.SetGroupVersionKind(asoresourcesv1.GroupVersion.WithKind("ResourceGroup"))
+	j, err := json.Marshal(rg)
+	t.Run("marshal", expectSuccess(err))
+	return j
 }
 
 func expectSuccess(err error) func(*testing.T) {

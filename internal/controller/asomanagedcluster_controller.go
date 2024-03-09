@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/go-logr/logr"
@@ -33,7 +34,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -44,12 +44,23 @@ import (
 	infrav1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
 )
 
+var invalidControlPlaneKindErr = errors.New("ASOManagedCluster cannot be used without ASOManagedControlPlane")
+
 // ASOManagedClusterReconciler reconciles a ASOManagedCluster object
 type ASOManagedClusterReconciler struct {
 	client.Client
-	Scheme          *runtime.Scheme
-	controller      controller.Controller
-	externalTracker *external.ObjectTracker
+	Scheme                *runtime.Scheme
+	newResourceReconciler func(*infrav1.ASOManagedCluster) resourceReconciler
+}
+
+type resourceReconciler interface {
+	// Reconcile reconciles resources defined by this object and updates this object's status to reflect the
+	// state of the specified resources.
+	Reconcile(context.Context) error
+
+	// Delete begins deleting the specified resources and updates the object's status to reflect the state of
+	// the specified resources.
+	Delete(context.Context) error
 }
 
 //+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;patch
@@ -108,7 +119,7 @@ func (r *ASOManagedClusterReconciler) reconcileNormal(ctx context.Context, asoCl
 		return ctrl.Result{}, nil
 	}
 	if cluster.Spec.ControlPlaneRef == nil || cluster.Spec.ControlPlaneRef.Kind != "ASOManagedControlPlane" {
-		return ctrl.Result{}, reconcile.TerminalError(fmt.Errorf("ASOManagedCluster cannot be used without ASOManagedControlPlane"))
+		return ctrl.Result{}, reconcile.TerminalError(invalidControlPlaneKindErr)
 	}
 
 	if controllerutil.AddFinalizer(asoCluster, clusterv1.ClusterFinalizer) {
@@ -116,13 +127,8 @@ func (r *ASOManagedClusterReconciler) reconcileNormal(ctx context.Context, asoCl
 	}
 
 	asoCluster.Status.Ready = false
-	infraReconciler := &InfraReconciler{
-		Client:    r.Client,
-		resources: asoCluster.Spec.Resources,
-		owner:     asoCluster,
-		watcher:   r.externalTracker,
-	}
-	err := infraReconciler.Reconcile(ctx)
+	resourceReconciler := r.newResourceReconciler(asoCluster)
+	err := resourceReconciler.Reconcile(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -139,12 +145,8 @@ func (r *ASOManagedClusterReconciler) reconcileNormal(ctx context.Context, asoCl
 		},
 	}
 	err = r.Get(ctx, client.ObjectKeyFromObject(asoControlPlane), asoControlPlane)
-	if err != nil {
-		if !apierrors.IsNotFound(err) {
-			return ctrl.Result{}, reconcile.TerminalError(fmt.Errorf("failed to get ASOManagedControlPlane %s/%s: %w", asoControlPlane.Namespace, asoControlPlane.Name, err))
-		}
-		// The cluster is probably being deleted. We don't care if the control plane doesn't exist.
-		return ctrl.Result{}, nil
+	if client.IgnoreNotFound(err) != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to get ASOManagedControlPlane %s/%s: %w", asoControlPlane.Namespace, asoControlPlane.Name, err)
 	}
 
 	asoCluster.Spec.ControlPlaneEndpoint = asoControlPlane.Status.ControlPlaneEndpoint
@@ -159,13 +161,8 @@ func (r *ASOManagedClusterReconciler) reconcileDelete(ctx context.Context, asoCl
 		return ctrl.Result{}, nil
 	}
 
-	infraReconciler := &InfraReconciler{
-		Client:    r.Client,
-		resources: asoCluster.Spec.Resources,
-		owner:     asoCluster,
-		watcher:   r.externalTracker,
-	}
-	err := infraReconciler.Delete(ctx)
+	resourceReconciler := r.newResourceReconciler(asoCluster)
+	err := resourceReconciler.Delete(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -205,9 +202,16 @@ func (r *ASOManagedClusterReconciler) SetupWithManager(ctx context.Context, mgr 
 		return err
 	}
 
-	r.externalTracker = &external.ObjectTracker{
-		Cache:      mgr.GetCache(),
-		Controller: c,
+	r.newResourceReconciler = func(asoCluster *infrav1.ASOManagedCluster) resourceReconciler {
+		return &InfraReconciler{
+			Client:    r.Client,
+			resources: asoCluster.Spec.Resources,
+			owner:     asoCluster,
+			watcher: &external.ObjectTracker{
+				Cache:      mgr.GetCache(),
+				Controller: c,
+			},
+		}
 	}
 
 	return nil
