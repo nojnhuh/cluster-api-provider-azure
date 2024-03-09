@@ -117,10 +117,10 @@ func (r *ASOManagedClusterReconciler) reconcileNormal(ctx context.Context, asoCl
 
 	asoCluster.Status.Ready = false
 	infraReconciler := &InfraReconciler{
-		Client:          r.Client,
-		resources:       asoCluster.Spec.Resources,
-		owner:           asoCluster,
-		externalTracker: r.externalTracker,
+		Client:    r.Client,
+		resources: asoCluster.Spec.Resources,
+		owner:     asoCluster,
+		watcher:   r.externalTracker,
 	}
 	err := infraReconciler.Reconcile(ctx)
 	if err != nil {
@@ -160,10 +160,10 @@ func (r *ASOManagedClusterReconciler) reconcileDelete(ctx context.Context, asoCl
 	}
 
 	infraReconciler := &InfraReconciler{
-		Client:          r.Client,
-		resources:       asoCluster.Spec.Resources,
-		owner:           asoCluster,
-		externalTracker: r.externalTracker,
+		Client:    r.Client,
+		resources: asoCluster.Spec.Resources,
+		owner:     asoCluster,
+		watcher:   r.externalTracker,
 	}
 	err := infraReconciler.Delete(ctx)
 	if err != nil {

@@ -1,3 +1,19 @@
+/*
+Copyright 2024.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package controller
 
 import (
@@ -5,26 +21,33 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
+	"github.com/go-logr/logr"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/klog/v2"
-	"sigs.k8s.io/cluster-api/controllers/external"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	infrav1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
 )
 
+var waitingForASOReconcileMsg = "Waiting for ASO to reconcile the resource"
+
 type InfraReconciler struct {
 	client.Client
-	resources       []runtime.RawExtension
-	owner           resourceStatusObject
-	externalTracker *external.ObjectTracker
+	resources []runtime.RawExtension
+	owner     resourceStatusObject
+	watcher   watcher
+}
+
+type watcher interface {
+	Watch(log logr.Logger, obj runtime.Object, handler handler.EventHandler, p ...predicate.Predicate) error
 }
 
 type resourceStatusObject interface {
@@ -63,7 +86,7 @@ func (r *InfraReconciler) Reconcile(ctx context.Context) error {
 			return fmt.Errorf("failed to set owner reference: %w", err)
 		}
 
-		if err := r.externalTracker.Watch(log, spec, handler.EnqueueRequestForOwner(r.Client.Scheme(), r.Client.RESTMapper(), r.owner)); err != nil {
+		if err := r.watcher.Watch(log, spec, handler.EnqueueRequestForOwner(r.Client.Scheme(), r.Client.RESTMapper(), r.owner)); err != nil {
 			return fmt.Errorf("failed to watch resource: %w", err)
 		}
 
@@ -147,7 +170,7 @@ func readyStatus(u *unstructured.Unstructured) (bool, string) {
 
 		observedGen, _, err := unstructured.NestedInt64(condition, "observedGeneration")
 		if observedGen < u.GetGeneration() {
-			return false, "Waiting for ASO to reconcile the resource"
+			return false, waitingForASOReconcileMsg
 		}
 
 		status, found, err := unstructured.NestedString(condition, "status")

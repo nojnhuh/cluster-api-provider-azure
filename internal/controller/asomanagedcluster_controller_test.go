@@ -79,9 +79,11 @@ var _ = Describe("ASOManagedCluster Controller", func() {
 				},
 			},
 			Spec: infrav1.ASOManagedClusterSpec{
-				Resources: []runtime.RawExtension{
-					{
-						Object: resource,
+				ASOManagedClusterTemplateResourceSpec: infrav1.ASOManagedClusterTemplateResourceSpec{
+					Resources: []runtime.RawExtension{
+						{
+							Object: resource,
+						},
 					},
 				},
 			},

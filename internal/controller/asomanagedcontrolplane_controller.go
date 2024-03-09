@@ -219,10 +219,10 @@ func (r *ASOManagedControlPlaneReconciler) reconcileNormal(ctx context.Context, 
 	}
 
 	infraReconciler := &InfraReconciler{
-		Client:          r.Client,
-		resources:       resources,
-		owner:           asoControlPlane,
-		externalTracker: r.externalTracker,
+		Client:    r.Client,
+		resources: resources,
+		owner:     asoControlPlane,
+		watcher:   r.externalTracker,
 	}
 	err := infraReconciler.Reconcile(ctx)
 	if err != nil {
@@ -321,10 +321,10 @@ func (r *ASOManagedControlPlaneReconciler) reconcileDelete(ctx context.Context, 
 	}
 
 	infraReconciler := &InfraReconciler{
-		Client:          r.Client,
-		resources:       asoControlPlane.Spec.Resources,
-		owner:           asoControlPlane,
-		externalTracker: r.externalTracker,
+		Client:    r.Client,
+		resources: asoControlPlane.Spec.Resources,
+		owner:     asoControlPlane,
+		watcher:   r.externalTracker,
 	}
 
 	err := infraReconciler.Delete(ctx)

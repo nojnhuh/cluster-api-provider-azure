@@ -175,10 +175,10 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 	}
 
 	infraReconciler := &InfraReconciler{
-		Client:          r.Client,
-		resources:       asoMachinePool.Spec.Resources,
-		owner:           asoMachinePool,
-		externalTracker: r.externalTracker,
+		Client:    r.Client,
+		resources: asoMachinePool.Spec.Resources,
+		owner:     asoMachinePool,
+		watcher:   r.externalTracker,
 	}
 	err := infraReconciler.Reconcile(ctx)
 	if err != nil {
@@ -242,10 +242,10 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 
 func (r *ASOManagedMachinePoolReconciler) reconcileDelete(ctx context.Context, asoMachinePool *infrav1.ASOManagedMachinePool, cluster *clusterv1.Cluster) (ctrl.Result, error) {
 	infraReconciler := &InfraReconciler{
-		Client:          r.Client,
-		resources:       asoMachinePool.Spec.Resources,
-		owner:           asoMachinePool,
-		externalTracker: r.externalTracker,
+		Client:    r.Client,
+		resources: asoMachinePool.Spec.Resources,
+		owner:     asoMachinePool,
+		watcher:   r.externalTracker,
 	}
 
 	// If the entire cluster is being deleted, this ASO ManagedClustersAgentPool will be deleted with the rest
