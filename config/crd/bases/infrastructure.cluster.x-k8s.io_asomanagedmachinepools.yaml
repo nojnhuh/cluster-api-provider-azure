@@ -59,11 +59,6 @@ spec:
             description: ASOManagedMachinePoolStatus defines the observed state of
               ASOManagedMachinePool
             properties:
-              agentPoolName:
-                description: |-
-                  AKSAgentPoolName is the name of the agent pool associated with this ASOManagedMachinePool as it exists in
-                  Azure.
-                type: string
               observedGeneration:
                 description: ObservedGeneration is the last generation that was successfully
                   reconciled.

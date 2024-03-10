@@ -21,6 +21,7 @@ import (
 	asocontainerservicev1hub "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20231001/storage"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/utils/ptr"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	expv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
@@ -99,9 +100,25 @@ func SetAgentPoolDefaults(u *unstructured.Unstructured, machinePool *expv1.Machi
 	if err != nil {
 		return err
 	}
-	err = unstructured.SetNestedField(u.UnstructuredContent(), int64(ptr.Deref(machinePool.Spec.Replicas, 1)), "spec", "count")
+
+	var count any
+	autoscaling, _, err := unstructured.NestedBool(u.UnstructuredContent(), "spec", "enableAutoScaling")
 	if err != nil {
 		return err
 	}
+	if autoscaling {
+		if machinePool.Annotations == nil {
+			machinePool.Annotations = make(map[string]string)
+		}
+		machinePool.Annotations[clusterv1.ReplicasManagedByAnnotation] = "aks"
+	} else {
+		count = int64(ptr.Deref(machinePool.Spec.Replicas, 1))
+		delete(machinePool.Annotations, clusterv1.ReplicasManagedByAnnotation)
+	}
+	err = unstructured.SetNestedField(u.UnstructuredContent(), count, "spec", "count")
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

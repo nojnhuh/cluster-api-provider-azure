@@ -71,6 +71,19 @@ func (r *ASOManagedMachinePoolReconciler) Reconcile(ctx context.Context, req ctr
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	machinePool, err := utilexp.GetOwnerMachinePool(ctx, r.Client, asoMachinePool.ObjectMeta)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if machinePool == nil {
+		log.Info("Waiting for MachinePool Controller to set OwnerRef on ASOManagedMachinePool")
+		return ctrl.Result{}, nil
+	}
+	machinePoolBefore := machinePool.DeepCopy()
+
+	log = log.WithValues("MachinePool", machinePool.Name)
+	ctx = ctrl.LoggerInto(ctx, log)
+
 	patchHelper, err := patch.NewHelper(asoMachinePool, r.Client)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to init patch helper: %w", err)
@@ -80,27 +93,20 @@ func (r *ASOManagedMachinePoolReconciler) Reconcile(ctx context.Context, req ctr
 			asoMachinePool.Status.ObservedGeneration = asoMachinePool.Generation
 		}
 
-		err := patchHelper.Patch(ctx, asoMachinePool)
-		if !asoMachinePool.GetDeletionTimestamp().IsZero() {
-			err = ignorePatchErrNotFound(err)
+		// Skip using a patch helper here because we will never modify the MachinePool status.
+		err := r.Patch(ctx, machinePool, client.MergeFrom(machinePoolBefore))
+		if err == nil {
+			err = patchHelper.Patch(ctx, asoMachinePool)
+			if !asoMachinePool.GetDeletionTimestamp().IsZero() {
+				err = ignorePatchErrNotFound(err)
+			}
 		}
+
 		if err != nil && resultErr == nil {
 			resultErr = err
 			result = ctrl.Result{}
 		}
 	}()
-
-	machinePool, err := utilexp.GetOwnerMachinePool(ctx, r.Client, asoMachinePool.ObjectMeta)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	if machinePool == nil {
-		log.Info("Waiting for MachinePool Controller to set OwnerRef on ASOManagedMachinePool")
-		return ctrl.Result{}, nil
-	}
-
-	log = log.WithValues("MachinePool", machinePool.Name)
-	ctx = ctrl.LoggerInto(ctx, log)
 
 	cluster, err := util.GetClusterFromMetadata(ctx, r.Client, machinePool.ObjectMeta)
 	if err != nil {
@@ -140,27 +146,29 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 	asoMachinePool.Status.Ready = false
 
 	// TODO: extract this "get ASO resource from CAPASO resource" into a function
+	var resources []runtime.RawExtension
 	var ump *unstructured.Unstructured
-	for i, resource := range asoMachinePool.Spec.Resources {
+	for _, resource := range asoMachinePool.Spec.Resources {
 		u := &unstructured.Unstructured{}
 		if err := u.UnmarshalJSON(resource.Raw); err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to unmarshal resource JSON: %w", err)
 		}
 		u.SetNamespace(cluster.Namespace)
 		if u.GroupVersionKind().Group == asocontainerservicev1.GroupVersion.Group &&
-			u.GroupVersionKind().Kind == "ManagedClustersAgentPool" {
-			// TODO: autoscaling
+			u.GroupVersionKind().Kind == "ManagedClustersAgentPool" &&
+			ump == nil {
 			err := aks.SetAgentPoolDefaults(u, machinePool)
 			if err != nil {
 				return ctrl.Result{}, err
 			}
-			asoMachinePool.Spec.Resources[i].Raw, err = u.MarshalJSON()
-			if err != nil {
-				return ctrl.Result{}, err
-			}
 			ump = u
-			break
 		}
+
+		defaulted, err := u.MarshalJSON()
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		resources = append(resources, runtime.RawExtension{Raw: defaulted})
 	}
 	if ump == nil {
 		// TODO: move this to a webhook.
@@ -169,7 +177,7 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 
 	infraReconciler := &InfraReconciler{
 		Client:    r.Client,
-		resources: asoMachinePool.Spec.Resources,
+		resources: resources,
 		owner:     asoMachinePool,
 		watcher:   r.externalTracker,
 	}
@@ -190,12 +198,6 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("error getting ManagedClustersAgentPool: %w", err)
 	}
-	oldAgentPoolName := asoMachinePool.Status.AKSAgentPoolName
-	asoMachinePool.Status.AKSAgentPoolName = agentPool.AzureName()
-	if oldAgentPoolName != asoMachinePool.Status.AKSAgentPoolName {
-		// Ensure a watch on Nodes is only started after this change has been persisted.
-		return ctrl.Result{Requeue: true}, nil
-	}
 
 	// I'm not entirely convinced we need to watch nodes here.
 	managedCluster := &asocontainerservicev1.ManagedCluster{}
@@ -215,7 +217,7 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 	nodes := &corev1.NodeList{}
 	err = clusterClient.List(ctx, nodes,
 		client.MatchingLabels{
-			"kubernetes.azure.com/agentpool": asoMachinePool.Status.AKSAgentPoolName,
+			"kubernetes.azure.com/agentpool": agentPool.AzureName(),
 			"kubernetes.azure.com/cluster":   rg,
 		},
 	)
@@ -227,7 +229,12 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 		providerIDs = append(providerIDs, node.Spec.ProviderID)
 	}
 	asoMachinePool.Spec.ProviderIDList = providerIDs
+
 	asoMachinePool.Status.Replicas = int32(ptr.Deref(agentPool.Status.Count, 0))
+	if auto, ok := machinePool.Annotations[clusterv1.ReplicasManagedByAnnotation]; ok && auto != "false" {
+		machinePool.Spec.Replicas = &asoMachinePool.Status.Replicas
+	}
+
 	asoMachinePool.Status.Ready = true
 
 	return ctrl.Result{}, nil
