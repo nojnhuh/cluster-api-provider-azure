@@ -32,6 +32,7 @@ import (
 	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/controllers/external"
+	utilexp "sigs.k8s.io/cluster-api/exp/util"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/cluster-api/util/predicates"
@@ -245,6 +246,21 @@ func (r *ASOManagedControlPlaneReconciler) defaultResources(ctx context.Context,
 						if u.GroupVersionKind().Group != asocontainerservicev1.GroupVersion.Group ||
 							u.GroupVersionKind().Kind != "ManagedClustersAgentPool" {
 							continue
+						}
+
+						machinePool, err := utilexp.GetOwnerMachinePool(ctx, r.Client, asoManagedMachinePool.ObjectMeta)
+						if err != nil {
+							return nil, "", err
+						}
+						if machinePool == nil {
+							log.Info("Waiting for MachinePool Controller to set OwnerRef on ASOManagedMachinePool")
+							// TODO: this error isn't very accurate, but it has some bearing on control flow
+							// that matches what we want here, which is to exit early and requeue.
+							return nil, "", noASOManagedMachinePoolsErr
+						}
+
+						if err := aks.SetAgentPoolDefaults(u, machinePool); err != nil {
+							return nil, "", err
 						}
 
 						agentPool, err := r.Client.Scheme().New(u.GroupVersionKind())

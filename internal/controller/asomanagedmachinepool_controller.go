@@ -19,7 +19,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -45,6 +44,7 @@ import (
 
 	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20231001"
 	infrav1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
+	"github.com/nojnhuh/cluster-api-provider-aso/internal/aks"
 )
 
 // ASOManagedMachinePoolReconciler reconciles a ASOManagedMachinePool object
@@ -150,14 +150,7 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 		if u.GroupVersionKind().Group == asocontainerservicev1.GroupVersion.Group &&
 			u.GroupVersionKind().Kind == "ManagedClustersAgentPool" {
 			// TODO: autoscaling
-			// TODO: do this in a webhook. Or not? maybe never let users set this in the ASO resource and
-			// silently propagate it here so the CAPASO manifest doesn't have two fields that mean the same
-			// thing where it's not obvious which one is authoritative?
-			err := unstructured.SetNestedField(u.UnstructuredContent(), int64(ptr.Deref(machinePool.Spec.Replicas, 1)), "spec", "count")
-			if err != nil {
-				return ctrl.Result{}, err
-			}
-			err = unstructured.SetNestedField(u.UnstructuredContent(), strings.TrimPrefix(ptr.Deref(machinePool.Spec.Template.Spec.Version, ""), "v"), "spec", "orchestratorVersion")
+			err := aks.SetAgentPoolDefaults(u, machinePool)
 			if err != nil {
 				return ctrl.Result{}, err
 			}

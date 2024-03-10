@@ -29,10 +29,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	expv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/secret"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -47,6 +49,7 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 		corev1.AddToScheme,
 		infrav1.AddToScheme,
 		clusterv1.AddToScheme,
+		expv1.AddToScheme,
 		asocontainerservicev1.AddToScheme,
 	)
 	t.Run("build scheme", expectSuccess(sb.AddToScheme(s)))
@@ -347,12 +350,28 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 				},
 			},
 		}
-		mp := &infrav1.ASOManagedMachinePool{
+		mp := &expv1.MachinePool{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "mp",
+				Namespace: cluster.Namespace,
+			},
+			Spec: expv1.MachinePoolSpec{
+				Replicas: ptr.To[int32](5),
+			},
+		}
+		asoManagedMachinePool := &infrav1.ASOManagedMachinePool{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "pool0",
 				Namespace: cluster.Namespace,
 				Labels: map[string]string{
 					clusterv1.ClusterNameLabel: cluster.Name,
+				},
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						APIVersion: expv1.GroupVersion.Identifier(),
+						Kind:       "MachinePool",
+						Name:       mp.Name,
+					},
 				},
 			},
 			Spec: infrav1.ASOManagedMachinePoolSpec{
@@ -430,7 +449,7 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(cluster, asoControlPlane, mp, mc, kubeconfig).
+			WithObjects(cluster, asoControlPlane, asoManagedMachinePool, mp, mc, kubeconfig).
 			Build()
 
 		r := &ASOManagedControlPlaneReconciler{
@@ -449,6 +468,33 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 				},
 			},
 			newResourceReconciler: func(asoControlPlane *infrav1.ASOManagedControlPlane, resources []runtime.RawExtension) resourceReconciler {
+				t.Run("reconciled resources", func(t *testing.T) {
+					for _, resource := range resources {
+						u := &unstructured.Unstructured{}
+						t.Run("unmarshal", expectSuccess(u.UnmarshalJSON(resource.Raw)))
+						if u.GroupVersionKind().Group != asocontainerservicev1.GroupVersion.Group ||
+							u.GroupVersionKind().Kind != "ManagedCluster" {
+							continue
+						}
+						t.Run("managedcluster", func(t *testing.T) {
+							t.Run("spec.agentPoolProfiles", func(t *testing.T) {
+								agentPoolProfiles, found, err := unstructured.NestedSlice(u.UnstructuredContent(), "spec", "agentPoolProfiles")
+								t.Run("exists", checkEqual(found, true))
+								t.Run("is slice", expectSuccess(err))
+								t.Run("length", checkEqual(len(agentPoolProfiles), 1))
+								t.Run("0", func(t *testing.T) {
+									pool := agentPoolProfiles[0]
+									t.Run("count", func(t *testing.T) {
+										count, found, err := unstructured.NestedInt64(pool.(map[string]interface{}), "count")
+										t.Run("exists", checkEqual(found, true))
+										t.Run("is int", expectSuccess(err))
+										t.Run("value", checkEqual(count, 5))
+									})
+								})
+							})
+						})
+					}
+				})
 				return &fakeResourceReconciler{
 					reconcileFunc: func(_ context.Context, asoControlPlane resourceStatusObject) error {
 						return nil
