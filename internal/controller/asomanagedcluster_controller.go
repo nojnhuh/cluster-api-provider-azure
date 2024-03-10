@@ -50,6 +50,7 @@ var invalidControlPlaneKindErr = errors.New("ASOManagedCluster cannot be used wi
 type ASOManagedClusterReconciler struct {
 	client.Client
 	Scheme                *runtime.Scheme
+	externalTracker       *external.ObjectTracker
 	newResourceReconciler func(*infrav1.ASOManagedCluster) resourceReconciler
 }
 
@@ -202,15 +203,17 @@ func (r *ASOManagedClusterReconciler) SetupWithManager(ctx context.Context, mgr 
 		return err
 	}
 
+	r.externalTracker = &external.ObjectTracker{
+		Cache:      mgr.GetCache(),
+		Controller: c,
+	}
+
 	r.newResourceReconciler = func(asoCluster *infrav1.ASOManagedCluster) resourceReconciler {
 		return &InfraReconciler{
 			Client:    r.Client,
 			resources: asoCluster.Spec.Resources,
 			owner:     asoCluster,
-			watcher: &external.ObjectTracker{
-				Cache:      mgr.GetCache(),
-				Controller: c,
-			},
+			watcher:   r.externalTracker,
 		}
 	}
 
