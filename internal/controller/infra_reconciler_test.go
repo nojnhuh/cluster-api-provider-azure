@@ -35,24 +35,28 @@ import (
 	infrav1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
 )
 
-// FakePatcherClient overrides the Patch method because controller-runtime's doesn't really support
-// server-side apply, so we make our own dollar store version:
-// https://github.com/kubernetes-sigs/controller-runtime/issues/2341
-type FakePatcherClient struct {
+type FakeClient struct {
 	client.Client
+	// Override the Patch method because controller-runtime's doesn't really support
+	// server-side apply, so we make our own dollar store version:
+	// https://github.com/kubernetes-sigs/controller-runtime/issues/2341
+	patchFunc func(context.Context, client.Object, client.Patch, ...client.PatchOption) error
+	// Override Delete in order to simulate long-running deletes.
+	deleteFunc func(context.Context, client.Object, ...client.DeleteOption) error
 }
 
-func (c *FakePatcherClient) Patch(_ context.Context, obj client.Object, _ client.Patch, _ ...client.PatchOption) error {
-	return nil
+func (c *FakeClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+	if c.patchFunc == nil {
+		return nil
+	}
+	return c.patchFunc(ctx, obj, patch, opts...)
 }
 
-// FakeDeleterClient doesn't actually delete any objects in order to test long-running delete operations.
-type FakeDeleterClient struct {
-	client.Client
-}
-
-func (c *FakeDeleterClient) Delete(_ context.Context, _ client.Object, _ ...client.DeleteOption) error {
-	return nil
+func (c *FakeClient) Delete(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
+	if c.deleteFunc == nil {
+		return nil
+	}
+	return c.deleteFunc(ctx, obj, opts...)
 }
 
 type FakeWatcher struct {
@@ -92,7 +96,7 @@ func TestInfraReconcilerReconcile(t *testing.T) {
 			Build()
 
 		r := &InfraReconciler{
-			Client: &FakePatcherClient{c},
+			Client: &FakeClient{Client: c},
 			resources: []runtime.RawExtension{
 				{
 					Raw: rgJSON(t, &asoresourcesv1.ResourceGroup{
@@ -299,7 +303,7 @@ func TestInfraReconcilerDelete(t *testing.T) {
 			Build()
 
 		r := &InfraReconciler{
-			Client: &FakeDeleterClient{c},
+			Client: &FakeClient{Client: c},
 			resources: []runtime.RawExtension{
 				{
 					Raw: rgJSON(t, &asoresourcesv1.ResourceGroup{

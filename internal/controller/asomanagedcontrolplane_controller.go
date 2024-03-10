@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -48,11 +49,17 @@ import (
 	"github.com/nojnhuh/cluster-api-provider-aso/internal/aks"
 )
 
+var (
+	invalidClusterKindErr       = errors.New("ASOManagedControlPlane cannot be used without ASOManagedCluster")
+	noASOManagedMachinePoolsErr = errors.New("no ASOManagedMachinePools found for ASOManagedControlPlane")
+	noManagedClusterDefinedErr  = fmt.Errorf("no %s ManagedCluster defined in ASOManagedControlPlane spec.resources", asocontainerservicev1.GroupVersion.Group)
+)
+
 // ASOManagedControlPlaneReconciler reconciles a ASOManagedControlPlane object
 type ASOManagedControlPlaneReconciler struct {
 	client.Client
-	Scheme          *runtime.Scheme
-	externalTracker *external.ObjectTracker
+	Scheme                *runtime.Scheme
+	newResourceReconciler func(*infrav1.ASOManagedControlPlane, []runtime.RawExtension) resourceReconciler
 }
 
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=asomanagedcontrolplanes,verbs=get;list;watch;create;update;patch;delete
@@ -108,7 +115,7 @@ func (r *ASOManagedControlPlaneReconciler) reconcileNormal(ctx context.Context, 
 		return ctrl.Result{}, nil
 	}
 	if cluster.Spec.InfrastructureRef == nil || cluster.Spec.InfrastructureRef.Kind != "ASOManagedCluster" {
-		return ctrl.Result{}, reconcile.TerminalError(fmt.Errorf("ASOManagedControlPlane cannot be used without ASOManagedCluster"))
+		return ctrl.Result{}, reconcile.TerminalError(invalidClusterKindErr)
 	}
 
 	if controllerutil.AddFinalizer(asoControlPlane, clusterv1.ClusterFinalizer) {
@@ -118,113 +125,20 @@ func (r *ASOManagedControlPlaneReconciler) reconcileNormal(ctx context.Context, 
 	asoControlPlane.Status.Ready = false
 	asoControlPlane.Status.Initialized = asoControlPlane.Status.Ready
 
-	// resources is a copy of the resources as they are defined in the spec, with some fields defaulted based
-	// on other fields that are defined in the CAPI contract. These defaults are not persisted to keep the
-	// ClusterClass controller from trying to overwrite them.
-	var resources []runtime.RawExtension
-	var managedClusterName string
-	for _, resource := range asoControlPlane.Spec.Resources {
-		u := &unstructured.Unstructured{}
-		if err := u.UnmarshalJSON(resource.Raw); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to unmarshal resource JSON: %w", err)
+	resources, managedClusterName, err := r.defaultResources(ctx, asoControlPlane, cluster)
+	if err != nil {
+		// TODO: watch ASOManagedMachinePools instead of requeueing here? Or maybe this is good enough?
+		if errors.Is(err, noASOManagedMachinePoolsErr) {
+			return ctrl.Result{Requeue: true}, nil
 		}
-		if u.GroupVersionKind().Group == asocontainerservicev1.GroupVersion.Group &&
-			u.GroupVersionKind().Kind == "ManagedCluster" &&
-			managedClusterName == "" {
-			managedClusterName = u.GetName()
-			// TODO: default/validate this isn't set in a webhook. Check to make sure ClusterClass controller doesn't fight with
-			// a webhook-defaulted value
-			// TODO: auto upgrades?
-			// TODO: maybe conversion can help us work with a typed object here instead?
-			err := unstructured.SetNestedField(u.UnstructuredContent(), strings.TrimPrefix(asoControlPlane.Spec.Version, "v"), "spec", "kubernetesVersion")
-			if err != nil {
-				return ctrl.Result{}, err
-			}
-
-			// TODO: also forbid setting agentPoolProfiles in CAPASO spec
-			getMC := &asocontainerservicev1.ManagedCluster{}
-			err = r.Get(ctx, client.ObjectKey{Namespace: asoControlPlane.Namespace, Name: managedClusterName}, getMC)
-			if client.IgnoreNotFound(err) != nil {
-				return ctrl.Result{}, err
-			}
-			if len(getMC.Status.AgentPoolProfiles) == 0 {
-				log.Info("gathering agent pool profiles to include in ManagedCluster create")
-				// AKS requires ManagedClusters to be created with agent pools: https://github.com/Azure/azure-service-operator/issues/2791
-				asoManagedMachinePools := &infrav1.ASOManagedMachinePoolList{}
-				err := r.List(ctx, asoManagedMachinePools,
-					client.InNamespace(asoControlPlane.Namespace),
-					client.MatchingLabels{
-						clusterv1.ClusterNameLabel: cluster.Name,
-					},
-				)
-				if err != nil {
-					return ctrl.Result{}, fmt.Errorf("failed to list ASOManagedMachinePools: %w", err)
-				}
-				if len(asoManagedMachinePools.Items) == 0 {
-					// TODO: watch ASOManagedMachinePools instead of requeueing here? Or maybe this is good enough?
-					return ctrl.Result{Requeue: true}, nil
-				}
-				var agentPools []conversion.Convertible
-				for _, asoManagedMachinePool := range asoManagedMachinePools.Items {
-					for _, resource := range asoManagedMachinePool.Spec.Resources {
-						u := &unstructured.Unstructured{}
-						if err := u.UnmarshalJSON(resource.Raw); err != nil {
-							return ctrl.Result{}, fmt.Errorf("failed to unmarshal resource JSON: %w", err)
-						}
-						if u.GroupVersionKind().Group != asocontainerservicev1.GroupVersion.Group ||
-							u.GroupVersionKind().Kind != "ManagedClustersAgentPool" {
-							continue
-						}
-
-						agentPool, err := r.Scheme.New(u.GroupVersionKind())
-						if err != nil {
-							return ctrl.Result{}, fmt.Errorf("error creating new %v: %w", u.GroupVersionKind(), err)
-						}
-						err = r.Scheme.Convert(u, agentPool, nil)
-						if err != nil {
-							return ctrl.Result{}, err
-						}
-
-						agentPools = append(agentPools, agentPool.(conversion.Convertible))
-						break
-					}
-				}
-
-				mc, err := r.Scheme.New(u.GroupVersionKind())
-				if err != nil {
-					return ctrl.Result{}, err
-				}
-				err = r.Scheme.Convert(u, mc, nil)
-				if err != nil {
-					return ctrl.Result{}, err
-				}
-				err = aks.SetAgentPoolProfilesFromAgentPools(mc.(conversion.Convertible), agentPools)
-				err = r.Scheme.Convert(mc, u, nil)
-				if err != nil {
-					return ctrl.Result{}, err
-				}
-			}
-
-		}
-
-		defaulted, err := u.MarshalJSON()
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		resources = append(resources, runtime.RawExtension{Raw: defaulted})
+		return ctrl.Result{}, err
 	}
 	if managedClusterName == "" {
-		// TODO: move this to a webhook.
-		return ctrl.Result{}, reconcile.TerminalError(fmt.Errorf("no %s ManagedCluster defined in ASOManagedControlPlane spec.resources", asocontainerservicev1.GroupVersion.Group))
+		return ctrl.Result{}, reconcile.TerminalError(noManagedClusterDefinedErr)
 	}
 
-	infraReconciler := &InfraReconciler{
-		Client:    r.Client,
-		resources: resources,
-		owner:     asoControlPlane,
-		watcher:   r.externalTracker,
-	}
-	err := infraReconciler.Reconcile(ctx)
+	infraReconciler := r.newResourceReconciler(asoControlPlane, resources)
+	err = infraReconciler.Reconcile(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -270,6 +184,107 @@ func (r *ASOManagedControlPlaneReconciler) reconcileNormal(ctx context.Context, 
 	asoControlPlane.Status.Initialized = asoControlPlane.Status.Ready
 
 	return ctrl.Result{}, nil
+}
+
+func (r *ASOManagedControlPlaneReconciler) defaultResources(ctx context.Context, asoControlPlane *infrav1.ASOManagedControlPlane, cluster *clusterv1.Cluster) ([]runtime.RawExtension, string, error) {
+	log := ctrl.LoggerFrom(ctx)
+
+	// resources is a copy of the resources as they are defined in the spec, with some fields defaulted based
+	// on other fields that are defined in the CAPI contract. These defaults are not persisted to keep the
+	// ClusterClass controller from trying to overwrite them.
+	var resources []runtime.RawExtension
+	var managedClusterName string
+	for _, resource := range asoControlPlane.Spec.Resources {
+		u := &unstructured.Unstructured{}
+		if err := u.UnmarshalJSON(resource.Raw); err != nil {
+			return nil, "", fmt.Errorf("failed to unmarshal resource JSON: %w", err)
+		}
+		if u.GroupVersionKind().Group == asocontainerservicev1.GroupVersion.Group &&
+			u.GroupVersionKind().Kind == "ManagedCluster" &&
+			managedClusterName == "" {
+			managedClusterName = u.GetName()
+			// TODO: default/validate this isn't set in a webhook. Check to make sure ClusterClass controller doesn't fight with
+			// a webhook-defaulted value
+			// TODO: auto upgrades?
+			// TODO: maybe conversion can help us work with a typed object here instead?
+			err := unstructured.SetNestedField(u.UnstructuredContent(), strings.TrimPrefix(asoControlPlane.Spec.Version, "v"), "spec", "kubernetesVersion")
+			if err != nil {
+				return nil, "", err
+			}
+
+			// TODO: also forbid setting agentPoolProfiles in CAPASO spec
+			getMC := &asocontainerservicev1.ManagedCluster{}
+			err = r.Get(ctx, client.ObjectKey{Namespace: asoControlPlane.Namespace, Name: managedClusterName}, getMC)
+			if client.IgnoreNotFound(err) != nil {
+				return nil, "", err
+			}
+			if len(getMC.Status.AgentPoolProfiles) == 0 {
+				log.Info("gathering agent pool profiles to include in ManagedCluster create")
+				// AKS requires ManagedClusters to be created with agent pools: https://github.com/Azure/azure-service-operator/issues/2791
+				asoManagedMachinePools := &infrav1.ASOManagedMachinePoolList{}
+				err := r.List(ctx, asoManagedMachinePools,
+					client.InNamespace(asoControlPlane.Namespace),
+					client.MatchingLabels{
+						clusterv1.ClusterNameLabel: cluster.Name,
+					},
+				)
+				if err != nil {
+					return nil, "", fmt.Errorf("failed to list ASOManagedMachinePools: %w", err)
+				}
+				if len(asoManagedMachinePools.Items) == 0 {
+					// TODO: let this fail so we don't have to check for it?
+					return nil, "", noASOManagedMachinePoolsErr
+				}
+				var agentPools []conversion.Convertible
+				for _, asoManagedMachinePool := range asoManagedMachinePools.Items {
+					for _, resource := range asoManagedMachinePool.Spec.Resources {
+						u := &unstructured.Unstructured{}
+						if err := u.UnmarshalJSON(resource.Raw); err != nil {
+							return nil, "", fmt.Errorf("failed to unmarshal resource JSON: %w", err)
+						}
+						if u.GroupVersionKind().Group != asocontainerservicev1.GroupVersion.Group ||
+							u.GroupVersionKind().Kind != "ManagedClustersAgentPool" {
+							continue
+						}
+
+						agentPool, err := r.Client.Scheme().New(u.GroupVersionKind())
+						if err != nil {
+							return nil, "", fmt.Errorf("error creating new %v: %w", u.GroupVersionKind(), err)
+						}
+						err = r.Client.Scheme().Convert(u, agentPool, nil)
+						if err != nil {
+							return nil, "", err
+						}
+
+						agentPools = append(agentPools, agentPool.(conversion.Convertible))
+						break
+					}
+				}
+
+				mc, err := r.Client.Scheme().New(u.GroupVersionKind())
+				if err != nil {
+					return nil, "", err
+				}
+				err = r.Client.Scheme().Convert(u, mc, nil)
+				if err != nil {
+					return nil, "", err
+				}
+				err = aks.SetAgentPoolProfilesFromAgentPools(mc.(conversion.Convertible), agentPools)
+				err = r.Client.Scheme().Convert(mc, u, nil)
+				if err != nil {
+					return nil, "", err
+				}
+			}
+		}
+
+		defaulted, err := u.MarshalJSON()
+		if err != nil {
+			return nil, "", err
+		}
+		resources = append(resources, runtime.RawExtension{Raw: defaulted})
+	}
+
+	return resources, managedClusterName, nil
 }
 
 func (r *ASOManagedControlPlaneReconciler) reconcileKubeconfig(ctx context.Context, asoControlPlane *infrav1.ASOManagedControlPlane, cluster *clusterv1.Cluster, managedCluster *asocontainerservicev1.ManagedCluster) error {
@@ -320,13 +335,7 @@ func (r *ASOManagedControlPlaneReconciler) reconcileDelete(ctx context.Context, 
 		return ctrl.Result{}, nil
 	}
 
-	infraReconciler := &InfraReconciler{
-		Client:    r.Client,
-		resources: asoControlPlane.Spec.Resources,
-		owner:     asoControlPlane,
-		watcher:   r.externalTracker,
-	}
-
+	infraReconciler := r.newResourceReconciler(asoControlPlane, asoControlPlane.Spec.Resources)
 	err := infraReconciler.Delete(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -357,22 +366,26 @@ func (r *ASOManagedControlPlaneReconciler) SetupWithManager(ctx context.Context,
 	if err != nil {
 		return err
 	}
-	r.externalTracker = &external.ObjectTracker{
-		Cache:      mgr.GetCache(),
-		Controller: c,
+
+	r.newResourceReconciler = func(asoControlPlane *infrav1.ASOManagedControlPlane, resources []runtime.RawExtension) resourceReconciler {
+		return &InfraReconciler{
+			Client:    r.Client,
+			resources: resources,
+			owner:     asoControlPlane,
+			watcher: &external.ObjectTracker{
+				Cache:      mgr.GetCache(),
+				Controller: c,
+			},
+		}
 	}
+
 	return nil
 }
 
 // ClusterToASOManagedControlPlane is a handler.ToRequestsFunc to be used to enqueue requests for
 // reconciliation for ASOManagedControlPlane based on updates to a Cluster.
 func (r *ASOManagedControlPlaneReconciler) ClusterToKubeadmControlPlane(_ context.Context, o client.Object) []ctrl.Request {
-	c, ok := o.(*clusterv1.Cluster)
-	if !ok {
-		panic(fmt.Sprintf("Expected a Cluster but got a %T", o))
-	}
-
-	controlPlaneRef := c.Spec.ControlPlaneRef
+	controlPlaneRef := o.(*clusterv1.Cluster).Spec.ControlPlaneRef
 	if controlPlaneRef != nil && controlPlaneRef.Kind == "ASOManagedControlPlane" {
 		return []ctrl.Request{{NamespacedName: client.ObjectKey{Namespace: controlPlaneRef.Namespace, Name: controlPlaneRef.Name}}}
 	}
