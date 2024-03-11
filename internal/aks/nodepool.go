@@ -110,6 +110,8 @@ func SetAgentPoolDefaults(u *unstructured.Unstructured, machinePool *expv1.Machi
 		if machinePool.Annotations == nil {
 			machinePool.Annotations = make(map[string]string)
 		}
+		// TODO: do we need to patch the MachinePool in the ASOManagedControlPlane reconciliation? Or is the
+		// first ASOManagedMachinePool reconciliation doing it enough?
 		machinePool.Annotations[clusterv1.ReplicasManagedByAnnotation] = "aks"
 	} else {
 		count = int64(ptr.Deref(machinePool.Spec.Replicas, 1))

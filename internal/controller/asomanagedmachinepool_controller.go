@@ -23,11 +23,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/controllers/external"
-	"sigs.k8s.io/cluster-api/controllers/remote"
 	expv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
 	utilexp "sigs.k8s.io/cluster-api/exp/util"
 	"sigs.k8s.io/cluster-api/util"
@@ -50,10 +50,15 @@ import (
 // ASOManagedMachinePoolReconciler reconciles a ASOManagedMachinePool object
 type ASOManagedMachinePoolReconciler struct {
 	client.Client
-	Scheme          *runtime.Scheme
-	Tracker         *remote.ClusterCacheTracker
-	controller      controller.Controller
-	externalTracker *external.ObjectTracker
+	Scheme                *runtime.Scheme
+	Tracker               ClusterTracker
+	controller            controller.Controller
+	externalTracker       *external.ObjectTracker
+	newResourceReconciler func(*infrav1.ASOManagedMachinePool, []runtime.RawExtension) resourceReconciler
+}
+
+type ClusterTracker interface {
+	GetClient(context.Context, types.NamespacedName) (client.Client, error)
 }
 
 //+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
@@ -71,19 +76,6 @@ func (r *ASOManagedMachinePoolReconciler) Reconcile(ctx context.Context, req ctr
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	machinePool, err := utilexp.GetOwnerMachinePool(ctx, r.Client, asoMachinePool.ObjectMeta)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	if machinePool == nil {
-		log.Info("Waiting for MachinePool Controller to set OwnerRef on ASOManagedMachinePool")
-		return ctrl.Result{}, nil
-	}
-	machinePoolBefore := machinePool.DeepCopy()
-
-	log = log.WithValues("MachinePool", machinePool.Name)
-	ctx = ctrl.LoggerInto(ctx, log)
-
 	patchHelper, err := patch.NewHelper(asoMachinePool, r.Client)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to init patch helper: %w", err)
@@ -93,13 +85,9 @@ func (r *ASOManagedMachinePoolReconciler) Reconcile(ctx context.Context, req ctr
 			asoMachinePool.Status.ObservedGeneration = asoMachinePool.Generation
 		}
 
-		// Skip using a patch helper here because we will never modify the MachinePool status.
-		err := r.Patch(ctx, machinePool, client.MergeFrom(machinePoolBefore))
-		if err == nil {
-			err = patchHelper.Patch(ctx, asoMachinePool)
-			if !asoMachinePool.GetDeletionTimestamp().IsZero() {
-				err = ignorePatchErrNotFound(err)
-			}
+		err = patchHelper.Patch(ctx, asoMachinePool)
+		if !asoMachinePool.GetDeletionTimestamp().IsZero() {
+			err = ignorePatchErrNotFound(err)
 		}
 
 		if err != nil && resultErr == nil {
@@ -107,6 +95,28 @@ func (r *ASOManagedMachinePoolReconciler) Reconcile(ctx context.Context, req ctr
 			result = ctrl.Result{}
 		}
 	}()
+
+	machinePool, err := utilexp.GetOwnerMachinePool(ctx, r.Client, asoMachinePool.ObjectMeta)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if machinePool == nil {
+		log.Info("Waiting for MachinePool Controller to set OwnerRef on ASOManagedMachinePool")
+		return ctrl.Result{}, nil
+	}
+
+	machinePoolBefore := machinePool.DeepCopy()
+	defer func() {
+		// Skip using a patch helper here because we will never modify the MachinePool status.
+		err := r.Patch(ctx, machinePool, client.MergeFrom(machinePoolBefore))
+		if err != nil && resultErr == nil {
+			resultErr = err
+			result = ctrl.Result{}
+		}
+	}()
+
+	log = log.WithValues("MachinePool", machinePool.Name)
+	ctx = ctrl.LoggerInto(ctx, log)
 
 	cluster, err := util.GetClusterFromMetadata(ctx, r.Client, machinePool.ObjectMeta)
 	if err != nil {
@@ -175,13 +185,8 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 		return ctrl.Result{}, reconcile.TerminalError(fmt.Errorf("no %s ManagedClustersAgentPools defined in ASOManagedMachinePool spec.resources", asocontainerservicev1.GroupVersion.Group))
 	}
 
-	infraReconciler := &InfraReconciler{
-		Client:    r.Client,
-		resources: resources,
-		owner:     asoMachinePool,
-		watcher:   r.externalTracker,
-	}
-	err := infraReconciler.Reconcile(ctx)
+	resourceReconciler := r.newResourceReconciler(asoMachinePool, resources)
+	err := resourceReconciler.Reconcile(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -216,10 +221,7 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 	}
 	nodes := &corev1.NodeList{}
 	err = clusterClient.List(ctx, nodes,
-		client.MatchingLabels{
-			"kubernetes.azure.com/agentpool": agentPool.AzureName(),
-			"kubernetes.azure.com/cluster":   rg,
-		},
+		client.MatchingLabels(expectedNodeLabels(agentPool.AzureName(), rg)),
 	)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to list nodes in workload cluster: %w", err)
@@ -240,18 +242,19 @@ func (r *ASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, a
 	return ctrl.Result{}, nil
 }
 
-func (r *ASOManagedMachinePoolReconciler) reconcileDelete(ctx context.Context, asoMachinePool *infrav1.ASOManagedMachinePool, cluster *clusterv1.Cluster) (ctrl.Result, error) {
-	infraReconciler := &InfraReconciler{
-		Client:    r.Client,
-		resources: asoMachinePool.Spec.Resources,
-		owner:     asoMachinePool,
-		watcher:   r.externalTracker,
+func expectedNodeLabels(poolName, nodeRG string) map[string]string {
+	return map[string]string{
+		"kubernetes.azure.com/agentpool": poolName,
+		"kubernetes.azure.com/cluster":   nodeRG,
 	}
+}
 
+func (r *ASOManagedMachinePoolReconciler) reconcileDelete(ctx context.Context, asoMachinePool *infrav1.ASOManagedMachinePool, cluster *clusterv1.Cluster) (ctrl.Result, error) {
 	// If the entire cluster is being deleted, this ASO ManagedClustersAgentPool will be deleted with the rest
 	// of the ManagedCluster.
 	if cluster.DeletionTimestamp.IsZero() {
-		err := infraReconciler.Delete(ctx)
+		resourceReconciler := r.newResourceReconciler(asoMachinePool, asoMachinePool.Spec.Resources)
+		err := resourceReconciler.Delete(ctx)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -301,6 +304,15 @@ func (r *ASOManagedMachinePoolReconciler) SetupWithManager(ctx context.Context, 
 	r.externalTracker = &external.ObjectTracker{
 		Cache:      mgr.GetCache(),
 		Controller: c,
+	}
+
+	r.newResourceReconciler = func(asoMachinePool *infrav1.ASOManagedMachinePool, resources []runtime.RawExtension) resourceReconciler {
+		return &InfraReconciler{
+			Client:    r.Client,
+			resources: resources,
+			owner:     asoMachinePool,
+			watcher:   r.externalTracker,
+		}
 	}
 
 	return nil

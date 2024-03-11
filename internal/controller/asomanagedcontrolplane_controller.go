@@ -59,7 +59,8 @@ var (
 // ASOManagedControlPlaneReconciler reconciles a ASOManagedControlPlane object
 type ASOManagedControlPlaneReconciler struct {
 	client.Client
-	Scheme                *runtime.Scheme
+	Scheme                *runtime.Scheme // TODO: do we need this? Should this ever be different from Client.GetScheme()?
+	externalTracker       *external.ObjectTracker
 	newResourceReconciler func(*infrav1.ASOManagedControlPlane, []runtime.RawExtension) resourceReconciler
 }
 
@@ -383,15 +384,17 @@ func (r *ASOManagedControlPlaneReconciler) SetupWithManager(ctx context.Context,
 		return err
 	}
 
+	r.externalTracker = &external.ObjectTracker{
+		Cache:      mgr.GetCache(),
+		Controller: c,
+	}
+
 	r.newResourceReconciler = func(asoControlPlane *infrav1.ASOManagedControlPlane, resources []runtime.RawExtension) resourceReconciler {
 		return &InfraReconciler{
 			Client:    r.Client,
 			resources: resources,
 			owner:     asoControlPlane,
-			watcher: &external.ObjectTracker{
-				Cache:      mgr.GetCache(),
-				Controller: c,
-			},
+			watcher:   r.externalTracker,
 		}
 	}
 
