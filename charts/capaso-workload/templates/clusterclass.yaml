@@ -62,7 +62,7 @@ spec:
           template: |
             {{- include "capaso.asoManagedControlPlaneSpec" (list $ "{{ .builtin.cluster.name }}") | nindent 12 }}
   {{- range $mpName, $mp := .Values.managedMachinePoolSpecs }}
-  - name: asomanagedmachinepool-spec
+  - name: asomanagedmachinepool-{{ $mpName }}-spec
     definitions:
     - selector:
         apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
