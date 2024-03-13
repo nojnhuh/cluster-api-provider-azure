@@ -5,8 +5,8 @@
 domain: cluster.x-k8s.io
 layout:
 - go.kubebuilder.io/v4
-projectName: capaso
-repo: github.com/nojnhuh/cluster-api-provider-aso
+projectName: cluster-api-provider-azure
+repo: sigs.k8s.io/cluster-api-provider-azure/v2
 resources:
 - api:
     crdVersion: v1
@@ -14,25 +14,25 @@ resources:
   controller: true
   domain: cluster.x-k8s.io
   group: infrastructure
-  kind: ASOManagedCluster
-  path: github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1
-  version: v1alpha1
+  kind: AzureManagedCluster
+  path: sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1
+  version: v2alpha1
 - api:
     crdVersion: v1
     namespaced: true
   controller: true
   domain: cluster.x-k8s.io
   group: infrastructure
-  kind: ASOManagedControlPlane
-  path: github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1
-  version: v1alpha1
+  kind: AzureManagedControlPlane
+  path: sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1
+  version: v2alpha1
 - api:
     crdVersion: v1
     namespaced: true
   controller: true
   domain: cluster.x-k8s.io
   group: infrastructure
-  kind: ASOManagedMachinePool
-  path: github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1
-  version: v1alpha1
+  kind: AzureManagedMachinePool
+  path: sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1
+  version: v2alpha1
 version: "3"

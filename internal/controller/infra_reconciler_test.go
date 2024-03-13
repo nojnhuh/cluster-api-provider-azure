@@ -32,7 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	infrav1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
+	infrav1 "sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1"
 )
 
 type FakeClient struct {
@@ -77,7 +77,7 @@ func TestInfraReconcilerReconcile(t *testing.T) {
 	t.Run("empty resources", func(t *testing.T) {
 		r := &InfraReconciler{
 			resources: []runtime.RawExtension{},
-			owner:     &infrav1.ASOManagedCluster{},
+			owner:     &infrav1.AzureManagedCluster{},
 		}
 
 		t.Run("Reconcile", expectSuccess(r.Reconcile(ctx)))
@@ -123,8 +123,8 @@ func TestInfraReconcilerReconcile(t *testing.T) {
 					}),
 				},
 			},
-			owner: &infrav1.ASOManagedCluster{
-				Status: infrav1.ASOManagedClusterStatus{
+			owner: &infrav1.AzureManagedCluster{
+				Status: infrav1.AzureManagedClusterStatus{
 					Resources: []infrav1.ResourceStatus{
 						{
 							Group:   asoresourcesv1.GroupVersion.Group,
@@ -177,11 +177,11 @@ func TestInfraReconcilerReconcile(t *testing.T) {
 		)
 		t.Run("build scheme", expectSuccess(sb.AddToScheme(s)))
 
-		owner := &infrav1.ASOManagedCluster{
+		owner := &infrav1.AzureManagedCluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "ns",
 			},
-			Status: infrav1.ASOManagedClusterStatus{
+			Status: infrav1.AzureManagedClusterStatus{
 				Resources: []infrav1.ResourceStatus{
 					{
 						Group:   asoresourcesv1.GroupVersion.Group,
@@ -242,7 +242,7 @@ func TestInfraReconcilerDelete(t *testing.T) {
 	t.Run("empty resources", func(t *testing.T) {
 		r := &InfraReconciler{
 			resources: []runtime.RawExtension{},
-			owner:     &infrav1.ASOManagedCluster{},
+			owner:     &infrav1.AzureManagedCluster{},
 		}
 
 		t.Run("Delete", expectSuccess(r.Delete(ctx)))
@@ -257,11 +257,11 @@ func TestInfraReconcilerDelete(t *testing.T) {
 		)
 		t.Run("build scheme", expectSuccess(sb.AddToScheme(s)))
 
-		owner := &infrav1.ASOManagedCluster{
+		owner := &infrav1.AzureManagedCluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "ns",
 			},
-			Status: infrav1.ASOManagedClusterStatus{
+			Status: infrav1.AzureManagedClusterStatus{
 				Resources: []infrav1.ResourceStatus{
 					{
 						Group:   asoresourcesv1.GroupVersion.Group,

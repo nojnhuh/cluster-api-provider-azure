@@ -1,0 +1,111 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: azuremanagedmachinepools.infrastructure.cluster.x-k8s.io
+spec:
+  group: infrastructure.cluster.x-k8s.io
+  names:
+    kind: AzureManagedMachinePool
+    listKind: AzureManagedMachinePoolList
+    plural: azuremanagedmachinepools
+    singular: azuremanagedmachinepool
+  scope: Namespaced
+  versions:
+  - name: v2alpha1
+    schema:
+      openAPIV3Schema:
+        description: AzureManagedMachinePool is the Schema for the azuremanagedmachinepools
+          API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: AzureManagedMachinePoolSpec defines the desired state of
+              AzureManagedMachinePool
+            properties:
+              providerIDList:
+                description: |-
+                  ProviderIDList is the list of cloud provider IDs for the instances. It fulfills Cluster API's machine
+                  pool infrastructure provider contract.
+                items:
+                  type: string
+                type: array
+              resources:
+                description: Resources are embedded ASO resources to be managed by
+                  this resource.
+                items:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                type: array
+            type: object
+          status:
+            description: AzureManagedMachinePoolStatus defines the observed state
+              of AzureManagedMachinePool
+            properties:
+              observedGeneration:
+                description: ObservedGeneration is the last generation that was successfully
+                  reconciled.
+                format: int64
+                type: integer
+              ready:
+                description: |-
+                  Ready represents whether or not the infrastructure is ready to be used. It fulfills Cluster API's
+                  machine pool infrastructure provider contract.
+                type: boolean
+              replicas:
+                description: Replicas is the current number of provisioned replicas.
+                format: int32
+                type: integer
+              resources:
+                description: Resources represents the status of the resources defined
+                  in the spec.
+                items:
+                  description: ResourceStatus represents the status of a resource.
+                  properties:
+                    group:
+                      type: string
+                    kind:
+                      type: string
+                    message:
+                      description: Message gives more information as to why a resource
+                        is not ready.
+                      type: string
+                    name:
+                      type: string
+                    ready:
+                      description: Ready reflects a Ready condition on an ASO resource.
+                      type: boolean
+                    version:
+                      type: string
+                  required:
+                  - group
+                  - kind
+                  - name
+                  - ready
+                  - version
+                  type: object
+                type: array
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

@@ -1,0 +1,125 @@
+{{- if .Values.withClusterClass }}
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: ClusterClass
+metadata:
+  name: {{ required "value clusterClassName must be set" .Values.clusterClassName | quote }}
+  labels:
+    {{- include "capz.commonLabels" . | nindent 4 }}
+spec:
+  controlPlane:
+    ref:
+      apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
+      kind: AzureManagedControlPlaneTemplate
+      name: {{ .Values.clusterClassName | quote }}
+  infrastructure:
+    ref:
+      apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
+      kind: AzureManagedClusterTemplate
+      name: {{ .Values.clusterClassName | quote }}
+  workers:
+    machinePools:
+    {{- range $mpName, $mp := .Values.managedMachinePoolSpecs }}
+    - class: {{ quote $mpName }}
+      template:
+        bootstrap:
+          ref:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+            kind: KubeadmConfigTemplate
+            name: {{ $.Values.clusterClassName | quote }}
+        infrastructure:
+          ref:
+            apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
+            kind: AzureManagedMachinePoolTemplate
+            name: {{ printf "%s-%s" $.Values.clusterClassName $mpName | quote }}
+    {{- end }}
+  patches:
+  - name: azuremanagedcluster-spec
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
+        kind: AzureManagedClusterTemplate
+        matchResources:
+          infrastructureCluster: true
+      jsonPatches:
+      - op: replace
+        # CAPI doesn't let you replaces fields in arrays this. Because it's hard?
+        # https://kubernetes.slack.com/archives/C8TSNPY4T/p1709249751874959
+        path: /spec/template/spec
+        valueFrom:
+          template: |
+            {{- include "capz.azureManagedClusterSpec" (list $ "{{ .builtin.cluster.name }}") | nindent 12 }}
+  - name: azuremanagedcontrolplane-spec
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
+        kind: AzureManagedControlPlaneTemplate
+        matchResources:
+          controlPlane: true
+      jsonPatches:
+      - op: replace
+        path: /spec/template/spec
+        valueFrom:
+          template: |
+            {{- include "capz.azureManagedControlPlaneSpec" (list $ "{{ .builtin.cluster.name }}") | nindent 12 }}
+  {{- range $mpName, $mp := .Values.managedMachinePoolSpecs }}
+  - name: azuremanagedmachinepool-{{ $mpName }}-spec
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
+        kind: AzureManagedMachinePoolTemplate
+        matchResources:
+          machinePoolClass:
+            names:
+            - {{ quote $mpName }}
+      jsonPatches:
+      - op: replace
+        path: /spec/template/spec
+        valueFrom:
+          template: |
+            {{- include "capz.azureManagedMachinePoolSpec" (list $ "{{ .builtin.cluster.name }}" $mpName $mp) | nindent 12 }}
+  {{- end }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
+kind: AzureManagedClusterTemplate
+metadata:
+  name: {{ .Values.clusterClassName | quote }}
+  labels:
+    {{- include "capz.commonLabels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  template:
+    spec: {} # this gets patched in by the ClusterClass
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
+kind: AzureManagedControlPlaneTemplate
+metadata:
+  name: {{ .Values.clusterClassName | quote }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  template:
+    spec: {} # this gets patched in by the ClusterClass
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+kind: KubeadmConfigTemplate
+metadata:
+  name: {{ .Values.clusterClassName | quote }}
+spec:
+  template:
+    spec: {}
+{{- range $mpName, $mp := .Values.managedMachinePoolSpecs }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
+kind: AzureManagedMachinePoolTemplate
+metadata:
+  name: {{ printf "%s-%s" $.Values.clusterClassName $mpName | quote }}
+  labels:
+    {{- include "capz.commonLabels" $ | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  template:
+    spec: {} # this gets patched in by the ClusterClass
+{{- end }}
+{{- end }}{{/* if .Values.withClusterClass */}}

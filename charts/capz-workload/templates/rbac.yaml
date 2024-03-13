@@ -1,0 +1,24 @@
+{{- if .Values.withASORBAC }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ printf "%s-%s" .Release.Namespace (include "capz.clusterName" .)  | quote }}
+  labels:
+    {{- include "capz.commonLabels" . | nindent 4 }}
+    azure.infrastructure.cluster.x-k8s.io/aggregate-to-manager: "true"
+  annotations:
+    helm.sh/resource-policy: keep # rbac has to be available throughout a delete operation
+rules:
+- apiGroups:
+  - resources.azure.com
+  - containerservice.azure.com
+  resources:
+  - '*'
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - patch
+  - delete
+{{- end }}

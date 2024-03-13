@@ -2,30 +2,36 @@
 # since it depends on service name and namespace that are out of this kustomize package.
 # It should be run by config/default
 commonLabels:
-  cluster.x-k8s.io/v1beta1: v1alpha1
+  cluster.x-k8s.io/v1beta1: v2alpha1
 
 resources:
-- bases/infrastructure.cluster.x-k8s.io_asomanagedclusters.yaml
-- bases/infrastructure.cluster.x-k8s.io_asomanagedclustertemplates.yaml
-- bases/infrastructure.cluster.x-k8s.io_asomanagedcontrolplanes.yaml
-- bases/infrastructure.cluster.x-k8s.io_asomanagedcontrolplanetemplates.yaml
-- bases/infrastructure.cluster.x-k8s.io_asomanagedmachinepools.yaml
-- bases/infrastructure.cluster.x-k8s.io_asomanagedmachinepooltemplates.yaml
+- bases/infrastructure.cluster.x-k8s.io_azuremanagedclusters.yaml
+- bases/infrastructure.cluster.x-k8s.io_azuremanagedclustertemplates.yaml
+- bases/infrastructure.cluster.x-k8s.io_azuremanagedcontrolplanes.yaml
+- bases/infrastructure.cluster.x-k8s.io_azuremanagedcontrolplanetemplates.yaml
+- bases/infrastructure.cluster.x-k8s.io_azuremanagedmachinepools.yaml
+- bases/infrastructure.cluster.x-k8s.io_azuremanagedmachinepooltemplates.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 patches:
 # [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix.
 # patches here are for enabling the conversion webhook for each CRD
-#- path: patches/webhook_in_asomanagedclusters.yaml
-#- path: patches/webhook_in_asomanagedcontrolplanes.yaml
-#- path: patches/webhook_in_asomanagedmachinepools.yaml
+#- path: patches/webhook_in_azuremanagedclusters.yaml
+#- path: patches/webhook_in_azuremanagedclustertemplates.yaml
+#- path: patches/webhook_in_azuremanagedcontrolplanes.yaml
+#- path: patches/webhook_in_azuremanagedcontrolplanetemplates.yaml
+#- path: patches/webhook_in_azuremanagedmachinepools.yaml
+#- path: patches/webhook_in_azuremanagedmachinepooltemplates.yaml
 #+kubebuilder:scaffold:crdkustomizewebhookpatch
 
 # [CERTMANAGER] To enable cert-manager, uncomment all the sections with [CERTMANAGER] prefix.
 # patches here are for enabling the CA injection for each CRD
-#- path: patches/cainjection_in_asomanagedclusters.yaml
-#- path: patches/cainjection_in_asomanagedcontrolplanes.yaml
-#- path: patches/cainjection_in_asomanagedmachinepools.yaml
+#- path: patches/cainjection_in_azuremanagedclusters.yaml
+#- path: patches/cainjection_in_azuremanagedclustertemplates.yaml
+#- path: patches/cainjection_in_azuremanagedcontrolplanes.yaml
+#- path: patches/cainjection_in_azuremanagedcontrolplanetemplates.yaml
+#- path: patches/cainjection_in_azuremanagedmachinepools.yaml
+#- path: patches/cainjection_in_azuremanagedmachinepooltemplates.yaml
 #+kubebuilder:scaffold:crdkustomizecainjectionpatch
 
 # [WEBHOOK] To enable webhook, uncomment the following section

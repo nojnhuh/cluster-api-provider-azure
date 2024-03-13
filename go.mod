@@ -1,4 +1,4 @@
-module github.com/nojnhuh/cluster-api-provider-aso
+module sigs.k8s.io/cluster-api-provider-azure/v2
 
 go 1.21
 
