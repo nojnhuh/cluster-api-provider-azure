@@ -94,7 +94,7 @@ func SetAgentPoolProfilesFromAgentPools[T conversion.Convertible](managedCluster
 
 func SetAgentPoolDefaults(u *unstructured.Unstructured, machinePool *expv1.MachinePool) error {
 	// TODO: do this in a webhook. Or not? maybe never let users set this in the ASO resource and silently
-	// propagate it here so the CAPASO manifest doesn't have two fields that mean the same thing where it's
+	// propagate it here so the CAPZ manifest doesn't have two fields that mean the same thing where it's
 	// not obvious which one is authoritative?
 	err := unstructured.SetNestedField(u.UnstructuredContent(), strings.TrimPrefix(ptr.Deref(machinePool.Spec.Template.Spec.Version, ""), "v"), "spec", "orchestratorVersion")
 	if err != nil {
@@ -110,8 +110,8 @@ func SetAgentPoolDefaults(u *unstructured.Unstructured, machinePool *expv1.Machi
 		if machinePool.Annotations == nil {
 			machinePool.Annotations = make(map[string]string)
 		}
-		// TODO: do we need to patch the MachinePool in the ASOManagedControlPlane reconciliation? Or is the
-		// first ASOManagedMachinePool reconciliation doing it enough?
+		// TODO: do we need to patch the MachinePool in the AzureManagedControlPlane reconciliation? Or is the
+		// first AzureManagedMachinePool reconciliation doing it enough?
 		machinePool.Annotations[clusterv1.ReplicasManagedByAnnotation] = "aks"
 	} else {
 		count = int64(ptr.Deref(machinePool.Spec.Replicas, 1))

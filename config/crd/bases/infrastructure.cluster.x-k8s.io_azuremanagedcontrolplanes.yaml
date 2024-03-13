@@ -4,20 +4,21 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.14.0
-  name: asomanagedclusters.infrastructure.cluster.x-k8s.io
+  name: azuremanagedcontrolplanes.infrastructure.cluster.x-k8s.io
 spec:
   group: infrastructure.cluster.x-k8s.io
   names:
-    kind: ASOManagedCluster
-    listKind: ASOManagedClusterList
-    plural: asomanagedclusters
-    singular: asomanagedcluster
+    kind: AzureManagedControlPlane
+    listKind: AzureManagedControlPlaneList
+    plural: azuremanagedcontrolplanes
+    singular: azuremanagedcontrolplane
   scope: Namespaced
   versions:
   - name: v2alpha1
     schema:
       openAPIV3Schema:
-        description: ASOManagedCluster is the Schema for the asomanagedclusters API
+        description: AzureManagedControlPlane is the Schema for the azuremanagedcontrolplanes
+          API
         properties:
           apiVersion:
             description: |-
@@ -37,12 +38,29 @@ spec:
           metadata:
             type: object
           spec:
-            description: ASOManagedClusterSpec defines the desired state of ASOManagedCluster
+            description: AzureManagedControlPlaneSpec defines the desired state of
+              AzureManagedControlPlane
+            properties:
+              resources:
+                description: Resources are embedded ASO resources to be managed by
+                  this resource.
+                items:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                type: array
+              version:
+                description: |-
+                  Version is the Kubernetes version of the control plane. It fulfills Cluster API's control plane
+                  provider contract.
+                type: string
+            type: object
+          status:
+            description: AzureManagedControlPlaneStatus defines the observed state
+              of AzureManagedControlPlane
             properties:
               controlPlaneEndpoint:
-                description: |-
-                  ControlPlaneEndpoint is the location of the API server within the control plane. It fulfills Cluster
-                  API's cluster infrastructure provider contract.
+                description: ControlPlaneEndpoint represents the endpoint for the
+                  cluster's API server.
                 properties:
                   host:
                     description: The hostname on which the API server is serving.
@@ -55,17 +73,16 @@ spec:
                 - host
                 - port
                 type: object
-              resources:
-                description: Resources are embedded ASO resources to be managed by
-                  this resource.
-                items:
-                  type: object
-                  x-kubernetes-preserve-unknown-fields: true
-                type: array
-            type: object
-          status:
-            description: ASOManagedClusterStatus defines the observed state of ASOManagedCluster
-            properties:
+              externalManagedControlPlane:
+                description: |-
+                  ExternalManagedControlPlane is always set to true since control plane components for AKS do not exist
+                  in Nodes. It fulfills Cluster API's control plane provider contract.
+                type: boolean
+              initialized:
+                description: |-
+                  Initialized represents whether or not the API server has been provisioned. It fulfills Cluster API's
+                  control plane provider contract.
+                type: boolean
               observedGeneration:
                 description: ObservedGeneration is the last metadata.generation of
                   the object that has been reconciled.
@@ -73,8 +90,8 @@ spec:
                 type: integer
               ready:
                 description: |-
-                  Ready represents whether or not the cluster has been provisioned and is ready. It fulfills Cluster
-                  API's cluster infrastructure provider contract.
+                  Ready represents whether or not the API server is ready to receive requests. It fulfills Cluster API's
+                  control plane provider contract.
                 type: boolean
               resources:
                 description: Resources represents the status of the resources defined
@@ -105,6 +122,11 @@ spec:
                   - version
                   type: object
                 type: array
+              version:
+                description: |-
+                  Version is the observed Kubernetes version of the control plane. It fulfills Cluster API's control
+                  plane provider contract.
+                type: string
             type: object
         type: object
     served: true

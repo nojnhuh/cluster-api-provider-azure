@@ -21,16 +21,16 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// ASOManagedMachinePoolTemplateSpec defines the desired state of ASOManagedMachinePoolTemplate
-type ASOManagedMachinePoolTemplateSpec struct {
-	Template ASOManagedControlPlaneResource `json:"template"`
+// AzureManagedMachinePoolTemplateSpec defines the desired state of AzureManagedMachinePoolTemplate
+type AzureManagedMachinePoolTemplateSpec struct {
+	Template AzureManagedControlPlaneResource `json:"template"`
 }
 
-type ASOManagedMachinePoolResource struct {
-	Spec ASOManagedMachinePoolTemplateResourceSpec `json:"spec,omitempty"`
+type AzureManagedMachinePoolResource struct {
+	Spec AzureManagedMachinePoolTemplateResourceSpec `json:"spec,omitempty"`
 }
 
-type ASOManagedMachinePoolTemplateResourceSpec struct {
+type AzureManagedMachinePoolTemplateResourceSpec struct {
 	// ProviderIDList is the list of cloud provider IDs for the instances. It fulfills Cluster API's machine
 	// pool infrastructure provider contract.
 	ProviderIDList []string `json:"providerIDList,omitempty"`
@@ -41,23 +41,23 @@ type ASOManagedMachinePoolTemplateResourceSpec struct {
 
 //+kubebuilder:object:root=true
 
-// ASOManagedMachinePoolTemplate is the Schema for the asomanagedmachinepooltemplates API
-type ASOManagedMachinePoolTemplate struct {
+// AzureManagedMachinePoolTemplate is the Schema for the azuremanagedmachinepooltemplates API
+type AzureManagedMachinePoolTemplate struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec ASOManagedMachinePoolTemplateSpec `json:"spec,omitempty"`
+	Spec AzureManagedMachinePoolTemplateSpec `json:"spec,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// ASOManagedMachinePoolTemplateList contains a list of ASOManagedMachinePoolTemplate
-type ASOManagedMachinePoolTemplateList struct {
+// AzureManagedMachinePoolTemplateList contains a list of AzureManagedMachinePoolTemplate
+type AzureManagedMachinePoolTemplateList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ASOManagedMachinePoolTemplate `json:"items"`
+	Items           []AzureManagedMachinePoolTemplate `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&ASOManagedMachinePoolTemplate{}, &ASOManagedMachinePoolTemplateList{})
+	SchemeBuilder.Register(&AzureManagedMachinePoolTemplate{}, &AzureManagedMachinePoolTemplateList{})
 }

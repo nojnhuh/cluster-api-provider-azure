@@ -55,7 +55,7 @@ func (r *fakeResourceReconciler) Delete(ctx context.Context) error {
 	return r.deleteFunc(ctx, r.owner)
 }
 
-func TestASOManagedClusterReconcile(t *testing.T) {
+func TestAzureManagedClusterReconcile(t *testing.T) {
 	ctx := context.Background()
 
 	s := runtime.NewScheme()
@@ -67,13 +67,13 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 	fakeClientBuilder := func() *fakeclient.ClientBuilder {
 		return fakeclient.NewClientBuilder().
 			WithScheme(s).
-			WithStatusSubresource(&infrav1.ASOManagedCluster{})
+			WithStatusSubresource(&infrav1.AzureManagedCluster{})
 	}
 
-	t.Run("ASOManagedCluster does not exist", func(t *testing.T) {
+	t.Run("AzureManagedCluster does not exist", func(t *testing.T) {
 		c := fakeClientBuilder().
 			Build()
-		r := &ASOManagedClusterReconciler{
+		r := &AzureManagedClusterReconciler{
 			Client: c,
 		}
 		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "doesn't", Name: "exist"}})
@@ -82,28 +82,28 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 	})
 
 	t.Run("no Cluster ownerref", func(t *testing.T) {
-		asoManagedCluster := &infrav1.ASOManagedCluster{
+		azureManagedCluster := &infrav1.AzureManagedCluster{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:       "asomc",
+				Name:       "amc",
 				Namespace:  "ns",
 				Generation: 1,
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(asoManagedCluster).
+			WithObjects(azureManagedCluster).
 			Build()
 
-		r := &ASOManagedClusterReconciler{
+		r := &AzureManagedClusterReconciler{
 			Client: c,
 		}
-		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoManagedCluster)})
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedCluster)})
 
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should not requeue", checkEqual(result, ctrl.Result{}))
 		t.Run("should update status.observedGeneration", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoManagedCluster), asoManagedCluster)))
-			t.Run("metadata.generation", checkEqual(asoManagedCluster.Generation, 1))
-			t.Run("status.observedGeneration", checkEqual(asoManagedCluster.Status.ObservedGeneration, 1))
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedCluster), azureManagedCluster)))
+			t.Run("metadata.generation", checkEqual(azureManagedCluster.Generation, 1))
+			t.Run("status.observedGeneration", checkEqual(azureManagedCluster.Status.ObservedGeneration, 1))
 		})
 	})
 
@@ -114,9 +114,9 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 				Name:      "cluster",
 			},
 		}
-		asoManagedCluster := &infrav1.ASOManagedCluster{
+		azureManagedCluster := &infrav1.AzureManagedCluster{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "asomc",
+				Name:      "amc",
 				Namespace: cluster.Namespace,
 				OwnerReferences: []metav1.OwnerReference{
 					{
@@ -129,23 +129,23 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(asoManagedCluster). // no cluster
+			WithObjects(azureManagedCluster). // no cluster
 			Build()
 
-		r := &ASOManagedClusterReconciler{
+		r := &AzureManagedClusterReconciler{
 			Client: c,
 		}
-		_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoManagedCluster)})
+		_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedCluster)})
 
 		t.Run("should fail", checkEqual(apierrors.IsNotFound(err), true))
 		t.Run("should not update status.observedGeneration", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoManagedCluster), asoManagedCluster)))
-			t.Run("metadata.generation", checkEqual(asoManagedCluster.Generation, 1))
-			t.Run("status.observedGeneration", checkEqual(asoManagedCluster.Status.ObservedGeneration, 0))
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedCluster), azureManagedCluster)))
+			t.Run("metadata.generation", checkEqual(azureManagedCluster.Generation, 1))
+			t.Run("status.observedGeneration", checkEqual(azureManagedCluster.Status.ObservedGeneration, 0))
 		})
 	})
 
-	t.Run("Cluster does not also use ASOManagedControlPlane", func(t *testing.T) {
+	t.Run("Cluster does not also use AzureManagedControlPlane", func(t *testing.T) {
 		cluster := &clusterv1.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "ns",
@@ -153,13 +153,13 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 			},
 			Spec: clusterv1.ClusterSpec{
 				ControlPlaneRef: &corev1.ObjectReference{
-					Kind: "not-ASOManagedControlPlane",
+					Kind: "not-AzureManagedControlPlane",
 				},
 			},
 		}
-		asoManagedCluster := &infrav1.ASOManagedCluster{
+		azureManagedCluster := &infrav1.AzureManagedCluster{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "asomc",
+				Name:      "amc",
 				Namespace: cluster.Namespace,
 				OwnerReferences: []metav1.OwnerReference{
 					{
@@ -171,13 +171,13 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(cluster, asoManagedCluster).
+			WithObjects(cluster, azureManagedCluster).
 			Build()
 
-		r := &ASOManagedClusterReconciler{
+		r := &AzureManagedClusterReconciler{
 			Client: c,
 		}
-		_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoManagedCluster)})
+		_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedCluster)})
 
 		t.Run("should fail", checkEqual(errors.Is(err, invalidControlPlaneKindErr), true))
 	})
@@ -190,13 +190,13 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 			},
 			Spec: clusterv1.ClusterSpec{
 				ControlPlaneRef: &corev1.ObjectReference{
-					Kind: "ASOManagedControlPlane",
+					Kind: "AzureManagedControlPlane",
 				},
 			},
 		}
-		asoManagedCluster := &infrav1.ASOManagedCluster{
+		azureManagedCluster := &infrav1.AzureManagedCluster{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "asomc",
+				Name:      "amc",
 				Namespace: cluster.Namespace,
 				OwnerReferences: []metav1.OwnerReference{
 					{
@@ -208,19 +208,19 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(cluster, asoManagedCluster).
+			WithObjects(cluster, azureManagedCluster).
 			Build()
 
-		r := &ASOManagedClusterReconciler{
+		r := &AzureManagedClusterReconciler{
 			Client: c,
 		}
-		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoManagedCluster)})
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedCluster)})
 
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should requeue", checkEqual(result, ctrl.Result{Requeue: true}))
 		t.Run("should add the finalizer", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoManagedCluster), asoManagedCluster)))
-			t.Run("metadata.finalizers[0]", checkEqual(asoManagedCluster.Finalizers[0], clusterv1.ClusterFinalizer))
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedCluster), azureManagedCluster)))
+			t.Run("metadata.finalizers[0]", checkEqual(azureManagedCluster.Finalizers[0], clusterv1.ClusterFinalizer))
 		})
 	})
 
@@ -232,13 +232,13 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 			},
 			Spec: clusterv1.ClusterSpec{
 				ControlPlaneRef: &corev1.ObjectReference{
-					Kind: "ASOManagedControlPlane",
+					Kind: "AzureManagedControlPlane",
 				},
 			},
 		}
-		asoManagedCluster := &infrav1.ASOManagedCluster{
+		azureManagedCluster := &infrav1.AzureManagedCluster{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "asomc",
+				Name:      "amc",
 				Namespace: cluster.Namespace,
 				OwnerReferences: []metav1.OwnerReference{
 					{
@@ -249,21 +249,21 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 				},
 				Finalizers: []string{clusterv1.ClusterFinalizer},
 			},
-			Status: infrav1.ASOManagedClusterStatus{
+			Status: infrav1.AzureManagedClusterStatus{
 				Ready: true,
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(cluster, asoManagedCluster).
+			WithObjects(cluster, azureManagedCluster).
 			Build()
 
-		r := &ASOManagedClusterReconciler{
+		r := &AzureManagedClusterReconciler{
 			Client: c,
-			newResourceReconciler: func(asoManagedCluster *infrav1.ASOManagedCluster) resourceReconciler {
+			newResourceReconciler: func(azureManagedCluster *infrav1.AzureManagedCluster) resourceReconciler {
 				return &fakeResourceReconciler{
-					owner: asoManagedCluster,
-					reconcileFunc: func(_ context.Context, asoManagedCluster resourceStatusObject) error {
-						asoManagedCluster.SetResourceStatuses([]infrav1.ResourceStatus{
+					owner: azureManagedCluster,
+					reconcileFunc: func(_ context.Context, azureManagedCluster resourceStatusObject) error {
+						azureManagedCluster.SetResourceStatuses([]infrav1.ResourceStatus{
 							{Ready: true},
 							{Ready: false},
 							{Ready: true},
@@ -273,13 +273,13 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 				}
 			},
 		}
-		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoManagedCluster)})
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedCluster)})
 
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should not requeue", checkEqual(result, ctrl.Result{}))
-		t.Run("should update the ASOManagedCluster", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoManagedCluster), asoManagedCluster)))
-			t.Run("should not be ready", checkEqual(asoManagedCluster.Status.Ready, false))
+		t.Run("should update the AzureManagedCluster", func(t *testing.T) {
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedCluster), azureManagedCluster)))
+			t.Run("should not be ready", checkEqual(azureManagedCluster.Status.Ready, false))
 		})
 	})
 
@@ -292,15 +292,15 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 			},
 			Spec: clusterv1.ClusterSpec{
 				ControlPlaneRef: &corev1.ObjectReference{
-					Kind:      "ASOManagedControlPlane",
+					Kind:      "AzureManagedControlPlane",
 					Namespace: namespace,
-					Name:      "asomcp",
+					Name:      "amcp",
 				},
 			},
 		}
-		asoManagedCluster := &infrav1.ASOManagedCluster{
+		azureManagedCluster := &infrav1.AzureManagedCluster{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "asomc",
+				Name:      "amc",
 				Namespace: cluster.Namespace,
 				OwnerReferences: []metav1.OwnerReference{
 					{
@@ -311,18 +311,18 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 				},
 				Finalizers: []string{clusterv1.ClusterFinalizer},
 			},
-			Status: infrav1.ASOManagedClusterStatus{
+			Status: infrav1.AzureManagedClusterStatus{
 				Ready: true,
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(cluster, asoManagedCluster).
+			WithObjects(cluster, azureManagedCluster).
 			Build()
 
 		resourceReconcileErr := errors.New("resource reconcile error")
-		r := &ASOManagedClusterReconciler{
+		r := &AzureManagedClusterReconciler{
 			Client: c,
-			newResourceReconciler: func(asoManagedCluster *infrav1.ASOManagedCluster) resourceReconciler {
+			newResourceReconciler: func(azureManagedCluster *infrav1.AzureManagedCluster) resourceReconciler {
 				return &fakeResourceReconciler{
 					reconcileFunc: func(_ context.Context, _ resourceStatusObject) error {
 						return resourceReconcileErr
@@ -330,16 +330,16 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 				}
 			},
 		}
-		_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoManagedCluster)})
+		_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedCluster)})
 
 		t.Run("should fail", checkEqual(errors.Is(err, resourceReconcileErr), true))
-		t.Run("should update the ASOManagedCluster", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoManagedCluster), asoManagedCluster)))
-			t.Run("status.ready", checkEqual(asoManagedCluster.Status.Ready, false))
+		t.Run("should update the AzureManagedCluster", func(t *testing.T) {
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedCluster), azureManagedCluster)))
+			t.Run("status.ready", checkEqual(azureManagedCluster.Status.Ready, false))
 		})
 	})
 
-	t.Run("ASOManagedControlPlane not found", func(t *testing.T) {
+	t.Run("AzureManagedControlPlane not found", func(t *testing.T) {
 		namespace := "ns"
 		cluster := &clusterv1.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
@@ -348,15 +348,15 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 			},
 			Spec: clusterv1.ClusterSpec{
 				ControlPlaneRef: &corev1.ObjectReference{
-					Kind:      "ASOManagedControlPlane",
+					Kind:      "AzureManagedControlPlane",
 					Namespace: namespace,
-					Name:      "asomcp",
+					Name:      "amcp",
 				},
 			},
 		}
-		asoManagedCluster := &infrav1.ASOManagedCluster{
+		azureManagedCluster := &infrav1.AzureManagedCluster{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "asomc",
+				Name:      "amc",
 				Namespace: cluster.Namespace,
 				OwnerReferences: []metav1.OwnerReference{
 					{
@@ -367,17 +367,17 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 				},
 				Finalizers: []string{clusterv1.ClusterFinalizer},
 			},
-			Status: infrav1.ASOManagedClusterStatus{
+			Status: infrav1.AzureManagedClusterStatus{
 				Ready: true,
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(cluster, asoManagedCluster).
+			WithObjects(cluster, azureManagedCluster).
 			Build()
 
-		r := &ASOManagedClusterReconciler{
+		r := &AzureManagedClusterReconciler{
 			Client: c,
-			newResourceReconciler: func(asoManagedCluster *infrav1.ASOManagedCluster) resourceReconciler {
+			newResourceReconciler: func(azureManagedCluster *infrav1.AzureManagedCluster) resourceReconciler {
 				return &fakeResourceReconciler{
 					reconcileFunc: func(_ context.Context, _ resourceStatusObject) error {
 						return nil
@@ -385,14 +385,14 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 				}
 			},
 		}
-		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoManagedCluster)})
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedCluster)})
 
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should not requeue", checkEqual(result, ctrl.Result{}))
-		t.Run("should update the ASOManagedCluster", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoManagedCluster), asoManagedCluster)))
-			t.Run("status.ready", checkEqual(asoManagedCluster.Status.Ready, false))
-			t.Run("spec.controlPlaneEndpoint", checkEqual(asoManagedCluster.Spec.ControlPlaneEndpoint.IsZero(), true))
+		t.Run("should update the AzureManagedCluster", func(t *testing.T) {
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedCluster), azureManagedCluster)))
+			t.Run("status.ready", checkEqual(azureManagedCluster.Status.Ready, false))
+			t.Run("spec.controlPlaneEndpoint", checkEqual(azureManagedCluster.Spec.ControlPlaneEndpoint.IsZero(), true))
 		})
 	})
 
@@ -405,26 +405,26 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 			},
 			Spec: clusterv1.ClusterSpec{
 				ControlPlaneRef: &corev1.ObjectReference{
-					Kind:      "ASOManagedControlPlane",
+					Kind:      "AzureManagedControlPlane",
 					Namespace: namespace,
-					Name:      "asomcp",
+					Name:      "amcp",
 				},
 			},
 		}
-		asoManagedControlPlane := &infrav1.ASOManagedControlPlane{
+		azureManagedControlPlane := &infrav1.AzureManagedControlPlane{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: cluster.Spec.ControlPlaneRef.Namespace,
 				Name:      cluster.Spec.ControlPlaneRef.Name,
 			},
-			Status: infrav1.ASOManagedControlPlaneStatus{
+			Status: infrav1.AzureManagedControlPlaneStatus{
 				ControlPlaneEndpoint: clusterv1.APIEndpoint{
 					Host: "bingo",
 				},
 			},
 		}
-		asoManagedCluster := &infrav1.ASOManagedCluster{
+		azureManagedCluster := &infrav1.AzureManagedCluster{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "asomc",
+				Name:      "amc",
 				Namespace: cluster.Namespace,
 				OwnerReferences: []metav1.OwnerReference{
 					{
@@ -435,17 +435,17 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 				},
 				Finalizers: []string{clusterv1.ClusterFinalizer},
 			},
-			Status: infrav1.ASOManagedClusterStatus{
+			Status: infrav1.AzureManagedClusterStatus{
 				Ready: false,
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(cluster, asoManagedCluster, asoManagedControlPlane).
+			WithObjects(cluster, azureManagedCluster, azureManagedControlPlane).
 			Build()
 
-		r := &ASOManagedClusterReconciler{
+		r := &AzureManagedClusterReconciler{
 			Client: c,
-			newResourceReconciler: func(asoManagedCluster *infrav1.ASOManagedCluster) resourceReconciler {
+			newResourceReconciler: func(azureManagedCluster *infrav1.AzureManagedCluster) resourceReconciler {
 				return &fakeResourceReconciler{
 					reconcileFunc: func(_ context.Context, _ resourceStatusObject) error {
 						return nil
@@ -453,39 +453,39 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 				}
 			},
 		}
-		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoManagedCluster)})
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedCluster)})
 
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should not requeue", checkEqual(result, ctrl.Result{}))
-		t.Run("should update the ASOManagedCluster", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoManagedCluster), asoManagedCluster)))
-			t.Run("status.ready", checkEqual(asoManagedCluster.Status.Ready, true))
-			t.Run("spec.controlPlaneEndpoint", checkEqual(asoManagedCluster.Spec.ControlPlaneEndpoint, clusterv1.APIEndpoint{Host: "bingo"}))
+		t.Run("should update the AzureManagedCluster", func(t *testing.T) {
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedCluster), azureManagedCluster)))
+			t.Run("status.ready", checkEqual(azureManagedCluster.Status.Ready, true))
+			t.Run("spec.controlPlaneEndpoint", checkEqual(azureManagedCluster.Spec.ControlPlaneEndpoint, clusterv1.APIEndpoint{Host: "bingo"}))
 		})
 	})
 
 	t.Run("Delete without Cluster ownerref", func(t *testing.T) {
-		asoManagedCluster := &infrav1.ASOManagedCluster{
+		azureManagedCluster := &infrav1.AzureManagedCluster{
 			ObjectMeta: metav1.ObjectMeta{
 				DeletionTimestamp: &metav1.Time{Time: time.Date(1, 0, 0, 0, 0, 0, 0, time.UTC)},
-				Name:              "asomc",
+				Name:              "amc",
 				Namespace:         "ns",
 				OwnerReferences:   []metav1.OwnerReference{},
 				Finalizers:        []string{clusterv1.ClusterFinalizer},
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(asoManagedCluster).
+			WithObjects(azureManagedCluster).
 			Build()
 
-		r := &ASOManagedClusterReconciler{
+		r := &AzureManagedClusterReconciler{
 			Client: c,
 		}
-		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoManagedCluster)})
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedCluster)})
 
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should not requeue", checkEqual(result, ctrl.Result{}))
-		t.Run("should delete the ASOManagedCluster", checkEqual(apierrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(asoManagedCluster), asoManagedCluster)), true))
+		t.Run("should delete the AzureManagedCluster", checkEqual(apierrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(azureManagedCluster), azureManagedCluster)), true))
 	})
 
 	t.Run("Delete error", func(t *testing.T) {
@@ -496,10 +496,10 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 				Name:      "cluster",
 			},
 		}
-		asoManagedCluster := &infrav1.ASOManagedCluster{
+		azureManagedCluster := &infrav1.AzureManagedCluster{
 			ObjectMeta: metav1.ObjectMeta{
 				DeletionTimestamp: &metav1.Time{Time: time.Date(1, 0, 0, 0, 0, 0, 0, time.UTC)},
-				Name:              "asomc",
+				Name:              "amc",
 				Namespace:         cluster.Namespace,
 				OwnerReferences: []metav1.OwnerReference{
 					{
@@ -512,13 +512,13 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(cluster, asoManagedCluster).
+			WithObjects(cluster, azureManagedCluster).
 			Build()
 
 		deleteErr := errors.New("delete error")
-		r := &ASOManagedClusterReconciler{
+		r := &AzureManagedClusterReconciler{
 			Client: c,
-			newResourceReconciler: func(asoManagedCluster *infrav1.ASOManagedCluster) resourceReconciler {
+			newResourceReconciler: func(azureManagedCluster *infrav1.AzureManagedCluster) resourceReconciler {
 				return &fakeResourceReconciler{
 					deleteFunc: func(_ context.Context, _ resourceStatusObject) error {
 						return deleteErr
@@ -526,12 +526,12 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 				}
 			},
 		}
-		_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoManagedCluster)})
+		_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedCluster)})
 
 		t.Run("should fail", checkEqual(errors.Is(err, deleteErr), true))
 		t.Run("should not remove the finalizer", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoManagedCluster), asoManagedCluster)))
-			t.Run("finalizers length", checkEqual(len(asoManagedCluster.Finalizers), 1))
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedCluster), azureManagedCluster)))
+			t.Run("finalizers length", checkEqual(len(azureManagedCluster.Finalizers), 1))
 		})
 	})
 
@@ -543,10 +543,10 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 				Name:      "cluster",
 			},
 		}
-		asoManagedCluster := &infrav1.ASOManagedCluster{
+		azureManagedCluster := &infrav1.AzureManagedCluster{
 			ObjectMeta: metav1.ObjectMeta{
 				DeletionTimestamp: &metav1.Time{Time: time.Date(1, 0, 0, 0, 0, 0, 0, time.UTC)},
-				Name:              "asomc",
+				Name:              "amc",
 				Namespace:         cluster.Namespace,
 				OwnerReferences: []metav1.OwnerReference{
 					{
@@ -559,16 +559,16 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(cluster, asoManagedCluster).
+			WithObjects(cluster, azureManagedCluster).
 			Build()
 
-		r := &ASOManagedClusterReconciler{
+		r := &AzureManagedClusterReconciler{
 			Client: c,
-			newResourceReconciler: func(asoManagedCluster *infrav1.ASOManagedCluster) resourceReconciler {
+			newResourceReconciler: func(azureManagedCluster *infrav1.AzureManagedCluster) resourceReconciler {
 				return &fakeResourceReconciler{
-					owner: asoManagedCluster,
-					deleteFunc: func(_ context.Context, asoManagedCluster resourceStatusObject) error {
-						asoManagedCluster.SetResourceStatuses([]infrav1.ResourceStatus{
+					owner: azureManagedCluster,
+					deleteFunc: func(_ context.Context, azureManagedCluster resourceStatusObject) error {
+						azureManagedCluster.SetResourceStatuses([]infrav1.ResourceStatus{
 							{Ready: false},
 						})
 						return nil
@@ -576,13 +576,13 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 				}
 			},
 		}
-		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoManagedCluster)})
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedCluster)})
 
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should not requeue", checkEqual(result, ctrl.Result{}))
 		t.Run("should not remove the finalizer", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoManagedCluster), asoManagedCluster)))
-			t.Run("finalizers length", checkEqual(len(asoManagedCluster.Finalizers), 1))
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedCluster), azureManagedCluster)))
+			t.Run("finalizers length", checkEqual(len(azureManagedCluster.Finalizers), 1))
 		})
 	})
 
@@ -594,10 +594,10 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 				Name:      "cluster",
 			},
 		}
-		asoManagedCluster := &infrav1.ASOManagedCluster{
+		azureManagedCluster := &infrav1.AzureManagedCluster{
 			ObjectMeta: metav1.ObjectMeta{
 				DeletionTimestamp: &metav1.Time{Time: time.Date(1, 0, 0, 0, 0, 0, 0, time.UTC)},
-				Name:              "asomc",
+				Name:              "amc",
 				Namespace:         cluster.Namespace,
 				OwnerReferences: []metav1.OwnerReference{
 					{
@@ -610,12 +610,12 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(cluster, asoManagedCluster).
+			WithObjects(cluster, azureManagedCluster).
 			Build()
 
-		r := &ASOManagedClusterReconciler{
+		r := &AzureManagedClusterReconciler{
 			Client: c,
-			newResourceReconciler: func(asoManagedCluster *infrav1.ASOManagedCluster) resourceReconciler {
+			newResourceReconciler: func(azureManagedCluster *infrav1.AzureManagedCluster) resourceReconciler {
 				return &fakeResourceReconciler{
 					deleteFunc: func(_ context.Context, _ resourceStatusObject) error {
 						return nil
@@ -623,10 +623,10 @@ func TestASOManagedClusterReconcile(t *testing.T) {
 				}
 			},
 		}
-		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoManagedCluster)})
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedCluster)})
 
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should not requeue", checkEqual(result, ctrl.Result{}))
-		t.Run("should delete the ASOManagedCluster", checkEqual(apierrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(asoManagedCluster), asoManagedCluster)), true))
+		t.Run("should delete the AzureManagedCluster", checkEqual(apierrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(azureManagedCluster), azureManagedCluster)), true))
 	})
 }

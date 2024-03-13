@@ -4,20 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.14.0
-  name: asomanagedclustertemplates.infrastructure.cluster.x-k8s.io
+  name: azuremanagedcontrolplanetemplates.infrastructure.cluster.x-k8s.io
 spec:
   group: infrastructure.cluster.x-k8s.io
   names:
-    kind: ASOManagedClusterTemplate
-    listKind: ASOManagedClusterTemplateList
-    plural: asomanagedclustertemplates
-    singular: asomanagedclustertemplate
+    kind: AzureManagedControlPlaneTemplate
+    listKind: AzureManagedControlPlaneTemplateList
+    plural: azuremanagedcontrolplanetemplates
+    singular: azuremanagedcontrolplanetemplate
   scope: Namespaced
   versions:
   - name: v2alpha1
     schema:
       openAPIV3Schema:
-        description: ASOManagedClusterTemplate is the Schema for the asomanagedclustertemplates
+        description: AzureManagedControlPlaneTemplate is the Schema for the azuremanagedcontrolplanetemplates
           API
         properties:
           apiVersion:
@@ -38,8 +38,8 @@ spec:
           metadata:
             type: object
           spec:
-            description: ASOManagedClusterTemplateSpec defines the desired state of
-              ASOManagedClusterTemplate
+            description: AzureManagedControlPlaneTemplateSpec defines the desired
+              state of AzureManagedControlPlane
             properties:
               template:
                 properties:
@@ -52,6 +52,11 @@ spec:
                           type: object
                           x-kubernetes-preserve-unknown-fields: true
                         type: array
+                      version:
+                        description: |-
+                          Version is the Kubernetes version of the control plane. It fulfills Cluster API's control plane
+                          provider contract.
+                        type: string
                     type: object
                 type: object
             required:

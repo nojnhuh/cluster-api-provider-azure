@@ -21,39 +21,39 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// ASOManagedClusterTemplateSpec defines the desired state of ASOManagedClusterTemplate
-type ASOManagedClusterTemplateSpec struct {
-	Template ASOClusterTemplateResource `json:"template"`
+// AzureManagedClusterTemplateSpec defines the desired state of AzureManagedClusterTemplate
+type AzureManagedClusterTemplateSpec struct {
+	Template AzureClusterTemplateResource `json:"template"`
 }
 
-type ASOClusterTemplateResource struct {
-	Spec ASOManagedClusterTemplateResourceSpec `json:"spec,omitempty"`
+type AzureClusterTemplateResource struct {
+	Spec AzureManagedClusterTemplateResourceSpec `json:"spec,omitempty"`
 }
 
-type ASOManagedClusterTemplateResourceSpec struct {
+type AzureManagedClusterTemplateResourceSpec struct {
 	// Resources are embedded ASO resources to be managed by this resource.
 	Resources []runtime.RawExtension `json:"resources,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// ASOManagedClusterTemplate is the Schema for the asomanagedclustertemplates API
-type ASOManagedClusterTemplate struct {
+// AzureManagedClusterTemplate is the Schema for the azuremanagedclustertemplates API
+type AzureManagedClusterTemplate struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec ASOManagedClusterTemplateSpec `json:"spec,omitempty"`
+	Spec AzureManagedClusterTemplateSpec `json:"spec,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// ASOManagedClusterTemplateList contains a list of ASOManagedClusterTemplate
-type ASOManagedClusterTemplateList struct {
+// AzureManagedClusterTemplateList contains a list of AzureManagedClusterTemplate
+type AzureManagedClusterTemplateList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ASOManagedClusterTemplate `json:"items"`
+	Items           []AzureManagedClusterTemplate `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&ASOManagedClusterTemplate{}, &ASOManagedClusterTemplateList{})
+	SchemeBuilder.Register(&AzureManagedClusterTemplate{}, &AzureManagedClusterTemplateList{})
 }

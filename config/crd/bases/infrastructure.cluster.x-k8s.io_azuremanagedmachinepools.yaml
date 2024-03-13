@@ -4,20 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.14.0
-  name: asomanagedcontrolplanes.infrastructure.cluster.x-k8s.io
+  name: azuremanagedmachinepools.infrastructure.cluster.x-k8s.io
 spec:
   group: infrastructure.cluster.x-k8s.io
   names:
-    kind: ASOManagedControlPlane
-    listKind: ASOManagedControlPlaneList
-    plural: asomanagedcontrolplanes
-    singular: asomanagedcontrolplane
+    kind: AzureManagedMachinePool
+    listKind: AzureManagedMachinePoolList
+    plural: azuremanagedmachinepools
+    singular: azuremanagedmachinepool
   scope: Namespaced
   versions:
   - name: v2alpha1
     schema:
       openAPIV3Schema:
-        description: ASOManagedControlPlane is the Schema for the asomanagedcontrolplanes
+        description: AzureManagedMachinePool is the Schema for the azuremanagedmachinepools
           API
         properties:
           apiVersion:
@@ -38,8 +38,16 @@ spec:
           metadata:
             type: object
           spec:
-            description: ASOManagedControlPlaneSpec defines the desired state of ASOManagedControlPlane
+            description: AzureManagedMachinePoolSpec defines the desired state of
+              AzureManagedMachinePool
             properties:
+              providerIDList:
+                description: |-
+                  ProviderIDList is the list of cloud provider IDs for the instances. It fulfills Cluster API's machine
+                  pool infrastructure provider contract.
+                items:
+                  type: string
+                type: array
               resources:
                 description: Resources are embedded ASO resources to be managed by
                   this resource.
@@ -47,51 +55,25 @@ spec:
                   type: object
                   x-kubernetes-preserve-unknown-fields: true
                 type: array
-              version:
-                description: |-
-                  Version is the Kubernetes version of the control plane. It fulfills Cluster API's control plane
-                  provider contract.
-                type: string
             type: object
           status:
-            description: ASOManagedControlPlaneStatus defines the observed state of
-              ASOManagedControlPlane
+            description: AzureManagedMachinePoolStatus defines the observed state
+              of AzureManagedMachinePool
             properties:
-              controlPlaneEndpoint:
-                description: ControlPlaneEndpoint represents the endpoint for the
-                  cluster's API server.
-                properties:
-                  host:
-                    description: The hostname on which the API server is serving.
-                    type: string
-                  port:
-                    description: The port on which the API server is serving.
-                    format: int32
-                    type: integer
-                required:
-                - host
-                - port
-                type: object
-              externalManagedControlPlane:
-                description: |-
-                  ExternalManagedControlPlane is always set to true since control plane components for AKS do not exist
-                  in Nodes. It fulfills Cluster API's control plane provider contract.
-                type: boolean
-              initialized:
-                description: |-
-                  Initialized represents whether or not the API server has been provisioned. It fulfills Cluster API's
-                  control plane provider contract.
-                type: boolean
               observedGeneration:
-                description: ObservedGeneration is the last metadata.generation of
-                  the object that has been reconciled.
+                description: ObservedGeneration is the last generation that was successfully
+                  reconciled.
                 format: int64
                 type: integer
               ready:
                 description: |-
-                  Ready represents whether or not the API server is ready to receive requests. It fulfills Cluster API's
-                  control plane provider contract.
+                  Ready represents whether or not the infrastructure is ready to be used. It fulfills Cluster API's
+                  machine pool infrastructure provider contract.
                 type: boolean
+              replicas:
+                description: Replicas is the current number of provisioned replicas.
+                format: int32
+                type: integer
               resources:
                 description: Resources represents the status of the resources defined
                   in the spec.
@@ -121,11 +103,6 @@ spec:
                   - version
                   type: object
                 type: array
-              version:
-                description: |-
-                  Version is the observed Kubernetes version of the control plane. It fulfills Cluster API's control
-                  plane provider contract.
-                type: string
             type: object
         type: object
     served: true

@@ -1,19 +1,19 @@
-{{- define "capaso.commonLabels" -}}
-app.kubernetes.io/name: capaso-workload
+{{- define "capz.commonLabels" -}}
+app.kubernetes.io/name: capz-workload
 helm.sh/chart: {{ $.Chart.Name }}-{{ $.Chart.Version | replace "+" "_" }}
 app.kubernetes.io/managed-by: {{ $.Release.Service }}
 app.kubernetes.io/instance: {{ $.Release.Name }}
 {{- end }}
 
-{{- define "capaso.clusterName" -}}
+{{- define "capz.clusterName" -}}
 {{ default $.Release.Name $.Values.clusterName }}
 {{- end }}
 
-{{- define "capaso.asoResourceAnnotations" -}}
+{{- define "capz.azureResourceAnnotations" -}}
 serviceoperator.azure.com/credential-from: {{ $.Values.credentialSecretName }}
 {{- end }}
 
-{{- define "capaso.asoManagedClusterSpec" -}}
+{{- define "capz.azureManagedClusterSpec" -}}
 {{- $ := index . 0 -}}
 {{- $clusterName := index . 1 -}}
 resources:
@@ -22,12 +22,12 @@ resources:
   metadata:
     name: {{ quote $clusterName }}
     annotations:
-      {{- include "capaso.asoResourceAnnotations" $ | nindent 6 }}
+      {{- include "capz.azureResourceAnnotations" $ | nindent 6 }}
   spec:
     location: {{ $.Values.location }}
 {{- end }}
 
-{{- define "capaso.asoManagedControlPlaneSpec" -}}
+{{- define "capz.azureManagedControlPlaneSpec" -}}
 {{- $ := index . 0 -}}
 {{- $clusterName := index . 1 -}}
 version: {{ $.Values.kubernetesVersion | quote  }}
@@ -37,7 +37,7 @@ resources:
   metadata:
     name: {{ $clusterName | quote }}
     annotations:
-      {{- include "capaso.asoResourceAnnotations" $ | nindent 6 }}
+      {{- include "capz.azureResourceAnnotations" $ | nindent 6 }}
   spec:
     owner:
       name: {{ quote $clusterName }}
@@ -51,7 +51,7 @@ resources:
           key: value
 {{- end }}
 
-{{- define "capaso.asoManagedMachinePoolSpec" -}}
+{{- define "capz.azureManagedMachinePoolSpec" -}}
 {{- $ := index . 0 -}}
 {{- $clusterName := index . 1 -}}
 {{- $mpName := index . 2 -}}
@@ -62,7 +62,7 @@ resources:
   metadata:
     name: {{ printf "%s-%s" $clusterName $mpName | quote }}
     annotations:
-      {{- include "capaso.asoResourceAnnotations" $ | nindent 6 }}
+      {{- include "capz.azureResourceAnnotations" $ | nindent 6 }}
   spec:
     azureName: {{ $mpName | quote }}
     {{- if $mp.owner }}

@@ -25,7 +25,6 @@ import (
 
 	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20231001"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
-	infrav1 "sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
+	infrav1 "sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	expv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/secret"
@@ -41,7 +41,7 @@ import (
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
-func TestASOManagedControlPlaneReconcile(t *testing.T) {
+func TestAzureManagedControlPlaneReconcile(t *testing.T) {
 	ctx := context.Background()
 
 	s := runtime.NewScheme()
@@ -56,13 +56,13 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 	fakeClientBuilder := func() *fakeclient.ClientBuilder {
 		return fakeclient.NewClientBuilder().
 			WithScheme(s).
-			WithStatusSubresource(&infrav1.ASOManagedControlPlane{})
+			WithStatusSubresource(&infrav1.AzureManagedControlPlane{})
 	}
 
-	t.Run("ASOManagedControlPlane does not exist", func(t *testing.T) {
+	t.Run("AzureManagedControlPlane does not exist", func(t *testing.T) {
 		c := fakeClientBuilder().
 			Build()
-		r := &ASOManagedControlPlaneReconciler{
+		r := &AzureManagedControlPlaneReconciler{
 			Client: c,
 		}
 		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "doesn't", Name: "exist"}})
@@ -71,28 +71,28 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 	})
 
 	t.Run("no Cluster ownerref", func(t *testing.T) {
-		asoControlPlane := &infrav1.ASOManagedControlPlane{
+		azureManagedControlPlane := &infrav1.AzureManagedControlPlane{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:       "asomcp",
+				Name:       "amcp",
 				Namespace:  "ns",
 				Generation: 1,
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(asoControlPlane).
+			WithObjects(azureManagedControlPlane).
 			Build()
 
-		r := &ASOManagedControlPlaneReconciler{
+		r := &AzureManagedControlPlaneReconciler{
 			Client: c,
 		}
-		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoControlPlane)})
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedControlPlane)})
 
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should not requeue", checkEqual(result, ctrl.Result{}))
 		t.Run("should update status.observedGeneration", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoControlPlane), asoControlPlane)))
-			t.Run("metadata.generation", checkEqual(asoControlPlane.Generation, 1))
-			t.Run("status.observedGeneration", checkEqual(asoControlPlane.Status.ObservedGeneration, 1))
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedControlPlane), azureManagedControlPlane)))
+			t.Run("metadata.generation", checkEqual(azureManagedControlPlane.Generation, 1))
+			t.Run("status.observedGeneration", checkEqual(azureManagedControlPlane.Status.ObservedGeneration, 1))
 		})
 	})
 
@@ -103,9 +103,9 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 				Name:      "cluster",
 			},
 		}
-		asoControlPlane := &infrav1.ASOManagedControlPlane{
+		azureManagedControlPlane := &infrav1.AzureManagedControlPlane{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "asomcp",
+				Name:      "amcp",
 				Namespace: cluster.Namespace,
 				OwnerReferences: []metav1.OwnerReference{
 					{
@@ -118,23 +118,23 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(asoControlPlane).
+			WithObjects(azureManagedControlPlane).
 			Build()
 
-		r := &ASOManagedControlPlaneReconciler{
+		r := &AzureManagedControlPlaneReconciler{
 			Client: c,
 		}
-		_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoControlPlane)})
+		_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedControlPlane)})
 
 		t.Run("should fail", checkEqual(apierrors.IsNotFound(err), true))
 		t.Run("should not update status.observedGeneration", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoControlPlane), asoControlPlane)))
-			t.Run("metadata.generation", checkEqual(asoControlPlane.Generation, 1))
-			t.Run("status.observedGeneration", checkEqual(asoControlPlane.Status.ObservedGeneration, 0))
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedControlPlane), azureManagedControlPlane)))
+			t.Run("metadata.generation", checkEqual(azureManagedControlPlane.Generation, 1))
+			t.Run("status.observedGeneration", checkEqual(azureManagedControlPlane.Status.ObservedGeneration, 0))
 		})
 	})
 
-	t.Run("Cluster does not also use ASOManagedControlPlane", func(t *testing.T) {
+	t.Run("Cluster does not also use AzureManagedControlPlane", func(t *testing.T) {
 		cluster := &clusterv1.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "ns",
@@ -142,13 +142,13 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 			},
 			Spec: clusterv1.ClusterSpec{
 				InfrastructureRef: &corev1.ObjectReference{
-					Kind: "not-ASOManagedCluster",
+					Kind: "not-AzureManagedCluster",
 				},
 			},
 		}
-		asoControlPlane := &infrav1.ASOManagedControlPlane{
+		azureManagedControlPlane := &infrav1.AzureManagedControlPlane{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "asomcp",
+				Name:      "amcp",
 				Namespace: cluster.Namespace,
 				OwnerReferences: []metav1.OwnerReference{
 					{
@@ -160,13 +160,13 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(cluster, asoControlPlane).
+			WithObjects(cluster, azureManagedControlPlane).
 			Build()
 
-		r := &ASOManagedControlPlaneReconciler{
+		r := &AzureManagedControlPlaneReconciler{
 			Client: c,
 		}
-		_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoControlPlane)})
+		_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedControlPlane)})
 
 		t.Run("should fail", checkEqual(errors.Is(err, invalidClusterKindErr), true))
 	})
@@ -179,13 +179,13 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 			},
 			Spec: clusterv1.ClusterSpec{
 				InfrastructureRef: &corev1.ObjectReference{
-					Kind: "ASOManagedCluster",
+					Kind: "AzureManagedCluster",
 				},
 			},
 		}
-		asoControlPlane := &infrav1.ASOManagedControlPlane{
+		azureManagedControlPlane := &infrav1.AzureManagedControlPlane{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "asomcp",
+				Name:      "amcp",
 				Namespace: cluster.Namespace,
 				OwnerReferences: []metav1.OwnerReference{
 					{
@@ -197,19 +197,19 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(cluster, asoControlPlane).
+			WithObjects(cluster, azureManagedControlPlane).
 			Build()
 
-		r := &ASOManagedControlPlaneReconciler{
+		r := &AzureManagedControlPlaneReconciler{
 			Client: c,
 		}
-		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoControlPlane)})
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedControlPlane)})
 
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should requeue", checkEqual(result, ctrl.Result{Requeue: true}))
 		t.Run("should add the finalizer", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoControlPlane), asoControlPlane)))
-			t.Run("metadata.finalizers[0]", checkEqual(asoControlPlane.Finalizers[0], clusterv1.ClusterFinalizer))
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedControlPlane), azureManagedControlPlane)))
+			t.Run("metadata.finalizers[0]", checkEqual(azureManagedControlPlane.Finalizers[0], clusterv1.ClusterFinalizer))
 		})
 	})
 
@@ -221,13 +221,13 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 			},
 			Spec: clusterv1.ClusterSpec{
 				InfrastructureRef: &corev1.ObjectReference{
-					Kind: "ASOManagedCluster",
+					Kind: "AzureManagedCluster",
 				},
 			},
 		}
-		asoControlPlane := &infrav1.ASOManagedControlPlane{
+		azureManagedControlPlane := &infrav1.AzureManagedControlPlane{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "asomcp",
+				Name:      "amcp",
 				Namespace: cluster.Namespace,
 				OwnerReferences: []metav1.OwnerReference{
 					{
@@ -238,23 +238,23 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 				},
 				Finalizers: []string{clusterv1.ClusterFinalizer},
 			},
-			Spec: infrav1.ASOManagedControlPlaneSpec{
-				ASOManagedControlPlaneTemplateResourceSpec: infrav1.ASOManagedControlPlaneTemplateResourceSpec{
+			Spec: infrav1.AzureManagedControlPlaneSpec{
+				AzureManagedControlPlaneTemplateResourceSpec: infrav1.AzureManagedControlPlaneTemplateResourceSpec{
 					Resources: []runtime.RawExtension{},
 				},
 			},
-			Status: infrav1.ASOManagedControlPlaneStatus{
+			Status: infrav1.AzureManagedControlPlaneStatus{
 				Ready: true,
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(cluster, asoControlPlane).
+			WithObjects(cluster, azureManagedControlPlane).
 			Build()
 
-		r := &ASOManagedControlPlaneReconciler{
+		r := &AzureManagedControlPlaneReconciler{
 			Client: c,
 		}
-		_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoControlPlane)})
+		_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedControlPlane)})
 
 		t.Run("should fail", checkEqual(errors.Is(err, noManagedClusterDefinedErr), true))
 	})
@@ -267,7 +267,7 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 			},
 			Spec: clusterv1.ClusterSpec{
 				InfrastructureRef: &corev1.ObjectReference{
-					Kind: "ASOManagedCluster",
+					Kind: "AzureManagedCluster",
 				},
 			},
 		}
@@ -280,9 +280,9 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 				AgentPoolProfiles: []asocontainerservicev1.ManagedClusterAgentPoolProfile_STATUS{{}},
 			},
 		}
-		asoControlPlane := &infrav1.ASOManagedControlPlane{
+		azureManagedControlPlane := &infrav1.AzureManagedControlPlane{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "asomcp",
+				Name:      "amcp",
 				Namespace: cluster.Namespace,
 				OwnerReferences: []metav1.OwnerReference{
 					{
@@ -293,8 +293,8 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 				},
 				Finalizers: []string{clusterv1.ClusterFinalizer},
 			},
-			Spec: infrav1.ASOManagedControlPlaneSpec{
-				ASOManagedControlPlaneTemplateResourceSpec: infrav1.ASOManagedControlPlaneTemplateResourceSpec{
+			Spec: infrav1.AzureManagedControlPlaneSpec{
+				AzureManagedControlPlaneTemplateResourceSpec: infrav1.AzureManagedControlPlaneTemplateResourceSpec{
 					Resources: []runtime.RawExtension{
 						{
 							Raw: mcJSON(t, &asocontainerservicev1.ManagedCluster{
@@ -306,21 +306,21 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 					},
 				},
 			},
-			Status: infrav1.ASOManagedControlPlaneStatus{
+			Status: infrav1.AzureManagedControlPlaneStatus{
 				Ready: true,
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(cluster, asoControlPlane, mc).
+			WithObjects(cluster, azureManagedControlPlane, mc).
 			Build()
 
-		r := &ASOManagedControlPlaneReconciler{
+		r := &AzureManagedControlPlaneReconciler{
 			Client: c,
-			newResourceReconciler: func(asoControlPlane *infrav1.ASOManagedControlPlane, resources []runtime.RawExtension) resourceReconciler {
+			newResourceReconciler: func(azureManagedControlPlane *infrav1.AzureManagedControlPlane, resources []runtime.RawExtension) resourceReconciler {
 				return &fakeResourceReconciler{
-					owner: asoControlPlane,
-					reconcileFunc: func(_ context.Context, asoControlPlane resourceStatusObject) error {
-						asoControlPlane.SetResourceStatuses([]infrav1.ResourceStatus{
+					owner: azureManagedControlPlane,
+					reconcileFunc: func(_ context.Context, azureManagedControlPlane resourceStatusObject) error {
+						azureManagedControlPlane.SetResourceStatuses([]infrav1.ResourceStatus{
 							{Ready: false},
 						})
 						return nil
@@ -328,13 +328,13 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 				}
 			},
 		}
-		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoControlPlane)})
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedControlPlane)})
 
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should not requeue", checkEqual(result, ctrl.Result{}))
-		t.Run("should update the ASOManagedControlPlane", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoControlPlane), asoControlPlane)))
-			t.Run("status.ready", checkEqual(asoControlPlane.Status.Ready, false))
+		t.Run("should update the AzureManagedControlPlane", func(t *testing.T) {
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedControlPlane), azureManagedControlPlane)))
+			t.Run("status.ready", checkEqual(azureManagedControlPlane.Status.Ready, false))
 		})
 	})
 
@@ -346,7 +346,7 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 			},
 			Spec: clusterv1.ClusterSpec{
 				InfrastructureRef: &corev1.ObjectReference{
-					Kind: "ASOManagedCluster",
+					Kind: "AzureManagedCluster",
 				},
 			},
 		}
@@ -359,7 +359,7 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 				Replicas: ptr.To[int32](5),
 			},
 		}
-		asoManagedMachinePool := &infrav1.ASOManagedMachinePool{
+		azureManagedMachinePool := &infrav1.AzureManagedMachinePool{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "pool0",
 				Namespace: cluster.Namespace,
@@ -374,8 +374,8 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 					},
 				},
 			},
-			Spec: infrav1.ASOManagedMachinePoolSpec{
-				ASOManagedMachinePoolTemplateResourceSpec: infrav1.ASOManagedMachinePoolTemplateResourceSpec{
+			Spec: infrav1.AzureManagedMachinePoolSpec{
+				AzureManagedMachinePoolTemplateResourceSpec: infrav1.AzureManagedMachinePoolTemplateResourceSpec{
 					Resources: []runtime.RawExtension{
 						{
 							Raw: apJSON(t, &asocontainerservicev1.ManagedClustersAgentPool{
@@ -418,9 +418,9 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 				mc.Spec.OperatorSpec.Secrets.AdminCredentials.Key: []byte("some data"),
 			},
 		}
-		asoControlPlane := &infrav1.ASOManagedControlPlane{
+		azureManagedControlPlane := &infrav1.AzureManagedControlPlane{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "asomcp",
+				Name:      "amcp",
 				Namespace: cluster.Namespace,
 				OwnerReferences: []metav1.OwnerReference{
 					{
@@ -431,8 +431,8 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 				},
 				Finalizers: []string{clusterv1.ClusterFinalizer},
 			},
-			Spec: infrav1.ASOManagedControlPlaneSpec{
-				ASOManagedControlPlaneTemplateResourceSpec: infrav1.ASOManagedControlPlaneTemplateResourceSpec{
+			Spec: infrav1.AzureManagedControlPlaneSpec{
+				AzureManagedControlPlaneTemplateResourceSpec: infrav1.AzureManagedControlPlaneTemplateResourceSpec{
 					Resources: []runtime.RawExtension{
 						{
 							Raw: mcJSON(t, &asocontainerservicev1.ManagedCluster{
@@ -444,15 +444,15 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 					},
 				},
 			},
-			Status: infrav1.ASOManagedControlPlaneStatus{
+			Status: infrav1.AzureManagedControlPlaneStatus{
 				Ready: false,
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(cluster, asoControlPlane, asoManagedMachinePool, mp, mc, kubeconfig).
+			WithObjects(cluster, azureManagedControlPlane, azureManagedMachinePool, mp, mc, kubeconfig).
 			Build()
 
-		r := &ASOManagedControlPlaneReconciler{
+		r := &AzureManagedControlPlaneReconciler{
 			Client: &FakeClient{
 				Client: c,
 				patchFunc: func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
@@ -467,7 +467,7 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 					return nil
 				},
 			},
-			newResourceReconciler: func(asoControlPlane *infrav1.ASOManagedControlPlane, resources []runtime.RawExtension) resourceReconciler {
+			newResourceReconciler: func(azureManagedControlPlane *infrav1.AzureManagedControlPlane, resources []runtime.RawExtension) resourceReconciler {
 				t.Run("reconciled resources", func(t *testing.T) {
 					for _, resource := range resources {
 						u := &unstructured.Unstructured{}
@@ -496,46 +496,46 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 					}
 				})
 				return &fakeResourceReconciler{
-					reconcileFunc: func(_ context.Context, asoControlPlane resourceStatusObject) error {
+					reconcileFunc: func(_ context.Context, azureManagedControlPlane resourceStatusObject) error {
 						return nil
 					},
 				}
 			},
 		}
-		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoControlPlane)})
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedControlPlane)})
 
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should not requeue", checkEqual(result, ctrl.Result{}))
-		t.Run("should update the ASOManagedControlPlane", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoControlPlane), asoControlPlane)))
-			t.Run("status.version", checkEqual(asoControlPlane.Status.Version, "v0.0.0"))
-			t.Run("status.ready", checkEqual(asoControlPlane.Status.Ready, true))
-			t.Run("status.initialized", checkEqual(asoControlPlane.Status.Initialized, true))
+		t.Run("should update the AzureManagedControlPlane", func(t *testing.T) {
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedControlPlane), azureManagedControlPlane)))
+			t.Run("status.version", checkEqual(azureManagedControlPlane.Status.Version, "v0.0.0"))
+			t.Run("status.ready", checkEqual(azureManagedControlPlane.Status.Ready, true))
+			t.Run("status.initialized", checkEqual(azureManagedControlPlane.Status.Initialized, true))
 		})
 	})
 
 	t.Run("Delete without Cluster ownerref", func(t *testing.T) {
-		asoControlPlane := &infrav1.ASOManagedControlPlane{
+		azureManagedControlPlane := &infrav1.AzureManagedControlPlane{
 			ObjectMeta: metav1.ObjectMeta{
 				DeletionTimestamp: &metav1.Time{Time: time.Date(1, 0, 0, 0, 0, 0, 0, time.UTC)},
-				Name:              "asomcp",
+				Name:              "amcp",
 				Namespace:         "ns",
 				OwnerReferences:   []metav1.OwnerReference{},
 				Finalizers:        []string{clusterv1.ClusterFinalizer},
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(asoControlPlane).
+			WithObjects(azureManagedControlPlane).
 			Build()
 
-		r := &ASOManagedControlPlaneReconciler{
+		r := &AzureManagedControlPlaneReconciler{
 			Client: c,
 		}
-		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoControlPlane)})
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedControlPlane)})
 
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should not requeue", checkEqual(result, ctrl.Result{}))
-		t.Run("should delete the ASOManagedCluster", checkEqual(apierrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(asoControlPlane), asoControlPlane)), true))
+		t.Run("should delete the AzureManagedCluster", checkEqual(apierrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(azureManagedControlPlane), azureManagedControlPlane)), true))
 	})
 
 	t.Run("Delete error", func(t *testing.T) {
@@ -546,10 +546,10 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 				Name:      "cluster",
 			},
 		}
-		asoControlPlane := &infrav1.ASOManagedControlPlane{
+		azureManagedControlPlane := &infrav1.AzureManagedControlPlane{
 			ObjectMeta: metav1.ObjectMeta{
 				DeletionTimestamp: &metav1.Time{Time: time.Date(1, 0, 0, 0, 0, 0, 0, time.UTC)},
-				Name:              "asomcp",
+				Name:              "amcp",
 				Namespace:         cluster.Namespace,
 				OwnerReferences: []metav1.OwnerReference{
 					{
@@ -562,13 +562,13 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(cluster, asoControlPlane).
+			WithObjects(cluster, azureManagedControlPlane).
 			Build()
 
 		deleteErr := errors.New("delete error")
-		r := &ASOManagedControlPlaneReconciler{
+		r := &AzureManagedControlPlaneReconciler{
 			Client: c,
-			newResourceReconciler: func(_ *infrav1.ASOManagedControlPlane, _ []runtime.RawExtension) resourceReconciler {
+			newResourceReconciler: func(_ *infrav1.AzureManagedControlPlane, _ []runtime.RawExtension) resourceReconciler {
 				return &fakeResourceReconciler{
 					deleteFunc: func(_ context.Context, _ resourceStatusObject) error {
 						return deleteErr
@@ -576,12 +576,12 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 				}
 			},
 		}
-		_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoControlPlane)})
+		_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedControlPlane)})
 
 		t.Run("should fail", checkEqual(errors.Is(err, deleteErr), true))
 		t.Run("should not remove the finalizer", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoControlPlane), asoControlPlane)))
-			t.Run("finalizers length", checkEqual(len(asoControlPlane.Finalizers), 1))
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedControlPlane), azureManagedControlPlane)))
+			t.Run("finalizers length", checkEqual(len(azureManagedControlPlane.Finalizers), 1))
 		})
 	})
 
@@ -593,10 +593,10 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 				Name:      "cluster",
 			},
 		}
-		asoControlPlane := &infrav1.ASOManagedControlPlane{
+		azureManagedControlPlane := &infrav1.AzureManagedControlPlane{
 			ObjectMeta: metav1.ObjectMeta{
 				DeletionTimestamp: &metav1.Time{Time: time.Date(1, 0, 0, 0, 0, 0, 0, time.UTC)},
-				Name:              "asomcp",
+				Name:              "amcp",
 				Namespace:         cluster.Namespace,
 				OwnerReferences: []metav1.OwnerReference{
 					{
@@ -609,16 +609,16 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(cluster, asoControlPlane).
+			WithObjects(cluster, azureManagedControlPlane).
 			Build()
 
-		r := &ASOManagedControlPlaneReconciler{
+		r := &AzureManagedControlPlaneReconciler{
 			Client: c,
-			newResourceReconciler: func(asoControlPlane *infrav1.ASOManagedControlPlane, _ []runtime.RawExtension) resourceReconciler {
+			newResourceReconciler: func(azureManagedControlPlane *infrav1.AzureManagedControlPlane, _ []runtime.RawExtension) resourceReconciler {
 				return &fakeResourceReconciler{
-					owner: asoControlPlane,
-					deleteFunc: func(_ context.Context, asoControlPlane resourceStatusObject) error {
-						asoControlPlane.SetResourceStatuses([]infrav1.ResourceStatus{
+					owner: azureManagedControlPlane,
+					deleteFunc: func(_ context.Context, azureManagedControlPlane resourceStatusObject) error {
+						azureManagedControlPlane.SetResourceStatuses([]infrav1.ResourceStatus{
 							{Ready: false},
 						})
 						return nil
@@ -626,13 +626,13 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 				}
 			},
 		}
-		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoControlPlane)})
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedControlPlane)})
 
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should not requeue", checkEqual(result, ctrl.Result{}))
 		t.Run("should not remove the finalizer", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoControlPlane), asoControlPlane)))
-			t.Run("finalizers length", checkEqual(len(asoControlPlane.Finalizers), 1))
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedControlPlane), azureManagedControlPlane)))
+			t.Run("finalizers length", checkEqual(len(azureManagedControlPlane.Finalizers), 1))
 		})
 	})
 
@@ -644,10 +644,10 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 				Name:      "cluster",
 			},
 		}
-		asoControlPlane := &infrav1.ASOManagedControlPlane{
+		azureManagedControlPlane := &infrav1.AzureManagedControlPlane{
 			ObjectMeta: metav1.ObjectMeta{
 				DeletionTimestamp: &metav1.Time{Time: time.Date(1, 0, 0, 0, 0, 0, 0, time.UTC)},
-				Name:              "asomc",
+				Name:              "amcp",
 				Namespace:         cluster.Namespace,
 				OwnerReferences: []metav1.OwnerReference{
 					{
@@ -660,12 +660,12 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(cluster, asoControlPlane).
+			WithObjects(cluster, azureManagedControlPlane).
 			Build()
 
-		r := &ASOManagedControlPlaneReconciler{
+		r := &AzureManagedControlPlaneReconciler{
 			Client: c,
-			newResourceReconciler: func(_ *infrav1.ASOManagedControlPlane, _ []runtime.RawExtension) resourceReconciler {
+			newResourceReconciler: func(_ *infrav1.AzureManagedControlPlane, _ []runtime.RawExtension) resourceReconciler {
 				return &fakeResourceReconciler{
 					deleteFunc: func(_ context.Context, _ resourceStatusObject) error {
 						return nil
@@ -673,11 +673,11 @@ func TestASOManagedControlPlaneReconcile(t *testing.T) {
 				}
 			},
 		}
-		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoControlPlane)})
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedControlPlane)})
 
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should not requeue", checkEqual(result, ctrl.Result{}))
-		t.Run("should delete the ASOManagedCluster", checkEqual(apierrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(asoControlPlane), asoControlPlane)), true))
+		t.Run("should delete the AzureManagedCluster", checkEqual(apierrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(azureManagedControlPlane), azureManagedControlPlane)), true))
 	})
 }
 

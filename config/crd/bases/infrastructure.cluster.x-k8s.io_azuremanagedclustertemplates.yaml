@@ -4,20 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.14.0
-  name: asomanagedmachinepooltemplates.infrastructure.cluster.x-k8s.io
+  name: azuremanagedclustertemplates.infrastructure.cluster.x-k8s.io
 spec:
   group: infrastructure.cluster.x-k8s.io
   names:
-    kind: ASOManagedMachinePoolTemplate
-    listKind: ASOManagedMachinePoolTemplateList
-    plural: asomanagedmachinepooltemplates
-    singular: asomanagedmachinepooltemplate
+    kind: AzureManagedClusterTemplate
+    listKind: AzureManagedClusterTemplateList
+    plural: azuremanagedclustertemplates
+    singular: azuremanagedclustertemplate
   scope: Namespaced
   versions:
   - name: v2alpha1
     schema:
       openAPIV3Schema:
-        description: ASOManagedMachinePoolTemplate is the Schema for the asomanagedmachinepooltemplates
+        description: AzureManagedClusterTemplate is the Schema for the azuremanagedclustertemplates
           API
         properties:
           apiVersion:
@@ -38,8 +38,8 @@ spec:
           metadata:
             type: object
           spec:
-            description: ASOManagedMachinePoolTemplateSpec defines the desired state
-              of ASOManagedMachinePoolTemplate
+            description: AzureManagedClusterTemplateSpec defines the desired state
+              of AzureManagedClusterTemplate
             properties:
               template:
                 properties:
@@ -52,11 +52,6 @@ spec:
                           type: object
                           x-kubernetes-preserve-unknown-fields: true
                         type: array
-                      version:
-                        description: |-
-                          Version is the Kubernetes version of the control plane. It fulfills Cluster API's control plane
-                          provider contract.
-                        type: string
                     type: object
                 type: object
             required:

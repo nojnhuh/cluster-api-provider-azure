@@ -91,7 +91,7 @@ func (r *InfraReconciler) Reconcile(ctx context.Context) error {
 		}
 
 		log.Info("applying resource")
-		err = r.Patch(ctx, spec, client.Apply, client.FieldOwner("capaso"), client.ForceOwnership)
+		err = r.Patch(ctx, spec, client.Apply, client.FieldOwner("capz-manager"), client.ForceOwnership)
 		if err != nil {
 			return fmt.Errorf("failed to apply resource: %w", err)
 		}

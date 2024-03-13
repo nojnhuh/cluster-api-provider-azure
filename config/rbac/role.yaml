@@ -41,7 +41,7 @@ rules:
 - apiGroups:
   - infrastructure.cluster.x-k8s.io
   resources:
-  - asomanagedclusters
+  - azuremanagedclusters
   verbs:
   - create
   - delete
@@ -53,13 +53,13 @@ rules:
 - apiGroups:
   - infrastructure.cluster.x-k8s.io
   resources:
-  - asomanagedclusters/finalizers
+  - azuremanagedclusters/finalizers
   verbs:
   - update
 - apiGroups:
   - infrastructure.cluster.x-k8s.io
   resources:
-  - asomanagedclusters/status
+  - azuremanagedclusters/status
   verbs:
   - get
   - patch
@@ -67,7 +67,7 @@ rules:
 - apiGroups:
   - infrastructure.cluster.x-k8s.io
   resources:
-  - asomanagedcontrolplanes
+  - azuremanagedcontrolplanes
   verbs:
   - create
   - delete
@@ -79,13 +79,13 @@ rules:
 - apiGroups:
   - infrastructure.cluster.x-k8s.io
   resources:
-  - asomanagedcontrolplanes/finalizers
+  - azuremanagedcontrolplanes/finalizers
   verbs:
   - update
 - apiGroups:
   - infrastructure.cluster.x-k8s.io
   resources:
-  - asomanagedcontrolplanes/status
+  - azuremanagedcontrolplanes/status
   verbs:
   - get
   - patch
@@ -93,7 +93,7 @@ rules:
 - apiGroups:
   - infrastructure.cluster.x-k8s.io
   resources:
-  - asomanagedmachinepools
+  - azuremanagedmachinepools
   verbs:
   - create
   - delete
@@ -105,13 +105,13 @@ rules:
 - apiGroups:
   - infrastructure.cluster.x-k8s.io
   resources:
-  - asomanagedmachinepools/finalizers
+  - azuremanagedmachinepools/finalizers
   verbs:
   - update
 - apiGroups:
   - infrastructure.cluster.x-k8s.io
   resources:
-  - asomanagedmachinepools/status
+  - azuremanagedmachinepools/status
   verbs:
   - get
   - patch

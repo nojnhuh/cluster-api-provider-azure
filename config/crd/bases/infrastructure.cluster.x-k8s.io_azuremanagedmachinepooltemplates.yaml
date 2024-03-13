@@ -4,20 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.14.0
-  name: asomanagedcontrolplanetemplates.infrastructure.cluster.x-k8s.io
+  name: azuremanagedmachinepooltemplates.infrastructure.cluster.x-k8s.io
 spec:
   group: infrastructure.cluster.x-k8s.io
   names:
-    kind: ASOManagedControlPlaneTemplate
-    listKind: ASOManagedControlPlaneTemplateList
-    plural: asomanagedcontrolplanetemplates
-    singular: asomanagedcontrolplanetemplate
+    kind: AzureManagedMachinePoolTemplate
+    listKind: AzureManagedMachinePoolTemplateList
+    plural: azuremanagedmachinepooltemplates
+    singular: azuremanagedmachinepooltemplate
   scope: Namespaced
   versions:
   - name: v2alpha1
     schema:
       openAPIV3Schema:
-        description: ASOManagedControlPlaneTemplate is the Schema for the asomanagedcontrolplanetemplates
+        description: AzureManagedMachinePoolTemplate is the Schema for the azuremanagedmachinepooltemplates
           API
         properties:
           apiVersion:
@@ -38,7 +38,8 @@ spec:
           metadata:
             type: object
           spec:
-            description: ASOManagedControlPlaneSpec defines the desired state of ASOManagedControlPlane
+            description: AzureManagedMachinePoolTemplateSpec defines the desired state
+              of AzureManagedMachinePoolTemplate
             properties:
               template:
                 properties:

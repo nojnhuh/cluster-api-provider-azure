@@ -7,4 +7,4 @@ rules: []
 aggregationRule:
   clusterRoleSelectors:
   - matchLabels:
-      aso.infrastructure.cluster.x-k8s.io/aggregate-to-manager: "true"
+      azure.infrastructure.cluster.x-k8s.io/aggregate-to-manager: "true"

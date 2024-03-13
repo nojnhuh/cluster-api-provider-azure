@@ -21,16 +21,16 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// ASOManagedControlPlaneSpec defines the desired state of ASOManagedControlPlane
-type ASOManagedControlPlaneTemplateSpec struct {
-	Template ASOManagedControlPlaneResource `json:"template"`
+// AzureManagedControlPlaneTemplateSpec defines the desired state of AzureManagedControlPlane
+type AzureManagedControlPlaneTemplateSpec struct {
+	Template AzureManagedControlPlaneResource `json:"template"`
 }
 
-type ASOManagedControlPlaneResource struct {
-	Spec ASOManagedControlPlaneTemplateResourceSpec `json:"spec,omitempty"`
+type AzureManagedControlPlaneResource struct {
+	Spec AzureManagedControlPlaneTemplateResourceSpec `json:"spec,omitempty"`
 }
 
-type ASOManagedControlPlaneTemplateResourceSpec struct {
+type AzureManagedControlPlaneTemplateResourceSpec struct {
 	// Version is the Kubernetes version of the control plane. It fulfills Cluster API's control plane
 	// provider contract.
 	Version string `json:"version,omitempty"`
@@ -41,23 +41,23 @@ type ASOManagedControlPlaneTemplateResourceSpec struct {
 
 //+kubebuilder:object:root=true
 
-// ASOManagedControlPlaneTemplate is the Schema for the asomanagedcontrolplanetemplates API
-type ASOManagedControlPlaneTemplate struct {
+// AzureManagedControlPlaneTemplate is the Schema for the azuremanagedcontrolplanetemplates API
+type AzureManagedControlPlaneTemplate struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec ASOManagedControlPlaneTemplateSpec `json:"spec,omitempty"`
+	Spec AzureManagedControlPlaneTemplateSpec `json:"spec,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// ASOManagedControlPlaneTemplateList contains a list of ASOManagedControlPlaneTemplate
-type ASOManagedControlPlaneTemplateList struct {
+// AzureManagedControlPlaneTemplateList contains a list of AzureManagedControlPlaneTemplate
+type AzureManagedControlPlaneTemplateList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ASOManagedControlPlaneTemplate `json:"items"`
+	Items           []AzureManagedControlPlaneTemplate `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&ASOManagedControlPlaneTemplate{}, &ASOManagedControlPlaneTemplateList{})
+	SchemeBuilder.Register(&AzureManagedControlPlaneTemplate{}, &AzureManagedControlPlaneTemplateList{})
 }
