@@ -20,7 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const ASOManagedMachinePoolFinalizer = "asomanagedMachinePool.infrastructure.cluster.x-k8s.io"
+const ASOManagedMachinePoolFinalizer = "asoManagedMachinePool.infrastructure.cluster.x-k8s.io"
 
 // ASOManagedMachinePoolSpec defines the desired state of ASOManagedMachinePool
 type ASOManagedMachinePoolSpec struct {

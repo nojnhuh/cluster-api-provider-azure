@@ -6,6 +6,8 @@ clientID: ""
 clientSecret: ""
 authMode: ""
 
+withASORBAC: true
+
 # clusterName defaults to the name of the Helm release
 clusterName: ""
 location: eastus

@@ -67,9 +67,6 @@ type resourceReconciler interface {
 //+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;patch
 //+kubebuilder:rbac:groups=cluster.x-k8s.io,resources=clusters,verbs=get;list;watch
 //+kubebuilder:rbac:groups=cluster.x-k8s.io,resources=machinepools,verbs=get;list;watch;patch
-// Maybe a better approach is to not include any ASO permissions and use aggregation instead to allow users to
-// specify exactly what they need: https://kubernetes.io/docs/reference/access-authn-authz/rbac/#aggregated-clusterroles
-//+kubebuilder:rbac:groups=resources.azure.com;containerservice.azure.com,resources=*,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=asomanagedclusters,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=asomanagedclusters/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=asomanagedclusters/finalizers,verbs=update
