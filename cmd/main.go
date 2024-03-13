@@ -43,8 +43,8 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	infrav1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
-	"github.com/nojnhuh/cluster-api-provider-aso/internal/controller"
+	infrav1 "sigs.k8s.io/cluster-api-provider-azure/v2/api/v1alpha1"
+	"sigs.k8s.io/cluster-api-provider-azure/v2/internal/controller"
 	//+kubebuilder:scaffold:imports
 )
 

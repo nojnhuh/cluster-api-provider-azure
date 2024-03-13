@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/nojnhuh/cluster-api-provider-aso/test/utils"
+	"sigs.k8s.io/cluster-api-provider-azure/v2/test/utils"
 )
 
 const namespace = "capaso-system"

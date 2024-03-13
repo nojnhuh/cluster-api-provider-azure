@@ -34,7 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	infrav1 "github.com/nojnhuh/cluster-api-provider-aso/api/v1alpha1"
+	infrav1 "sigs.k8s.io/cluster-api-provider-azure/v2/api/v1alpha1"
 )
 
 var waitingForASOReconcileMsg = "Waiting for ASO to reconcile the resource"
