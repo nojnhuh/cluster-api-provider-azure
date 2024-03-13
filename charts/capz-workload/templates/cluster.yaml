@@ -5,7 +5,7 @@ metadata:
   labels:
     {{- include "capz.commonLabels" . | nindent 4 }}
 spec:
-{{- if .Values.withTopology }}
+{{- if .Values.withClusterTopology }}
   topology:
     class: {{ .Values.clusterClassName | quote }}
     version: {{ .Values.kubernetesVersion | quote }}
@@ -82,4 +82,4 @@ metadata:
 spec:
   {{- include "capz.azureManagedMachinePoolSpec" (list $ (include "capz.clusterName" $) $mpName $mp) | nindent 2 }}
 {{- end }}
-{{- end }}{{/* if .Values.withTopology */}}
+{{- end }}{{/* if .Values.withClusterTopology */}}
