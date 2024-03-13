@@ -15,8 +15,8 @@ resources:
   domain: cluster.x-k8s.io
   group: infrastructure
   kind: ASOManagedCluster
-  path: sigs.k8s.io/cluster-api-provider-azure/v2/api/v1alpha1
-  version: v1alpha1
+  path: sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1
+  version: v2alpha1
 - api:
     crdVersion: v1
     namespaced: true
@@ -24,8 +24,8 @@ resources:
   domain: cluster.x-k8s.io
   group: infrastructure
   kind: ASOManagedControlPlane
-  path: sigs.k8s.io/cluster-api-provider-azure/v2/api/v1alpha1
-  version: v1alpha1
+  path: sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1
+  version: v2alpha1
 - api:
     crdVersion: v1
     namespaced: true
@@ -33,6 +33,6 @@ resources:
   domain: cluster.x-k8s.io
   group: infrastructure
   kind: ASOManagedMachinePool
-  path: sigs.k8s.io/cluster-api-provider-azure/v2/api/v1alpha1
-  version: v1alpha1
+  path: sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1
+  version: v2alpha1
 version: "3"

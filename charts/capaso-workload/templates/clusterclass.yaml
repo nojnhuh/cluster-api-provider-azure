@@ -8,12 +8,12 @@ metadata:
 spec:
   controlPlane:
     ref:
-      apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+      apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
       kind: ASOManagedControlPlaneTemplate
       name: {{ .Values.clusterClassName | quote }}
   infrastructure:
     ref:
-      apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+      apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
       kind: ASOManagedClusterTemplate
       name: {{ .Values.clusterClassName | quote }}
   workers:
@@ -28,7 +28,7 @@ spec:
             name: {{ $.Values.clusterClassName | quote }}
         infrastructure:
           ref:
-            apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+            apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
             kind: ASOManagedMachinePoolTemplate
             name: {{ printf "%s-%s" $.Values.clusterClassName $mpName | quote }}
     {{- end }}
@@ -36,7 +36,7 @@ spec:
   - name: asomanagedcluster-spec
     definitions:
     - selector:
-        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+        apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
         kind: ASOManagedClusterTemplate
         matchResources:
           infrastructureCluster: true
@@ -51,7 +51,7 @@ spec:
   - name: asomanagedcontrolplane-spec
     definitions:
     - selector:
-        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+        apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
         kind: ASOManagedControlPlaneTemplate
         matchResources:
           controlPlane: true
@@ -65,7 +65,7 @@ spec:
   - name: asomanagedmachinepool-{{ $mpName }}-spec
     definitions:
     - selector:
-        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+        apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
         kind: ASOManagedMachinePoolTemplate
         matchResources:
           machinePoolClass:
@@ -79,7 +79,7 @@ spec:
             {{- include "capaso.asoManagedMachinePoolSpec" (list $ "{{ .builtin.cluster.name }}" $mpName $mp) | nindent 12 }}
   {{- end }}
 ---
-apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
 kind: ASOManagedClusterTemplate
 metadata:
   name: {{ .Values.clusterClassName | quote }}
@@ -91,7 +91,7 @@ spec:
   template:
     spec: {} # this gets patched in by the ClusterClass
 ---
-apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
 kind: ASOManagedControlPlaneTemplate
 metadata:
   name: {{ .Values.clusterClassName | quote }}
@@ -110,7 +110,7 @@ spec:
     spec: {}
 {{- range $mpName, $mp := .Values.managedMachinePoolSpecs }}
 ---
-apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
 kind: ASOManagedMachinePoolTemplate
 metadata:
   name: {{ printf "%s-%s" $.Values.clusterClassName $mpName | quote }}

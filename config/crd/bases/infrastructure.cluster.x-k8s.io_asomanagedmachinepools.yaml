@@ -14,7 +14,7 @@ spec:
     singular: asomanagedmachinepool
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - name: v2alpha1
     schema:
       openAPIV3Schema:
         description: ASOManagedMachinePool is the Schema for the asomanagedmachinepools

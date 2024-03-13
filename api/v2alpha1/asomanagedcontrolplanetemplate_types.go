@@ -14,26 +14,26 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha1
+package v2alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// ASOManagedMachinePoolTemplateSpec defines the desired state of ASOManagedMachinePoolTemplate
-type ASOManagedMachinePoolTemplateSpec struct {
+// ASOManagedControlPlaneSpec defines the desired state of ASOManagedControlPlane
+type ASOManagedControlPlaneTemplateSpec struct {
 	Template ASOManagedControlPlaneResource `json:"template"`
 }
 
-type ASOManagedMachinePoolResource struct {
-	Spec ASOManagedMachinePoolTemplateResourceSpec `json:"spec,omitempty"`
+type ASOManagedControlPlaneResource struct {
+	Spec ASOManagedControlPlaneTemplateResourceSpec `json:"spec,omitempty"`
 }
 
-type ASOManagedMachinePoolTemplateResourceSpec struct {
-	// ProviderIDList is the list of cloud provider IDs for the instances. It fulfills Cluster API's machine
-	// pool infrastructure provider contract.
-	ProviderIDList []string `json:"providerIDList,omitempty"`
+type ASOManagedControlPlaneTemplateResourceSpec struct {
+	// Version is the Kubernetes version of the control plane. It fulfills Cluster API's control plane
+	// provider contract.
+	Version string `json:"version,omitempty"`
 
 	// Resources are embedded ASO resources to be managed by this resource.
 	Resources []runtime.RawExtension `json:"resources,omitempty"`
@@ -41,23 +41,23 @@ type ASOManagedMachinePoolTemplateResourceSpec struct {
 
 //+kubebuilder:object:root=true
 
-// ASOManagedMachinePoolTemplate is the Schema for the asomanagedmachinepooltemplates API
-type ASOManagedMachinePoolTemplate struct {
+// ASOManagedControlPlaneTemplate is the Schema for the asomanagedcontrolplanetemplates API
+type ASOManagedControlPlaneTemplate struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec ASOManagedMachinePoolTemplateSpec `json:"spec,omitempty"`
+	Spec ASOManagedControlPlaneTemplateSpec `json:"spec,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// ASOManagedMachinePoolTemplateList contains a list of ASOManagedMachinePoolTemplate
-type ASOManagedMachinePoolTemplateList struct {
+// ASOManagedControlPlaneTemplateList contains a list of ASOManagedControlPlaneTemplate
+type ASOManagedControlPlaneTemplateList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ASOManagedMachinePoolTemplate `json:"items"`
+	Items           []ASOManagedControlPlaneTemplate `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&ASOManagedMachinePoolTemplate{}, &ASOManagedMachinePoolTemplateList{})
+	SchemeBuilder.Register(&ASOManagedControlPlaneTemplate{}, &ASOManagedControlPlaneTemplateList{})
 }

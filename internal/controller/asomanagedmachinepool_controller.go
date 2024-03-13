@@ -43,7 +43,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20231001"
-	infrav1 "sigs.k8s.io/cluster-api-provider-azure/v2/api/v1alpha1"
+	infrav1 "sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1"
 	"sigs.k8s.io/cluster-api-provider-azure/v2/internal/aks"
 )
 

@@ -21,7 +21,7 @@ The main goals of CAPASO are:
 
 Here is an example of CAPASO's ASOManagedCluster resource:
 ```yaml
-apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
 kind: ASOManagedCluster
 metadata:
   name: capaso
