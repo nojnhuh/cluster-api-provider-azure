@@ -18,6 +18,7 @@ package mutators
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	asoannotations "github.com/Azure/azure-service-operator/v2/pkg/common/annotations"
@@ -26,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 // ResourcesMutator mutates in-place a slice of ASO resources to be reconciled. These mutations make only the
@@ -65,7 +67,11 @@ func ApplyMutators(ctx context.Context, resources []runtime.RawExtension, mutato
 	}
 	for _, mutator := range mutators {
 		if err := mutator(ctx, us); err != nil {
-			return nil, fmt.Errorf("failed to run mutator: %w", err)
+			err = fmt.Errorf("failed to run mutator: %w", err)
+			if errors.As(err, &Incompatible{}) {
+				err = reconcile.TerminalError(err)
+			}
+			return nil, err
 		}
 	}
 	return us, nil
