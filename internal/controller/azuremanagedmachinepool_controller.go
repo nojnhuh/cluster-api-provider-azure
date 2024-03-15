@@ -231,7 +231,7 @@ func (r *AzureManagedMachinePoolReconciler) reconcileNormal(ctx context.Context,
 	azureManagedMachinePool.Spec.ProviderIDList = providerIDs
 
 	azureManagedMachinePool.Status.Replicas = int32(ptr.Deref(agentPool.Status.Count, 0))
-	if auto, ok := machinePool.Annotations[clusterv1.ReplicasManagedByAnnotation]; ok && auto != "false" {
+	if machinePool.Annotations[clusterv1.ReplicasManagedByAnnotation] == mutators.ReplicasManagedByValue {
 		machinePool.Spec.Replicas = &azureManagedMachinePool.Status.Replicas
 	}
 
