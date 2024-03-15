@@ -368,9 +368,6 @@ func TestAzureManagedControlPlaneReconcile(t *testing.T) {
 				Labels: map[string]string{
 					clusterv1.ClusterNameLabel: cluster.Name,
 				},
-				Annotations: map[string]string{
-					clusterv1.ReplicasManagedByAnnotation: mutators.ReplicasManagedByValue,
-				},
 			},
 			Spec: expv1.MachinePoolSpec{
 				Replicas: ptr.To[int32](5),
@@ -531,11 +528,6 @@ func TestAzureManagedControlPlaneReconcile(t *testing.T) {
 			t.Run("status.initialized", checkEqual(azureManagedControlPlane.Status.Initialized, true))
 			_, hasBlockMove := azureManagedControlPlane.Annotations[clusterctlv1.BlockMoveAnnotation]
 			t.Run("has block-move annotation", checkEqual(hasBlockMove, true))
-		})
-		t.Run("should update the MachinePool", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(mp), mp)))
-			_, hasReplicasAnnotation := mp.Annotations[clusterv1.ReplicasManagedByAnnotation]
-			t.Run("replicas annotation is removed", checkEqual(hasReplicasAnnotation, false))
 		})
 	})
 

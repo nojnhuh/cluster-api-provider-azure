@@ -59,20 +59,17 @@ func SetAgentPoolDefaults(ctrlClient client.Client, azureManagedMachinePool *inf
 			if err != nil {
 				return err
 			}
-
 			setK8sVersion := mutation{
 				location: agentPoolPath + "." + strings.Join(k8sVersionPath, "."),
 				val:      capzK8sVersion,
 				reason:   fmt.Sprintf("because MachinePool %s's spec.template.spec.version is %s", machinePool.Name, *machinePool.Spec.Template.Spec.Version),
 			}
-
 			if k8sVersionFound && userK8sVersion != capzK8sVersion {
 				return Incompatible{
 					mutation: setK8sVersion,
 					userVal:  userK8sVersion,
 				}
 			}
-
 			logMutation(log, setK8sVersion)
 			err = unstructured.SetNestedField(agentPool.UnstructuredContent(), capzK8sVersion, k8sVersionPath...)
 			if err != nil {
@@ -80,38 +77,32 @@ func SetAgentPoolDefaults(ctrlClient client.Client, azureManagedMachinePool *inf
 			}
 		}
 
-		autoscaling, _, err := unstructured.NestedBool(agentPool.UnstructuredContent(), "spec", "enableAutoScaling")
+		countPath := []string{"spec", "count"}
+		capzCount := int64(ptr.Deref(machinePool.Spec.Replicas, 1))
+		userCount, countFound, err := unstructured.NestedInt64(agentPool.UnstructuredContent(), countPath...)
+		if err != nil {
+			return err
+		}
+		setCount := mutation{
+			location: agentPoolPath + "." + strings.Join(countPath, "."),
+			val:      capzCount,
+			reason:   fmt.Sprintf("MachinePool %s's spec.replicas takes precedence", machinePool.Name),
+		}
+		if countFound && userCount != capzCount {
+			return Incompatible{
+				mutation: setCount,
+				userVal:  userCount,
+			}
+		}
+		logMutation(log, setCount)
+		err = unstructured.SetNestedField(agentPool.UnstructuredContent(), capzCount, countPath...)
 		if err != nil {
 			return err
 		}
 
-		if !autoscaling {
-			countPath := []string{"spec", "count"}
-			capzCount := int64(ptr.Deref(machinePool.Spec.Replicas, 1))
-			userCount, countFound, err := unstructured.NestedInt64(agentPool.UnstructuredContent(), countPath...)
-			if err != nil {
-				return err
-			}
-
-			setCount := mutation{
-				location: agentPoolPath + "." + strings.Join(countPath, "."),
-				val:      capzCount,
-				reason:   fmt.Sprintf("MachinePool %s's spec.replicas takes precedence", machinePool.Name),
-			}
-
-			if countFound && userCount != capzCount {
-				return Incompatible{
-					mutation: setCount,
-					userVal:  userCount,
-				}
-			}
-
-			logMutation(log, setCount)
-			err = unstructured.SetNestedField(agentPool.UnstructuredContent(), capzCount, countPath...)
-			if err != nil {
-				return err
-			}
-			// TODO: double-check if we need to explicitly set count to null when autoscaling is enabled.
+		autoscaling, _, err := unstructured.NestedBool(agentPool.UnstructuredContent(), "spec", "enableAutoScaling")
+		if err != nil {
+			return err
 		}
 
 		// Update the MachinePool replica manager annotation. This isn't wrapped in a mutation object because
@@ -125,6 +116,11 @@ func SetAgentPoolDefaults(ctrlClient client.Client, azureManagedMachinePool *inf
 
 			// TODO: should we give some feedback if the MachinePool replicas are already being managed, but
 			// by something else?
+
+			// TODO: Ideally, CAPZ would also patch the machine pools after an AzureManagedControlPlane
+			// reconciliation to add this annotation then, but that gets a little too involved more than it's
+			// worth I think since the first AzureManagedMachinePool reconciliation will persist these
+			// changes. https://github.com/Azure/azure-service-operator/issues/2791
 
 			machinePool.Annotations[clusterv1.ReplicasManagedByAnnotation] = ReplicasManagedByValue
 		} else if !autoscaling && replicaManager == ReplicasManagedByValue {

@@ -14,7 +14,9 @@ spec:
       {{- range $mpName, $mp := .Values.managedMachinePoolSpecs }}
       - class: {{ quote $mpName }}
         name: {{ quote $mpName }}
+        {{- if (not $mp.enableAutoScaling) }}
         replicas: {{ default 1 $mp.count}}
+        {{- end }}
       {{- end }}
 {{- else }}
   controlPlaneRef:
