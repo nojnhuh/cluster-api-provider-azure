@@ -293,7 +293,7 @@ func (r *AzureManagedControlPlaneReconciler) SetupWithManager(ctx context.Contex
 				),
 			),
 		).
-		// User errors that end CAPZ passes through agentPoolProfiles on create must be fixed in the
+		// User errors that CAPZ passes through agentPoolProfiles on create must be fixed in the
 		// AzureManagedMachinePool, so trigger a reconciliation to consume those fixes.
 		Watches(
 			&infrav1.AzureManagedMachinePool{},
