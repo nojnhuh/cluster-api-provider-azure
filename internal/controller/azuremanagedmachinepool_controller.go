@@ -44,7 +44,7 @@ import (
 
 	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20231001"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1"
-	"sigs.k8s.io/cluster-api-provider-azure/v2/internal/aks"
+	"sigs.k8s.io/cluster-api-provider-azure/v2/internal/mutators"
 )
 
 // AzureManagedMachinePoolReconciler reconciles a AzureManagedMachinePool object
@@ -159,25 +159,10 @@ func (r *AzureManagedMachinePoolReconciler) reconcileNormal(ctx context.Context,
 
 	azureManagedMachinePool.Status.Ready = false
 
-	setDefaults := func(us []*unstructured.Unstructured) error {
-		for _, u := range us {
-			if u.GroupVersionKind().Group == asocontainerservicev1.GroupVersion.Group &&
-				u.GroupVersionKind().Kind == "ManagedClustersAgentPool" {
-				err := aks.SetAgentPoolDefaults(u, machinePool)
-				if err != nil {
-					return err
-				}
-				break
-			}
-		}
-		return nil
-	}
-	mutators := []resourcesMutator{setDefaults}
-	if cluster.Spec.Paused {
-		mutators = append(mutators, pauseResources)
-	}
-
-	resources, err := applyMutators(azureManagedMachinePool.Spec.Resources, mutators...)
+	resources, err := mutators.ApplyMutators(ctx, azureManagedMachinePool.Spec.Resources,
+		mutators.SetASOReconciliationPolicy(cluster),
+		mutators.SetAgentPoolDefaults(r.Client, azureManagedMachinePool, machinePool),
+	)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -191,7 +176,7 @@ func (r *AzureManagedMachinePoolReconciler) reconcileNormal(ctx context.Context,
 		}
 	}
 	if agentPoolName == "" {
-		return ctrl.Result{}, reconcile.TerminalError(fmt.Errorf("no %s ManagedClustersAgentPools defined in AzureManagedMachinePool spec.resources", asocontainerservicev1.GroupVersion.Group))
+		return ctrl.Result{}, reconcile.TerminalError(mutators.NoManagedClustersAgentPoolDefined)
 	}
 
 	resourceReconciler := r.newResourceReconciler(azureManagedMachinePool, resources)
@@ -266,7 +251,7 @@ func (r *AzureManagedMachinePoolReconciler) reconcileDelete(ctx context.Context,
 	// If the entire cluster is being deleted, this ASO ManagedClustersAgentPool will be deleted with the rest
 	// of the ManagedCluster.
 	if cluster.DeletionTimestamp.IsZero() {
-		resources, err := applyMutators(azureManagedMachinePool.Spec.Resources)
+		resources, err := mutators.ApplyMutators(ctx, azureManagedMachinePool.Spec.Resources)
 		if err != nil {
 			return ctrl.Result{}, err
 		}

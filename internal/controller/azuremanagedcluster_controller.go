@@ -43,6 +43,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1"
+	"sigs.k8s.io/cluster-api-provider-azure/v2/internal/mutators"
 )
 
 var invalidControlPlaneKindErr = errors.New("AzureManagedCluster cannot be used without AzureManagedControlPlane")
@@ -132,12 +133,7 @@ func (r *AzureManagedClusterReconciler) reconcileNormal(ctx context.Context, azu
 
 	azureManagedCluster.Status.Ready = false
 
-	var mutators []resourcesMutator
-	if cluster.Spec.Paused {
-		mutators = append(mutators, pauseResources)
-	}
-
-	resources, err := applyMutators(azureManagedCluster.Spec.Resources, mutators...)
+	resources, err := mutators.ApplyMutators(ctx, azureManagedCluster.Spec.Resources, mutators.SetASOReconciliationPolicy(cluster))
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -180,7 +176,7 @@ func (r *AzureManagedClusterReconciler) reconcileDelete(ctx context.Context, azu
 		return ctrl.Result{}, nil
 	}
 
-	resources, err := applyMutators(azureManagedCluster.Spec.Resources)
+	resources, err := mutators.ApplyMutators(ctx, azureManagedCluster.Spec.Resources)
 	if err != nil {
 		return ctrl.Result{}, err
 	}

@@ -34,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1"
+	"sigs.k8s.io/cluster-api-provider-azure/v2/internal/mutators"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	clusterctlv1 "sigs.k8s.io/cluster-api/cmd/clusterctl/api/v1alpha3"
 	expv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
@@ -263,7 +264,7 @@ func TestAzureManagedControlPlaneReconcile(t *testing.T) {
 		}
 		_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedControlPlane)})
 
-		t.Run("should fail", checkEqual(errors.Is(err, noManagedClusterDefinedErr), true))
+		t.Run("should fail", checkEqual(errors.Is(err, mutators.NoManagedClusterDefinedErr), true))
 	})
 
 	t.Run("ManagedCluster is not ready", func(t *testing.T) {
