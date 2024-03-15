@@ -283,7 +283,7 @@ func (r *AzureManagedControlPlaneReconciler) SetupWithManager(ctx context.Contex
 		For(&infrav1.AzureManagedControlPlane{}).
 		Watches(
 			&clusterv1.Cluster{},
-			handler.EnqueueRequestsFromMapFunc(r.ClusterToKubeadmControlPlane),
+			handler.EnqueueRequestsFromMapFunc(clusterToAzureManagedControlPlane),
 			builder.WithPredicates(
 				predicates.Any(
 					log,
@@ -293,9 +293,14 @@ func (r *AzureManagedControlPlaneReconciler) SetupWithManager(ctx context.Contex
 				),
 			),
 		).
-		// TODO: watch AzureManagedMachinePools. User errors that end CAPZ passes through agentPoolProfiles on
-		// create must be fixed in the AzureManagedMachinePool, but no AzureManagedControlPlane reconciliation
-		// is triggered.
+		// User errors that end CAPZ passes through agentPoolProfiles on create must be fixed in the
+		// AzureManagedMachinePool, so trigger a reconciliation to consume those fixes.
+		Watches(
+			&infrav1.AzureManagedMachinePool{},
+			handler.EnqueueRequestsFromMapFunc(r.azureManagedMachinePoolToAzureManagedControlPlane),
+			// TODO: add predicates so we only enqueue when the AzureManagedControlPlane is in charge of the
+			// agent pools (when the ManagedCluster's status.agentPoolProfile is empty).
+		).
 		Owns(&corev1.Secret{}).
 		Build(r)
 	if err != nil {
@@ -319,15 +324,27 @@ func (r *AzureManagedControlPlaneReconciler) SetupWithManager(ctx context.Contex
 	return nil
 }
 
-// ClusterToAzureManagedControlPlane is a handler.ToRequestsFunc to be used to enqueue requests for
+// clusterToAzureManagedControlPlane is a handler.ToRequestsFunc to be used to enqueue requests for
 // reconciliation for AzureManagedControlPlane based on updates to a Cluster.
-func (r *AzureManagedControlPlaneReconciler) ClusterToKubeadmControlPlane(_ context.Context, o client.Object) []ctrl.Request {
+func clusterToAzureManagedControlPlane(_ context.Context, o client.Object) []ctrl.Request {
 	controlPlaneRef := o.(*clusterv1.Cluster).Spec.ControlPlaneRef
 	if controlPlaneRef != nil && controlPlaneRef.Kind == "AzureManagedControlPlane" {
 		return []ctrl.Request{{NamespacedName: client.ObjectKey{Namespace: controlPlaneRef.Namespace, Name: controlPlaneRef.Name}}}
 	}
-
 	return nil
+}
+
+func (r *AzureManagedControlPlaneReconciler) azureManagedMachinePoolToAzureManagedControlPlane(ctx context.Context, o client.Object) []ctrl.Request {
+	azureManagedMachinePool := o.(*infrav1.AzureManagedMachinePool)
+	clusterName := azureManagedMachinePool.Labels[clusterv1.ClusterNameLabel]
+	if clusterName == "" {
+		return nil
+	}
+	cluster, err := util.GetClusterByName(ctx, r.Client, azureManagedMachinePool.Namespace, clusterName)
+	if client.IgnoreNotFound(err) != nil || cluster == nil {
+		return nil
+	}
+	return clusterToAzureManagedControlPlane(ctx, cluster)
 }
 
 // ClusterUpdatePauseChange returns a predicate that returns true for an update event when a cluster has
