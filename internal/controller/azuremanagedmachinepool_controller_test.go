@@ -32,6 +32,7 @@ import (
 	"k8s.io/utils/ptr"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterctlv1 "sigs.k8s.io/cluster-api/cmd/clusterctl/api/v1alpha3"
 	expv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -134,7 +135,7 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 		})
 	})
 
-	t.Run("adds finalizer", func(t *testing.T) {
+	t.Run("adds finalizer and block-move annotation", func(t *testing.T) {
 		cluster := &clusterv1.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "cluster",
@@ -178,9 +179,11 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should requeue", checkEqual(result, ctrl.Result{Requeue: true}))
-		t.Run("should add the finalizer", func(t *testing.T) {
+		t.Run("should update the resource", func(t *testing.T) {
 			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedMachinePool), azureManagedMachinePool)))
 			t.Run("metadata.finalizers[0]", checkEqual(azureManagedMachinePool.Finalizers[0], infrav1.AzureManagedMachinePoolFinalizer))
+			_, hasBlockMove := azureManagedMachinePool.Annotations[clusterctlv1.BlockMoveAnnotation]
+			t.Run("has block-move annotation", checkEqual(hasBlockMove, true))
 		})
 	})
 
@@ -223,6 +226,9 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 					},
 				},
 				Finalizers: []string{infrav1.AzureManagedMachinePoolFinalizer},
+				Annotations: map[string]string{
+					clusterctlv1.BlockMoveAnnotation: "true",
+				},
 			},
 			Spec: infrav1.AzureManagedMachinePoolSpec{
 				AzureManagedMachinePoolTemplateResourceSpec: infrav1.AzureManagedMachinePoolTemplateResourceSpec{
@@ -331,6 +337,9 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 					},
 				},
 				Finalizers: []string{infrav1.AzureManagedMachinePoolFinalizer},
+				Annotations: map[string]string{
+					clusterctlv1.BlockMoveAnnotation: "true",
+				},
 			},
 			Spec: infrav1.AzureManagedMachinePoolSpec{
 				AzureManagedMachinePoolTemplateResourceSpec: infrav1.AzureManagedMachinePoolTemplateResourceSpec{
@@ -477,6 +486,9 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 					},
 				},
 				Finalizers: []string{infrav1.AzureManagedMachinePoolFinalizer},
+				Annotations: map[string]string{
+					clusterctlv1.BlockMoveAnnotation: "true",
+				},
 			},
 			Spec: infrav1.AzureManagedMachinePoolSpec{
 				AzureManagedMachinePoolTemplateResourceSpec: infrav1.AzureManagedMachinePoolTemplateResourceSpec{
@@ -564,6 +576,126 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(machinePool), machinePool)))
 			t.Run("replicas annotation", checkEqual(machinePool.Annotations[clusterv1.ReplicasManagedByAnnotation], "aks"))
 			t.Run("spec.replicas", checkEqual(*machinePool.Spec.Replicas, 4))
+		})
+	})
+
+	t.Run("Cluster is paused", func(t *testing.T) {
+		cluster := &clusterv1.Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "cluster",
+				Namespace: "ns",
+			},
+			Spec: clusterv1.ClusterSpec{
+				Paused: true,
+				ControlPlaneRef: &corev1.ObjectReference{
+					Kind: "AzureManagedControlPlane",
+				},
+			},
+		}
+		machinePool := &expv1.MachinePool{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "mp",
+				Namespace: cluster.Namespace,
+				Labels: map[string]string{
+					clusterv1.ClusterNameLabel: cluster.Name,
+				},
+				Annotations: map[string]string{
+					clusterv1.ReplicasManagedByAnnotation: "something",
+				},
+			},
+			Spec: expv1.MachinePoolSpec{
+				Replicas: ptr.To[int32](2),
+			},
+		}
+		managedCluster := &asocontainerservicev1.ManagedCluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "mc",
+				Namespace: cluster.Namespace,
+			},
+			Status: asocontainerservicev1.ManagedCluster_STATUS{
+				NodeResourceGroup: ptr.To("MC_rg"),
+			},
+		}
+		agentPool := &asocontainerservicev1.ManagedClustersAgentPool{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "mcap",
+				Namespace: cluster.Namespace,
+			},
+			Spec: asocontainerservicev1.ManagedClusters_AgentPool_Spec{
+				AzureName: "azmcap",
+				Owner: &genruntime.KnownResourceReference{
+					Name: managedCluster.Name,
+				},
+			},
+			Status: asocontainerservicev1.ManagedClusters_AgentPool_STATUS{
+				Count: ptr.To(4),
+			},
+		}
+		azureManagedMachinePool := &infrav1.AzureManagedMachinePool{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "ammp",
+				Namespace: cluster.Namespace,
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						APIVersion: expv1.GroupVersion.Identifier(),
+						Kind:       "MachinePool",
+						Name:       machinePool.Name,
+					},
+				},
+				Finalizers: []string{infrav1.AzureManagedMachinePoolFinalizer},
+				Annotations: map[string]string{
+					clusterctlv1.BlockMoveAnnotation: "true",
+				},
+			},
+			Spec: infrav1.AzureManagedMachinePoolSpec{
+				AzureManagedMachinePoolTemplateResourceSpec: infrav1.AzureManagedMachinePoolTemplateResourceSpec{
+					Resources: []runtime.RawExtension{
+						{
+							Raw: apJSON(t, &asocontainerservicev1.ManagedClustersAgentPool{
+								ObjectMeta: metav1.ObjectMeta{
+									Name: agentPool.Name,
+								},
+								Spec: asocontainerservicev1.ManagedClusters_AgentPool_Spec{
+									Owner: &genruntime.KnownResourceReference{
+										Name: managedCluster.Name,
+									},
+								},
+							}),
+						},
+					},
+				},
+			},
+			Status: infrav1.AzureManagedMachinePoolStatus{
+				Ready: false,
+			},
+		}
+		c := fakeClientBuilder().
+			WithObjects(azureManagedMachinePool, cluster, machinePool, managedCluster, agentPool).
+			Build()
+		r := &AzureManagedMachinePoolReconciler{
+			Client: c,
+			newResourceReconciler: func(_ *infrav1.AzureManagedMachinePool, _ []*unstructured.Unstructured) resourceReconciler {
+				return &fakeResourceReconciler{
+					reconcileFunc: func(_ context.Context, _ resourceStatusObject) error {
+						return nil
+					},
+				}
+			},
+			Tracker: &FakeClusterTracker{
+				getClientFunc: func(ctx context.Context, nn types.NamespacedName) (client.Client, error) {
+					return fakeclient.NewClientBuilder().
+						WithObjects().
+						Build(), nil
+				},
+			},
+		}
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedMachinePool)})
+		t.Run("should succeed", expectSuccess(err))
+		t.Run("should not requeue", checkEqual(result, ctrl.Result{}))
+		t.Run("should update the AzureManagedControlPlane", func(t *testing.T) {
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedMachinePool), azureManagedMachinePool)))
+			_, hasBlockMove := azureManagedMachinePool.Annotations[clusterctlv1.BlockMoveAnnotation]
+			t.Run("block-move annotation is removed", checkEqual(hasBlockMove, false))
 		})
 	})
 

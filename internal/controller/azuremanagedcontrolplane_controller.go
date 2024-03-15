@@ -23,14 +23,18 @@ import (
 	"strings"
 
 	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20231001"
+	asoannotations "github.com/Azure/azure-service-operator/v2/pkg/common/annotations"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterctlv1 "sigs.k8s.io/cluster-api/cmd/clusterctl/api/v1alpha3"
 	"sigs.k8s.io/cluster-api/controllers/external"
 	utilexp "sigs.k8s.io/cluster-api/exp/util"
 	"sigs.k8s.io/cluster-api/util"
@@ -42,8 +46,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1"
@@ -81,6 +87,18 @@ func applyMutators(resources []runtime.RawExtension, mutators ...resourcesMutato
 		}
 	}
 	return us, nil
+}
+
+func pauseResources(us []*unstructured.Unstructured) error {
+	for _, u := range us {
+		annotations := u.GetAnnotations()
+		if annotations == nil {
+			annotations = make(map[string]string)
+		}
+		annotations[asoannotations.ReconcilePolicy] = string(asoannotations.ReconcilePolicySkip)
+		u.SetAnnotations(annotations)
+	}
+	return nil
 }
 
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=azuremanagedcontrolplanes,verbs=get;list;watch;create;update;patch;delete
@@ -139,7 +157,11 @@ func (r *AzureManagedControlPlaneReconciler) reconcileNormal(ctx context.Context
 		return ctrl.Result{}, reconcile.TerminalError(invalidClusterKindErr)
 	}
 
-	if controllerutil.AddFinalizer(azureManagedControlPlane, clusterv1.ClusterFinalizer) {
+	needsPatch := controllerutil.AddFinalizer(azureManagedControlPlane, clusterv1.ClusterFinalizer)
+	if !cluster.Spec.Paused {
+		needsPatch = addBlockMoveAnnotation(azureManagedControlPlane) || needsPatch
+	}
+	if needsPatch {
 		return ctrl.Result{Requeue: true}, nil
 	}
 
@@ -148,6 +170,9 @@ func (r *AzureManagedControlPlaneReconciler) reconcileNormal(ctx context.Context
 
 	resourcesMutators := []resourcesMutator{
 		r.defaultResources(ctx, azureManagedControlPlane, cluster),
+	}
+	if cluster.Spec.Paused {
+		resourcesMutators = append(resourcesMutators, pauseResources)
 	}
 
 	resources, err := applyMutators(azureManagedControlPlane.Spec.Resources, resourcesMutators...)
@@ -180,6 +205,10 @@ func (r *AzureManagedControlPlaneReconciler) reconcileNormal(ctx context.Context
 		if !status.Ready {
 			return ctrl.Result{}, nil
 		}
+	}
+
+	if cluster.Spec.Paused {
+		removeBlockMoveAnnotation(azureManagedControlPlane)
 	}
 
 	// get a typed resource so we don't have to try to convert this unstructured ourselves since it might be a
@@ -399,14 +428,19 @@ func (r *AzureManagedControlPlaneReconciler) reconcileDelete(ctx context.Context
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *AzureManagedControlPlaneReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
+	log := ctrl.LoggerFrom(ctx)
 	c, err := ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.AzureManagedControlPlane{}).
 		Watches(
 			&clusterv1.Cluster{},
 			handler.EnqueueRequestsFromMapFunc(r.ClusterToKubeadmControlPlane),
 			builder.WithPredicates(
-				// TODO: watch for changes in pause to pause ASO resources.
-				predicates.ClusterUnpausedAndInfrastructureReady(log.FromContext(ctx)),
+				predicates.Any(
+					log,
+					predicates.ClusterCreateInfraReady(log),
+					predicates.ClusterUpdateInfraReady(log),
+					ClusterUpdatePauseChange(log),
+				),
 			),
 		).
 		Owns(&corev1.Secret{}).
@@ -441,4 +475,58 @@ func (r *AzureManagedControlPlaneReconciler) ClusterToKubeadmControlPlane(_ cont
 	}
 
 	return nil
+}
+
+// ClusterUpdatePauseChange returns a predicate that returns true for an update event when a cluster has
+// Spec.Paused changed or when a cluster is created in order to manage the clusterctl block-move annotation.
+func ClusterUpdatePauseChange(logger logr.Logger) predicate.Funcs {
+	return predicate.Funcs{
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			log := logger.WithValues("predicate", "ClusterUpdateUnpaused", "eventType", "update")
+
+			oldCluster, ok := e.ObjectOld.(*clusterv1.Cluster)
+			if !ok {
+				log.V(4).Info("Expected Cluster", "type", fmt.Sprintf("%T", e.ObjectOld))
+				return false
+			}
+			log = log.WithValues("Cluster", klog.KObj(oldCluster))
+
+			newCluster := e.ObjectNew.(*clusterv1.Cluster)
+
+			if oldCluster.Spec.Paused != newCluster.Spec.Paused {
+				log.V(4).Info("Cluster spec.paused was changed, allowing further processing")
+				return true
+			}
+
+			log.V(6).Info("Cluster spec.paused was not changed, blocking further processing")
+			return false
+		},
+		CreateFunc: func(e event.CreateEvent) bool { return true },
+	}
+}
+
+// addBlockMoveAnnotation adds CAPI's block-move annotation and returns whether or not the annotation was added.
+func addBlockMoveAnnotation(obj metav1.Object) bool {
+	annotations := obj.GetAnnotations()
+
+	if _, exists := annotations[clusterctlv1.BlockMoveAnnotation]; exists {
+		return false
+	}
+
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+
+	// this value doesn't mean anything, only the presence of the annotation matters.
+	annotations[clusterctlv1.BlockMoveAnnotation] = "true"
+	obj.SetAnnotations(annotations)
+
+	return true
+}
+
+// removeBlockMoveAnnotation removes CAPI's block-move annotation.
+func removeBlockMoveAnnotation(obj metav1.Object) {
+	annotations := obj.GetAnnotations()
+	delete(annotations, clusterctlv1.BlockMoveAnnotation)
+	obj.SetAnnotations(annotations)
 }

@@ -24,6 +24,7 @@ import (
 	"time"
 
 	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20231001"
+	asoannotations "github.com/Azure/azure-service-operator/v2/pkg/common/annotations"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -34,6 +35,7 @@ import (
 	"k8s.io/utils/ptr"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterctlv1 "sigs.k8s.io/cluster-api/cmd/clusterctl/api/v1alpha3"
 	expv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/secret"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -171,7 +173,7 @@ func TestAzureManagedControlPlaneReconcile(t *testing.T) {
 		t.Run("should fail", checkEqual(errors.Is(err, invalidClusterKindErr), true))
 	})
 
-	t.Run("Finalizer is added", func(t *testing.T) {
+	t.Run("Finalizer and block-move annotation are added", func(t *testing.T) {
 		cluster := &clusterv1.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "ns",
@@ -207,9 +209,11 @@ func TestAzureManagedControlPlaneReconcile(t *testing.T) {
 
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should requeue", checkEqual(result, ctrl.Result{Requeue: true}))
-		t.Run("should add the finalizer", func(t *testing.T) {
+		t.Run("should update the resource", func(t *testing.T) {
 			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedControlPlane), azureManagedControlPlane)))
 			t.Run("metadata.finalizers[0]", checkEqual(azureManagedControlPlane.Finalizers[0], clusterv1.ClusterFinalizer))
+			_, hasBlockMove := azureManagedControlPlane.Annotations[clusterctlv1.BlockMoveAnnotation]
+			t.Run("has block-move annotation", checkEqual(hasBlockMove, true))
 		})
 	})
 
@@ -237,6 +241,9 @@ func TestAzureManagedControlPlaneReconcile(t *testing.T) {
 					},
 				},
 				Finalizers: []string{clusterv1.ClusterFinalizer},
+				Annotations: map[string]string{
+					clusterctlv1.BlockMoveAnnotation: "true",
+				},
 			},
 			Spec: infrav1.AzureManagedControlPlaneSpec{
 				AzureManagedControlPlaneTemplateResourceSpec: infrav1.AzureManagedControlPlaneTemplateResourceSpec{
@@ -292,6 +299,9 @@ func TestAzureManagedControlPlaneReconcile(t *testing.T) {
 					},
 				},
 				Finalizers: []string{clusterv1.ClusterFinalizer},
+				Annotations: map[string]string{
+					clusterctlv1.BlockMoveAnnotation: "true",
+				},
 			},
 			Spec: infrav1.AzureManagedControlPlaneSpec{
 				AzureManagedControlPlaneTemplateResourceSpec: infrav1.AzureManagedControlPlaneTemplateResourceSpec{
@@ -430,6 +440,9 @@ func TestAzureManagedControlPlaneReconcile(t *testing.T) {
 					},
 				},
 				Finalizers: []string{clusterv1.ClusterFinalizer},
+				Annotations: map[string]string{
+					clusterctlv1.BlockMoveAnnotation: "true",
+				},
 			},
 			Spec: infrav1.AzureManagedControlPlaneSpec{
 				AzureManagedControlPlaneTemplateResourceSpec: infrav1.AzureManagedControlPlaneTemplateResourceSpec{
@@ -509,6 +522,126 @@ func TestAzureManagedControlPlaneReconcile(t *testing.T) {
 			t.Run("status.version", checkEqual(azureManagedControlPlane.Status.Version, "v0.0.0"))
 			t.Run("status.ready", checkEqual(azureManagedControlPlane.Status.Ready, true))
 			t.Run("status.initialized", checkEqual(azureManagedControlPlane.Status.Initialized, true))
+			_, hasBlockMove := azureManagedControlPlane.Annotations[clusterctlv1.BlockMoveAnnotation]
+			t.Run("has block-move annotation", checkEqual(hasBlockMove, true))
+		})
+	})
+
+	t.Run("Cluster is paused", func(t *testing.T) {
+		cluster := &clusterv1.Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "ns",
+				Name:      "cluster",
+			},
+			Spec: clusterv1.ClusterSpec{
+				Paused: true,
+				InfrastructureRef: &corev1.ObjectReference{
+					Kind: "AzureManagedCluster",
+				},
+			},
+		}
+		mc := &asocontainerservicev1.ManagedCluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "mc",
+				Namespace: cluster.Namespace,
+			},
+			Spec: asocontainerservicev1.ManagedCluster_Spec{
+				OperatorSpec: &asocontainerservicev1.ManagedClusterOperatorSpec{
+					Secrets: &asocontainerservicev1.ManagedClusterOperatorSecrets{
+						AdminCredentials: &genruntime.SecretDestination{
+							Name: secret.Name(cluster.Name, secret.Kubeconfig),
+							Key:  secret.KubeconfigDataName,
+						},
+					},
+				},
+			},
+			Status: asocontainerservicev1.ManagedCluster_STATUS{
+				AgentPoolProfiles: []asocontainerservicev1.ManagedClusterAgentPoolProfile_STATUS{{}},
+			},
+		}
+		kubeconfig := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      mc.Spec.OperatorSpec.Secrets.AdminCredentials.Name,
+				Namespace: cluster.Namespace,
+			},
+			Data: map[string][]byte{
+				mc.Spec.OperatorSpec.Secrets.AdminCredentials.Key: []byte("some data"),
+			},
+		}
+		azureManagedControlPlane := &infrav1.AzureManagedControlPlane{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "amcp",
+				Namespace: cluster.Namespace,
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						APIVersion: clusterv1.GroupVersion.Identifier(),
+						Kind:       clusterv1.ClusterKind,
+						Name:       cluster.Name,
+					},
+				},
+				Finalizers: []string{clusterv1.ClusterFinalizer},
+				Annotations: map[string]string{
+					clusterctlv1.BlockMoveAnnotation: "true",
+				},
+			},
+			Spec: infrav1.AzureManagedControlPlaneSpec{
+				AzureManagedControlPlaneTemplateResourceSpec: infrav1.AzureManagedControlPlaneTemplateResourceSpec{
+					Resources: []runtime.RawExtension{
+						{
+							Raw: mcJSON(t, &asocontainerservicev1.ManagedCluster{
+								ObjectMeta: metav1.ObjectMeta{
+									Name: "mc",
+								},
+							}),
+						},
+					},
+				},
+			},
+			Status: infrav1.AzureManagedControlPlaneStatus{
+				Ready: false,
+			},
+		}
+		c := fakeClientBuilder().
+			WithObjects(cluster, azureManagedControlPlane, mc, kubeconfig).
+			Build()
+
+		r := &AzureManagedControlPlaneReconciler{
+			Client: &FakeClient{
+				Client: c,
+				patchFunc: func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+					if patch != client.Apply {
+						return c.Patch(ctx, obj, patch, opts...)
+					}
+					return nil
+				},
+			},
+			newResourceReconciler: func(azureManagedControlPlane *infrav1.AzureManagedControlPlane, resources []*unstructured.Unstructured) resourceReconciler {
+				t.Run("reconciled resources", func(t *testing.T) {
+					for _, u := range resources {
+						if u.GroupVersionKind().Group != asocontainerservicev1.GroupVersion.Group ||
+							u.GroupVersionKind().Kind != "ManagedCluster" {
+							continue
+						}
+						t.Run("managedcluster", func(t *testing.T) {
+							t.Run("has reconcile-policy skip", checkEqual(u.GetAnnotations()[asoannotations.ReconcilePolicy], string(asoannotations.ReconcilePolicySkip)))
+						})
+					}
+				})
+				return &fakeResourceReconciler{
+					reconcileFunc: func(_ context.Context, azureManagedControlPlane resourceStatusObject) error {
+						return nil
+					},
+				}
+			},
+		}
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedControlPlane)})
+
+		t.Run("should succeed", expectSuccess(err))
+		t.Run("should not requeue", checkEqual(result, ctrl.Result{}))
+		t.Run("should update the AzureManagedControlPlane", func(t *testing.T) {
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedControlPlane), azureManagedControlPlane)))
+			_, hasBlockMove := azureManagedControlPlane.Annotations[clusterctlv1.BlockMoveAnnotation]
+			t.Run("has no block-move annotation", checkEqual(hasBlockMove, false))
 		})
 	})
 

@@ -29,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterctlv1 "sigs.k8s.io/cluster-api/cmd/clusterctl/api/v1alpha3"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -183,7 +184,7 @@ func TestAzureManagedClusterReconcile(t *testing.T) {
 		t.Run("should fail", checkEqual(errors.Is(err, invalidControlPlaneKindErr), true))
 	})
 
-	t.Run("Finalizer is added", func(t *testing.T) {
+	t.Run("Finalizer and block-move annotation are added", func(t *testing.T) {
 		cluster := &clusterv1.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "ns",
@@ -222,6 +223,8 @@ func TestAzureManagedClusterReconcile(t *testing.T) {
 		t.Run("should add the finalizer", func(t *testing.T) {
 			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedCluster), azureManagedCluster)))
 			t.Run("metadata.finalizers[0]", checkEqual(azureManagedCluster.Finalizers[0], clusterv1.ClusterFinalizer))
+			_, hasBlockMove := azureManagedCluster.Annotations[clusterctlv1.BlockMoveAnnotation]
+			t.Run("block-move annotation is added", checkEqual(hasBlockMove, true))
 		})
 	})
 
@@ -249,6 +252,9 @@ func TestAzureManagedClusterReconcile(t *testing.T) {
 					},
 				},
 				Finalizers: []string{clusterv1.ClusterFinalizer},
+				Annotations: map[string]string{
+					clusterctlv1.BlockMoveAnnotation: "true",
+				},
 			},
 			Status: infrav1.AzureManagedClusterStatus{
 				Ready: true,
@@ -311,6 +317,9 @@ func TestAzureManagedClusterReconcile(t *testing.T) {
 					},
 				},
 				Finalizers: []string{clusterv1.ClusterFinalizer},
+				Annotations: map[string]string{
+					clusterctlv1.BlockMoveAnnotation: "true",
+				},
 			},
 			Status: infrav1.AzureManagedClusterStatus{
 				Ready: true,
@@ -367,6 +376,9 @@ func TestAzureManagedClusterReconcile(t *testing.T) {
 					},
 				},
 				Finalizers: []string{clusterv1.ClusterFinalizer},
+				Annotations: map[string]string{
+					clusterctlv1.BlockMoveAnnotation: "true",
+				},
 			},
 			Status: infrav1.AzureManagedClusterStatus{
 				Ready: true,
@@ -435,6 +447,9 @@ func TestAzureManagedClusterReconcile(t *testing.T) {
 					},
 				},
 				Finalizers: []string{clusterv1.ClusterFinalizer},
+				Annotations: map[string]string{
+					clusterctlv1.BlockMoveAnnotation: "true",
+				},
 			},
 			Status: infrav1.AzureManagedClusterStatus{
 				Ready: false,
@@ -462,6 +477,75 @@ func TestAzureManagedClusterReconcile(t *testing.T) {
 			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedCluster), azureManagedCluster)))
 			t.Run("status.ready", checkEqual(azureManagedCluster.Status.Ready, true))
 			t.Run("spec.controlPlaneEndpoint", checkEqual(azureManagedCluster.Spec.ControlPlaneEndpoint, clusterv1.APIEndpoint{Host: "bingo"}))
+		})
+	})
+
+	t.Run("Cluster is paused", func(t *testing.T) {
+		namespace := "ns"
+		cluster := &clusterv1.Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace,
+				Name:      "cluster",
+			},
+			Spec: clusterv1.ClusterSpec{
+				Paused: true,
+				ControlPlaneRef: &corev1.ObjectReference{
+					Kind:      "AzureManagedControlPlane",
+					Namespace: namespace,
+					Name:      "amcp",
+				},
+			},
+		}
+		azureManagedControlPlane := &infrav1.AzureManagedControlPlane{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: cluster.Spec.ControlPlaneRef.Namespace,
+				Name:      cluster.Spec.ControlPlaneRef.Name,
+			},
+			Status: infrav1.AzureManagedControlPlaneStatus{
+				ControlPlaneEndpoint: clusterv1.APIEndpoint{
+					Host: "bingo",
+				},
+			},
+		}
+		azureManagedCluster := &infrav1.AzureManagedCluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "amc",
+				Namespace: cluster.Namespace,
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						APIVersion: clusterv1.GroupVersion.Identifier(),
+						Kind:       clusterv1.ClusterKind,
+						Name:       cluster.Name,
+					},
+				},
+				Finalizers: []string{clusterv1.ClusterFinalizer},
+				Annotations: map[string]string{
+					clusterctlv1.BlockMoveAnnotation: "true",
+				},
+			},
+		}
+		c := fakeClientBuilder().
+			WithObjects(cluster, azureManagedCluster, azureManagedControlPlane).
+			Build()
+
+		r := &AzureManagedClusterReconciler{
+			Client: c,
+			newResourceReconciler: func(azureManagedCluster *infrav1.AzureManagedCluster, _ []*unstructured.Unstructured) resourceReconciler {
+				return &fakeResourceReconciler{
+					reconcileFunc: func(_ context.Context, _ resourceStatusObject) error {
+						return nil
+					},
+				}
+			},
+		}
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedCluster)})
+
+		t.Run("should succeed", expectSuccess(err))
+		t.Run("should not requeue", checkEqual(result, ctrl.Result{}))
+		t.Run("should update the AzureManagedCluster", func(t *testing.T) {
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedCluster), azureManagedCluster)))
+			_, hasBlockMove := azureManagedCluster.Annotations[clusterctlv1.BlockMoveAnnotation]
+			t.Run("block-move annotation is removed", checkEqual(hasBlockMove, false))
 		})
 	})
 

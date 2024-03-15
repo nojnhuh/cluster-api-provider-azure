@@ -122,13 +122,21 @@ func (r *AzureManagedClusterReconciler) reconcileNormal(ctx context.Context, azu
 		return ctrl.Result{}, reconcile.TerminalError(invalidControlPlaneKindErr)
 	}
 
-	if controllerutil.AddFinalizer(azureManagedCluster, clusterv1.ClusterFinalizer) {
+	needsPatch := controllerutil.AddFinalizer(azureManagedCluster, clusterv1.ClusterFinalizer)
+	if !cluster.Spec.Paused {
+		needsPatch = addBlockMoveAnnotation(azureManagedCluster) || needsPatch
+	}
+	if needsPatch {
 		return ctrl.Result{Requeue: true}, nil
 	}
 
 	azureManagedCluster.Status.Ready = false
 
 	var mutators []resourcesMutator
+	if cluster.Spec.Paused {
+		mutators = append(mutators, pauseResources)
+	}
+
 	resources, err := applyMutators(azureManagedCluster.Spec.Resources, mutators...)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -143,6 +151,10 @@ func (r *AzureManagedClusterReconciler) reconcileNormal(ctx context.Context, azu
 		if !status.Ready {
 			return ctrl.Result{}, nil
 		}
+	}
+
+	if cluster.Spec.Paused {
+		removeBlockMoveAnnotation(azureManagedCluster)
 	}
 
 	azureManagedControlPlane := &infrav1.AzureManagedControlPlane{
@@ -198,8 +210,7 @@ func (r *AzureManagedClusterReconciler) SetupWithManager(ctx context.Context, mg
 				util.ClusterToInfrastructureMapFunc(ctx, infrav1.GroupVersion.WithKind("AzureManagedCluster"), mgr.GetClient(), &infrav1.AzureManagedCluster{}),
 			),
 			builder.WithPredicates(
-				// TODO: check for paused true -> false in addition to false -> true
-				predicates.ClusterUnpaused(ctrl.LoggerFrom(ctx)),
+				ClusterUpdatePauseChange(log),
 			),
 		).
 		Watches(

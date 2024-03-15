@@ -142,7 +142,11 @@ func (r *AzureManagedMachinePoolReconciler) Reconcile(ctx context.Context, req c
 }
 
 func (r *AzureManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, azureManagedMachinePool *infrav1.AzureManagedMachinePool, machinePool *expv1.MachinePool, cluster *clusterv1.Cluster) (ctrl.Result, error) {
-	if controllerutil.AddFinalizer(azureManagedMachinePool, infrav1.AzureManagedMachinePoolFinalizer) {
+	needsPatch := controllerutil.AddFinalizer(azureManagedMachinePool, infrav1.AzureManagedMachinePoolFinalizer)
+	if !cluster.Spec.Paused {
+		needsPatch = addBlockMoveAnnotation(azureManagedMachinePool) || needsPatch
+	}
+	if needsPatch {
 		return ctrl.Result{Requeue: true}, nil
 	}
 
@@ -169,6 +173,9 @@ func (r *AzureManagedMachinePoolReconciler) reconcileNormal(ctx context.Context,
 		return nil
 	}
 	mutators := []resourcesMutator{setDefaults}
+	if cluster.Spec.Paused {
+		mutators = append(mutators, pauseResources)
+	}
 
 	resources, err := applyMutators(azureManagedMachinePool.Spec.Resources, mutators...)
 	if err != nil {
@@ -196,6 +203,10 @@ func (r *AzureManagedMachinePoolReconciler) reconcileNormal(ctx context.Context,
 		if !status.Ready {
 			return ctrl.Result{}, nil
 		}
+	}
+
+	if cluster.Spec.Paused {
+		removeBlockMoveAnnotation(azureManagedMachinePool)
 	}
 
 	// get a typed resource so we don't have to try to convert this unstructured ourselves since it might be a
@@ -296,8 +307,7 @@ func (r *AzureManagedMachinePoolReconciler) SetupWithManager(ctx context.Context
 			handler.EnqueueRequestsFromMapFunc(clusterToAzureManagedMachinePools),
 			builder.WithPredicates(
 				predicates.Any(log,
-					predicates.ClusterCreateNotPaused(log),
-					predicates.ClusterUpdateUnpaused(log),
+					ClusterUpdatePauseChange(log),
 					predicates.ClusterControlPlaneInitialized(log),
 				),
 			),
