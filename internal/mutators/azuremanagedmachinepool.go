@@ -111,7 +111,7 @@ func SetAgentPoolDefaults(ctrlClient client.Client, azureManagedMachinePool *inf
 			if err != nil {
 				return err
 			}
-			// TODO: double-check if if we need to explicitly set count to null when autoscaling is enabled.
+			// TODO: double-check if we need to explicitly set count to null when autoscaling is enabled.
 		}
 
 		// Update the MachinePool replica manager annotation. This isn't wrapped in a mutation object because
@@ -122,8 +122,6 @@ func SetAgentPoolDefaults(ctrlClient client.Client, azureManagedMachinePool *inf
 			if machinePool.Annotations == nil {
 				machinePool.Annotations = make(map[string]string)
 			}
-			// TODO: do we need to patch the MachinePool in the AzureManagedControlPlane reconciliation? Or is the
-			// first AzureManagedMachinePool reconciliation doing it enough?
 
 			// TODO: should we give some feedback if the MachinePool replicas are already being managed, but
 			// by something else?

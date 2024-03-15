@@ -34,6 +34,7 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	clusterctlv1 "sigs.k8s.io/cluster-api/cmd/clusterctl/api/v1alpha3"
 	"sigs.k8s.io/cluster-api/controllers/external"
+	expv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/cluster-api/util/predicates"
@@ -106,10 +107,44 @@ func (r *AzureManagedControlPlaneReconciler) Reconcile(ctx context.Context, req 
 		return r.reconcileDelete(ctx, azureManagedControlPlane, cluster)
 	}
 
-	return r.reconcileNormal(ctx, azureManagedControlPlane, cluster)
+	// MachinePools should(?) be updated after reconciling an AzureManagedControlPlane because when a
+	// ManagedCluster is created, it aggregates all the AgentPools defined in AzureManagedMachinePools. During
+	// this aggregation, it propagates certain fields to the ASO resources and also sets the replica manager
+	// annotation on MachinePools. Adding this annotation on MachinePools as soon as we can ensures the best
+	// we can that no other manager can claim authority over the replica count.
+	// TODO: find a way to short-circuit and skip these patches after the ManagedCluster has been seeded with
+	// agent pools, after which point each AzureManagedMachinePool will take over managing its MachinePool.
+	var machinePools []*expv1.MachinePool
+	if cluster != nil {
+		machinePoolList := &expv1.MachinePoolList{}
+		err = r.List(ctx, machinePoolList,
+			client.InNamespace(cluster.Namespace),
+			client.MatchingLabels{
+				clusterv1.ClusterNameLabel: cluster.Name,
+			},
+		)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		for _, machinePoolVal := range machinePoolList.Items {
+			machinePool := ptr.To(machinePoolVal)
+			machinePools = append(machinePools, machinePool)
+			machinePoolBefore := machinePool.DeepCopy()
+			defer func() {
+				// Skip using a patch helper here because we will never modify the MachinePool status.
+				err := r.Patch(ctx, machinePool, client.MergeFrom(machinePoolBefore))
+				if err != nil && resultErr == nil {
+					resultErr = err
+					result = ctrl.Result{}
+				}
+			}()
+		}
+	}
+
+	return r.reconcileNormal(ctx, azureManagedControlPlane, cluster, machinePools)
 }
 
-func (r *AzureManagedControlPlaneReconciler) reconcileNormal(ctx context.Context, azureManagedControlPlane *infrav1.AzureManagedControlPlane, cluster *clusterv1.Cluster) (ctrl.Result, error) {
+func (r *AzureManagedControlPlaneReconciler) reconcileNormal(ctx context.Context, azureManagedControlPlane *infrav1.AzureManagedControlPlane, cluster *clusterv1.Cluster, machinePools []*expv1.MachinePool) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
 	if cluster == nil {
@@ -133,7 +168,7 @@ func (r *AzureManagedControlPlaneReconciler) reconcileNormal(ctx context.Context
 
 	resources, err := mutators.ApplyMutators(ctx, azureManagedControlPlane.Spec.Resources,
 		mutators.SetASOReconciliationPolicy(cluster),
-		mutators.SetManagedClusterDefaults(r.Client, azureManagedControlPlane, cluster),
+		mutators.SetManagedClusterDefaults(r.Client, azureManagedControlPlane, cluster, machinePools),
 	)
 	if err != nil {
 		// TODO: watch AzureManagedMachinePools instead of requeueing here? Or maybe this is good enough?

@@ -24,8 +24,10 @@ import (
 
 	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20231001"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	utilexp "sigs.k8s.io/cluster-api/exp/util"
+	expv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
@@ -40,7 +42,7 @@ var (
 	NoAzureManagedMachinePoolsErr = errors.New("no AzureManagedMachinePools found for AzureManagedControlPlane")
 )
 
-func SetManagedClusterDefaults(ctrlClient client.Client, azureManagedControlPlane *infrav1.AzureManagedControlPlane, cluster *clusterv1.Cluster) ResourcesMutator {
+func SetManagedClusterDefaults(ctrlClient client.Client, azureManagedControlPlane *infrav1.AzureManagedControlPlane, cluster *clusterv1.Cluster, machinePools []*expv1.MachinePool) ResourcesMutator {
 	return func(ctx context.Context, us []*unstructured.Unstructured) error {
 		log := ctrl.LoggerFrom(ctx)
 
@@ -112,7 +114,7 @@ func SetManagedClusterDefaults(ctrlClient client.Client, azureManagedControlPlan
 		}
 		if len(getMC.Status.AgentPoolProfiles) == 0 {
 			log.Info("gathering agent pool profiles to include in ManagedCluster create")
-			agentPools, err := agentPoolsFromManagedMachinePools(ctx, ctrlClient, cluster.Name, azureManagedControlPlane)
+			agentPools, err := agentPoolsFromManagedMachinePools(ctx, ctrlClient, cluster.Name, azureManagedControlPlane, machinePools)
 			if err != nil {
 				return err
 			}
@@ -137,7 +139,7 @@ func SetManagedClusterDefaults(ctrlClient client.Client, azureManagedControlPlan
 	}
 }
 
-func agentPoolsFromManagedMachinePools(ctx context.Context, ctrlClient client.Client, clusterName string, azureManagedControlPlane *infrav1.AzureManagedControlPlane) ([]conversion.Convertible, error) {
+func agentPoolsFromManagedMachinePools(ctx context.Context, ctrlClient client.Client, clusterName string, azureManagedControlPlane *infrav1.AzureManagedControlPlane, machinePools []*expv1.MachinePool) ([]conversion.Convertible, error) {
 	log := ctrl.LoggerFrom(ctx)
 
 	azureManagedMachinePools := &infrav1.AzureManagedMachinePoolList{}
@@ -157,9 +159,28 @@ func agentPoolsFromManagedMachinePools(ctx context.Context, ctrlClient client.Cl
 
 	var agentPools []conversion.Convertible
 	for _, azureManagedMachinePool := range azureManagedMachinePools.Items {
-		machinePool, err := utilexp.GetOwnerMachinePool(ctx, ctrlClient, azureManagedMachinePool.ObjectMeta)
-		if err != nil {
-			return nil, err
+		var machinePoolName string
+		// This logic to get the associated machine pool is essentially utilexp.GetOwnerMachinePool but
+		// operating against a plain list of objects vs. fetching them with a client.
+		for _, ref := range azureManagedMachinePool.OwnerReferences {
+			if ref.Kind != "MachinePool" {
+				continue
+			}
+			gv, err := schema.ParseGroupVersion(ref.APIVersion)
+			if err != nil {
+				return nil, err
+			}
+			if gv.Group == expv1.GroupVersion.Group {
+				machinePoolName = ref.Name
+				break
+			}
+		}
+		var machinePool *expv1.MachinePool
+		for _, mp := range machinePools {
+			if mp.Name == machinePoolName {
+				machinePool = mp
+				break
+			}
 		}
 		if machinePool == nil {
 			log.Info("Waiting for MachinePool Controller to set OwnerRef on AzureManagedMachinePool")
@@ -169,7 +190,7 @@ func agentPoolsFromManagedMachinePools(ctx context.Context, ctrlClient client.Cl
 		}
 
 		resources, err := ApplyMutators(ctx, azureManagedMachinePool.Spec.Resources,
-			SetAgentPoolDefaults(ctrlClient, &azureManagedMachinePool, machinePool), // TODO: double check this reference op is sane
+			SetAgentPoolDefaults(ctrlClient, ptr.To(azureManagedMachinePool), machinePool),
 		)
 		if err != nil {
 			return nil, err
