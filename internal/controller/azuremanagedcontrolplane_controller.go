@@ -61,7 +61,26 @@ type AzureManagedControlPlaneReconciler struct {
 	client.Client
 	Scheme                *runtime.Scheme // TODO: do we need this? Should this ever be different from Client.GetScheme()?
 	externalTracker       *external.ObjectTracker
-	newResourceReconciler func(*infrav1.AzureManagedControlPlane, []runtime.RawExtension) resourceReconciler
+	newResourceReconciler func(*infrav1.AzureManagedControlPlane, []*unstructured.Unstructured) resourceReconciler
+}
+
+type resourcesMutator func([]*unstructured.Unstructured) error
+
+func applyMutators(resources []runtime.RawExtension, mutators ...resourcesMutator) ([]*unstructured.Unstructured, error) {
+	us := []*unstructured.Unstructured{}
+	for _, resource := range resources {
+		u := &unstructured.Unstructured{}
+		if err := u.UnmarshalJSON(resource.Raw); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal resource JSON: %w", err)
+		}
+		us = append(us, u)
+	}
+	for _, mutator := range mutators {
+		if err := mutator(us); err != nil {
+			return nil, fmt.Errorf("failed to run mutator: %w", err)
+		}
+	}
+	return us, nil
 }
 
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=azuremanagedcontrolplanes,verbs=get;list;watch;create;update;patch;delete
@@ -127,13 +146,26 @@ func (r *AzureManagedControlPlaneReconciler) reconcileNormal(ctx context.Context
 	azureManagedControlPlane.Status.Ready = false
 	azureManagedControlPlane.Status.Initialized = azureManagedControlPlane.Status.Ready
 
-	resources, managedClusterName, err := r.defaultResources(ctx, azureManagedControlPlane, cluster)
+	resourcesMutators := []resourcesMutator{
+		r.defaultResources(ctx, azureManagedControlPlane, cluster),
+	}
+
+	resources, err := applyMutators(azureManagedControlPlane.Spec.Resources, resourcesMutators...)
 	if err != nil {
 		// TODO: watch AzureManagedMachinePools instead of requeueing here? Or maybe this is good enough?
 		if errors.Is(err, noAzureManagedMachinePoolsErr) {
 			return ctrl.Result{Requeue: true}, nil
 		}
 		return ctrl.Result{}, err
+	}
+
+	var managedClusterName string
+	for _, resource := range resources {
+		if resource.GroupVersionKind().Group == asocontainerservicev1.GroupVersion.Group &&
+			resource.GroupVersionKind().Kind == "ManagedCluster" {
+			managedClusterName = resource.GetName()
+			break
+		}
 	}
 	if managedClusterName == "" {
 		return ctrl.Result{}, reconcile.TerminalError(noManagedClusterDefinedErr)
@@ -188,120 +220,114 @@ func (r *AzureManagedControlPlaneReconciler) reconcileNormal(ctx context.Context
 	return ctrl.Result{}, nil
 }
 
-func (r *AzureManagedControlPlaneReconciler) defaultResources(ctx context.Context, azureManagedControlPlane *infrav1.AzureManagedControlPlane, cluster *clusterv1.Cluster) ([]runtime.RawExtension, string, error) {
+func (r *AzureManagedControlPlaneReconciler) defaultResources(ctx context.Context, azureManagedControlPlane *infrav1.AzureManagedControlPlane, cluster *clusterv1.Cluster) resourcesMutator {
 	log := ctrl.LoggerFrom(ctx)
 
-	// resources is a copy of the resources as they are defined in the spec, with some fields defaulted based
-	// on other fields that are defined in the CAPI contract. These defaults are not persisted to keep the
-	// ClusterClass controller from trying to overwrite them.
-	var resources []runtime.RawExtension
-	var managedClusterName string
-	for _, resource := range azureManagedControlPlane.Spec.Resources {
-		u := &unstructured.Unstructured{}
-		if err := u.UnmarshalJSON(resource.Raw); err != nil {
-			return nil, "", fmt.Errorf("failed to unmarshal resource JSON: %w", err)
-		}
-		if u.GroupVersionKind().Group == asocontainerservicev1.GroupVersion.Group &&
-			u.GroupVersionKind().Kind == "ManagedCluster" &&
-			managedClusterName == "" {
-			managedClusterName = u.GetName()
-			// TODO: default/validate this isn't set in a webhook. Check to make sure ClusterClass controller doesn't fight with
-			// a webhook-defaulted value
-			// TODO: auto upgrades?
-			// TODO: maybe conversion can help us work with a typed object here instead?
-			err := unstructured.SetNestedField(u.UnstructuredContent(), strings.TrimPrefix(azureManagedControlPlane.Spec.Version, "v"), "spec", "kubernetesVersion")
-			if err != nil {
-				return nil, "", err
-			}
-
-			// TODO: also forbid setting agentPoolProfiles in CAPZ spec?
-			getMC := &asocontainerservicev1.ManagedCluster{}
-			err = r.Get(ctx, client.ObjectKey{Namespace: azureManagedControlPlane.Namespace, Name: managedClusterName}, getMC)
-			if client.IgnoreNotFound(err) != nil {
-				return nil, "", err
-			}
-			if len(getMC.Status.AgentPoolProfiles) == 0 {
-				log.Info("gathering agent pool profiles to include in ManagedCluster create")
-				// AKS requires ManagedClusters to be created with agent pools: https://github.com/Azure/azure-service-operator/issues/2791
-				azureManagedMachinePools := &infrav1.AzureManagedMachinePoolList{}
-				err := r.List(ctx, azureManagedMachinePools,
-					client.InNamespace(azureManagedControlPlane.Namespace),
-					client.MatchingLabels{
-						clusterv1.ClusterNameLabel: cluster.Name,
-					},
-				)
-				if err != nil {
-					return nil, "", fmt.Errorf("failed to list AzureManagedMachinePools: %w", err)
-				}
-				if len(azureManagedMachinePools.Items) == 0 {
-					// TODO: let this fail so we don't have to check for it?
-					return nil, "", noAzureManagedMachinePoolsErr
-				}
-				var agentPools []conversion.Convertible
-				for _, azureManagedMachinePool := range azureManagedMachinePools.Items {
-					for _, resource := range azureManagedMachinePool.Spec.Resources {
-						u := &unstructured.Unstructured{}
-						if err := u.UnmarshalJSON(resource.Raw); err != nil {
-							return nil, "", fmt.Errorf("failed to unmarshal resource JSON: %w", err)
-						}
-						if u.GroupVersionKind().Group != asocontainerservicev1.GroupVersion.Group ||
-							u.GroupVersionKind().Kind != "ManagedClustersAgentPool" {
-							continue
-						}
-
-						machinePool, err := utilexp.GetOwnerMachinePool(ctx, r.Client, azureManagedMachinePool.ObjectMeta)
-						if err != nil {
-							return nil, "", err
-						}
-						if machinePool == nil {
-							log.Info("Waiting for MachinePool Controller to set OwnerRef on AzureManagedMachinePool")
-							// TODO: this error isn't very accurate, but it has some bearing on control flow
-							// that matches what we want here, which is to exit early and requeue.
-							return nil, "", noAzureManagedMachinePoolsErr
-						}
-
-						if err := aks.SetAgentPoolDefaults(u, machinePool); err != nil {
-							return nil, "", err
-						}
-
-						agentPool, err := r.Client.Scheme().New(u.GroupVersionKind())
-						if err != nil {
-							return nil, "", fmt.Errorf("error creating new %v: %w", u.GroupVersionKind(), err)
-						}
-						err = r.Client.Scheme().Convert(u, agentPool, nil)
-						if err != nil {
-							return nil, "", err
-						}
-
-						agentPools = append(agentPools, agentPool.(conversion.Convertible))
-						break
-					}
-				}
-
-				mc, err := r.Client.Scheme().New(u.GroupVersionKind())
-				if err != nil {
-					return nil, "", err
-				}
-				err = r.Client.Scheme().Convert(u, mc, nil)
-				if err != nil {
-					return nil, "", err
-				}
-				err = aks.SetAgentPoolProfilesFromAgentPools(mc.(conversion.Convertible), agentPools)
-				err = r.Client.Scheme().Convert(mc, u, nil)
-				if err != nil {
-					return nil, "", err
-				}
+	return func(us []*unstructured.Unstructured) error {
+		// These defaults are not persisted to keep the ClusterClass controller from trying to overwrite them.
+		var managedCluster *unstructured.Unstructured
+		for _, u := range us {
+			if u.GroupVersionKind().Group == asocontainerservicev1.GroupVersion.Group &&
+				u.GroupVersionKind().Kind == "ManagedCluster" {
+				managedCluster = u
+				break
 			}
 		}
+		if managedCluster == nil {
+			return reconcile.TerminalError(noManagedClusterDefinedErr)
+		}
 
-		defaulted, err := u.MarshalJSON()
+		// TODO: default/validate this isn't set in a webhook. Check to make sure ClusterClass controller doesn't fight with
+		// a webhook-defaulted value
+		// TODO: auto upgrades?
+		// TODO: maybe conversion can help us work with a typed object here instead? Would require always
+		// keeping an up-to-date scheme populated with all versions.
+		err := unstructured.SetNestedField(managedCluster.UnstructuredContent(), strings.TrimPrefix(azureManagedControlPlane.Spec.Version, "v"), "spec", "kubernetesVersion")
 		if err != nil {
-			return nil, "", err
+			return err
 		}
-		resources = append(resources, runtime.RawExtension{Raw: defaulted})
-	}
 
-	return resources, managedClusterName, nil
+		// TODO: also forbid setting agentPoolProfiles in CAPZ spec?
+		getMC := &asocontainerservicev1.ManagedCluster{}
+		err = r.Get(ctx, client.ObjectKey{Namespace: azureManagedControlPlane.Namespace, Name: managedCluster.GetName()}, getMC)
+		if client.IgnoreNotFound(err) != nil {
+			return err
+		}
+		if len(getMC.Status.AgentPoolProfiles) == 0 {
+			log.Info("gathering agent pool profiles to include in ManagedCluster create")
+			// AKS requires ManagedClusters to be created with agent pools: https://github.com/Azure/azure-service-operator/issues/2791
+			azureManagedMachinePools := &infrav1.AzureManagedMachinePoolList{}
+			err := r.List(ctx, azureManagedMachinePools,
+				client.InNamespace(azureManagedControlPlane.Namespace),
+				client.MatchingLabels{
+					clusterv1.ClusterNameLabel: cluster.Name,
+				},
+			)
+			if err != nil {
+				return fmt.Errorf("failed to list AzureManagedMachinePools: %w", err)
+			}
+			if len(azureManagedMachinePools.Items) == 0 {
+				// TODO: let this fail so we don't have to check for it?
+				return noAzureManagedMachinePoolsErr
+			}
+			var agentPools []conversion.Convertible
+			for _, azureManagedMachinePool := range azureManagedMachinePools.Items {
+				for _, resource := range azureManagedMachinePool.Spec.Resources {
+					u := &unstructured.Unstructured{}
+					if err := u.UnmarshalJSON(resource.Raw); err != nil {
+						return fmt.Errorf("failed to unmarshal resource JSON: %w", err)
+					}
+					if u.GroupVersionKind().Group != asocontainerservicev1.GroupVersion.Group ||
+						u.GroupVersionKind().Kind != "ManagedClustersAgentPool" {
+						continue
+					}
+
+					machinePool, err := utilexp.GetOwnerMachinePool(ctx, r.Client, azureManagedMachinePool.ObjectMeta)
+					if err != nil {
+						return err
+					}
+					if machinePool == nil {
+						log.Info("Waiting for MachinePool Controller to set OwnerRef on AzureManagedMachinePool")
+						// TODO: this error isn't very accurate, but it has some bearing on control flow
+						// that matches what we want here, which is to exit early and requeue.
+						return noAzureManagedMachinePoolsErr
+					}
+
+					if err := aks.SetAgentPoolDefaults(u, machinePool); err != nil {
+						return err
+					}
+
+					agentPool, err := r.Client.Scheme().New(u.GroupVersionKind())
+					if err != nil {
+						return fmt.Errorf("error creating new %v: %w", u.GroupVersionKind(), err)
+					}
+					err = r.Client.Scheme().Convert(u, agentPool, nil)
+					if err != nil {
+						return err
+					}
+
+					agentPools = append(agentPools, agentPool.(conversion.Convertible))
+					break
+				}
+			}
+
+			mc, err := r.Client.Scheme().New(managedCluster.GroupVersionKind())
+			if err != nil {
+				return err
+			}
+			err = r.Client.Scheme().Convert(managedCluster, mc, nil)
+			if err != nil {
+				return err
+			}
+			err = aks.SetAgentPoolProfilesFromAgentPools(mc.(conversion.Convertible), agentPools)
+			err = r.Client.Scheme().Convert(mc, managedCluster, nil)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
 }
 
 func (r *AzureManagedControlPlaneReconciler) reconcileKubeconfig(ctx context.Context, azureManagedControlPlane *infrav1.AzureManagedControlPlane, cluster *clusterv1.Cluster, managedCluster *asocontainerservicev1.ManagedCluster) error {
@@ -352,8 +378,13 @@ func (r *AzureManagedControlPlaneReconciler) reconcileDelete(ctx context.Context
 		return ctrl.Result{}, nil
 	}
 
-	infraReconciler := r.newResourceReconciler(azureManagedControlPlane, azureManagedControlPlane.Spec.Resources)
-	err := infraReconciler.Delete(ctx)
+	resources, err := applyMutators(azureManagedControlPlane.Spec.Resources)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	infraReconciler := r.newResourceReconciler(azureManagedControlPlane, resources)
+
+	err = infraReconciler.Delete(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -389,7 +420,7 @@ func (r *AzureManagedControlPlaneReconciler) SetupWithManager(ctx context.Contex
 		Controller: c,
 	}
 
-	r.newResourceReconciler = func(azureManagedControlPlane *infrav1.AzureManagedControlPlane, resources []runtime.RawExtension) resourceReconciler {
+	r.newResourceReconciler = func(azureManagedControlPlane *infrav1.AzureManagedControlPlane, resources []*unstructured.Unstructured) resourceReconciler {
 		return &InfraReconciler{
 			Client:    r.Client,
 			resources: resources,

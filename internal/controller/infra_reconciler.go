@@ -41,7 +41,7 @@ var waitingForASOReconcileMsg = "Waiting for ASO to reconcile the resource"
 
 type InfraReconciler struct {
 	client.Client
-	resources []runtime.RawExtension
+	resources []*unstructured.Unstructured
 	owner     resourceStatusObject
 	watcher   watcher
 }
@@ -71,12 +71,7 @@ func (r *InfraReconciler) Reconcile(ctx context.Context) error {
 	}
 	reconciled := map[reconcileKey]struct{}{}
 
-	for _, resource := range r.resources {
-		spec := &unstructured.Unstructured{}
-		err := spec.UnmarshalJSON(resource.Raw)
-		if err != nil {
-			return err
-		}
+	for _, spec := range r.resources {
 		spec.SetNamespace(r.owner.GetNamespace())
 		gvk := spec.GroupVersionKind()
 
@@ -91,7 +86,7 @@ func (r *InfraReconciler) Reconcile(ctx context.Context) error {
 		}
 
 		log.Info("applying resource")
-		err = r.Patch(ctx, spec, client.Apply, client.FieldOwner("capz-manager"), client.ForceOwnership)
+		err := r.Patch(ctx, spec, client.Apply, client.FieldOwner("capz-manager"), client.ForceOwnership)
 		if err != nil {
 			return fmt.Errorf("failed to apply resource: %w", err)
 		}
@@ -201,19 +196,14 @@ func (r *InfraReconciler) Delete(ctx context.Context) error {
 
 	var statuses []infrav1.ResourceStatus
 
-	for _, resource := range r.resources {
-		spec := &unstructured.Unstructured{}
-		err := spec.UnmarshalJSON(resource.Raw)
-		if err != nil {
-			return err
-		}
+	for _, spec := range r.resources {
 		spec.SetNamespace(r.owner.GetNamespace())
 		gvk := spec.GroupVersionKind()
 
 		log := log.WithValues("resource", klog.KObj(spec), "resourceVersion", gvk.GroupVersion(), "resourceKind", gvk.Kind)
 
 		log.Info("deleting resource")
-		err = r.Client.Delete(ctx, spec)
+		err := r.Client.Delete(ctx, spec)
 		if apierrors.IsNotFound(err) {
 			log.Info("resource has been deleted")
 			continue

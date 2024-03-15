@@ -54,7 +54,7 @@ type AzureManagedMachinePoolReconciler struct {
 	Tracker               ClusterTracker
 	controller            controller.Controller
 	externalTracker       *external.ObjectTracker
-	newResourceReconciler func(*infrav1.AzureManagedMachinePool, []runtime.RawExtension) resourceReconciler
+	newResourceReconciler func(*infrav1.AzureManagedMachinePool, []*unstructured.Unstructured) resourceReconciler
 }
 
 type ClusterTracker interface {
@@ -155,38 +155,40 @@ func (r *AzureManagedMachinePoolReconciler) reconcileNormal(ctx context.Context,
 
 	azureManagedMachinePool.Status.Ready = false
 
-	// TODO: extract this "get ASO resource from CAPZ resource" into a function
-	var resources []runtime.RawExtension
-	var ump *unstructured.Unstructured
-	for _, resource := range azureManagedMachinePool.Spec.Resources {
-		u := &unstructured.Unstructured{}
-		if err := u.UnmarshalJSON(resource.Raw); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to unmarshal resource JSON: %w", err)
-		}
-		u.SetNamespace(cluster.Namespace)
-		if u.GroupVersionKind().Group == asocontainerservicev1.GroupVersion.Group &&
-			u.GroupVersionKind().Kind == "ManagedClustersAgentPool" &&
-			ump == nil {
-			err := aks.SetAgentPoolDefaults(u, machinePool)
-			if err != nil {
-				return ctrl.Result{}, err
+	setDefaults := func(us []*unstructured.Unstructured) error {
+		for _, u := range us {
+			if u.GroupVersionKind().Group == asocontainerservicev1.GroupVersion.Group &&
+				u.GroupVersionKind().Kind == "ManagedClustersAgentPool" {
+				err := aks.SetAgentPoolDefaults(u, machinePool)
+				if err != nil {
+					return err
+				}
+				break
 			}
-			ump = u
 		}
-
-		defaulted, err := u.MarshalJSON()
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		resources = append(resources, runtime.RawExtension{Raw: defaulted})
+		return nil
 	}
-	if ump == nil {
-		// TODO: move this to a webhook.
+	mutators := []resourcesMutator{setDefaults}
+
+	resources, err := applyMutators(azureManagedMachinePool.Spec.Resources, mutators...)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	var agentPoolName string
+	for _, resource := range resources {
+		if resource.GroupVersionKind().Group == asocontainerservicev1.GroupVersion.Group &&
+			resource.GroupVersionKind().Kind == "ManagedClustersAgentPool" {
+			agentPoolName = resource.GetName()
+			break
+		}
+	}
+	if agentPoolName == "" {
 		return ctrl.Result{}, reconcile.TerminalError(fmt.Errorf("no %s ManagedClustersAgentPools defined in AzureManagedMachinePool spec.resources", asocontainerservicev1.GroupVersion.Group))
 	}
 
 	resourceReconciler := r.newResourceReconciler(azureManagedMachinePool, resources)
-	err := resourceReconciler.Reconcile(ctx)
+	err = resourceReconciler.Reconcile(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -199,7 +201,7 @@ func (r *AzureManagedMachinePoolReconciler) reconcileNormal(ctx context.Context,
 	// get a typed resource so we don't have to try to convert this unstructured ourselves since it might be a
 	// different API version than we know how to deal with.
 	agentPool := &asocontainerservicev1.ManagedClustersAgentPool{}
-	err = r.Get(ctx, client.ObjectKeyFromObject(ump), agentPool)
+	err = r.Get(ctx, client.ObjectKey{Namespace: azureManagedMachinePool.Namespace, Name: agentPoolName}, agentPool)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("error getting ManagedClustersAgentPool: %w", err)
 	}
@@ -253,8 +255,13 @@ func (r *AzureManagedMachinePoolReconciler) reconcileDelete(ctx context.Context,
 	// If the entire cluster is being deleted, this ASO ManagedClustersAgentPool will be deleted with the rest
 	// of the ManagedCluster.
 	if cluster.DeletionTimestamp.IsZero() {
-		resourceReconciler := r.newResourceReconciler(azureManagedMachinePool, azureManagedMachinePool.Spec.Resources)
-		err := resourceReconciler.Delete(ctx)
+		resources, err := applyMutators(azureManagedMachinePool.Spec.Resources)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		resourceReconciler := r.newResourceReconciler(azureManagedMachinePool, resources)
+
+		err = resourceReconciler.Delete(ctx)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -306,7 +313,7 @@ func (r *AzureManagedMachinePoolReconciler) SetupWithManager(ctx context.Context
 		Controller: c,
 	}
 
-	r.newResourceReconciler = func(azureManagedMachinePool *infrav1.AzureManagedMachinePool, resources []runtime.RawExtension) resourceReconciler {
+	r.newResourceReconciler = func(azureManagedMachinePool *infrav1.AzureManagedMachinePool, resources []*unstructured.Unstructured) resourceReconciler {
 		return &InfraReconciler{
 			Client:    r.Client,
 			resources: resources,

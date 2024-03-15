@@ -316,7 +316,7 @@ func TestAzureManagedControlPlaneReconcile(t *testing.T) {
 
 		r := &AzureManagedControlPlaneReconciler{
 			Client: c,
-			newResourceReconciler: func(azureManagedControlPlane *infrav1.AzureManagedControlPlane, resources []runtime.RawExtension) resourceReconciler {
+			newResourceReconciler: func(azureManagedControlPlane *infrav1.AzureManagedControlPlane, _ []*unstructured.Unstructured) resourceReconciler {
 				return &fakeResourceReconciler{
 					owner: azureManagedControlPlane,
 					reconcileFunc: func(_ context.Context, azureManagedControlPlane resourceStatusObject) error {
@@ -467,11 +467,9 @@ func TestAzureManagedControlPlaneReconcile(t *testing.T) {
 					return nil
 				},
 			},
-			newResourceReconciler: func(azureManagedControlPlane *infrav1.AzureManagedControlPlane, resources []runtime.RawExtension) resourceReconciler {
+			newResourceReconciler: func(azureManagedControlPlane *infrav1.AzureManagedControlPlane, resources []*unstructured.Unstructured) resourceReconciler {
 				t.Run("reconciled resources", func(t *testing.T) {
-					for _, resource := range resources {
-						u := &unstructured.Unstructured{}
-						t.Run("unmarshal", expectSuccess(u.UnmarshalJSON(resource.Raw)))
+					for _, u := range resources {
 						if u.GroupVersionKind().Group != asocontainerservicev1.GroupVersion.Group ||
 							u.GroupVersionKind().Kind != "ManagedCluster" {
 							continue
@@ -568,7 +566,7 @@ func TestAzureManagedControlPlaneReconcile(t *testing.T) {
 		deleteErr := errors.New("delete error")
 		r := &AzureManagedControlPlaneReconciler{
 			Client: c,
-			newResourceReconciler: func(_ *infrav1.AzureManagedControlPlane, _ []runtime.RawExtension) resourceReconciler {
+			newResourceReconciler: func(_ *infrav1.AzureManagedControlPlane, _ []*unstructured.Unstructured) resourceReconciler {
 				return &fakeResourceReconciler{
 					deleteFunc: func(_ context.Context, _ resourceStatusObject) error {
 						return deleteErr
@@ -614,7 +612,7 @@ func TestAzureManagedControlPlaneReconcile(t *testing.T) {
 
 		r := &AzureManagedControlPlaneReconciler{
 			Client: c,
-			newResourceReconciler: func(azureManagedControlPlane *infrav1.AzureManagedControlPlane, _ []runtime.RawExtension) resourceReconciler {
+			newResourceReconciler: func(azureManagedControlPlane *infrav1.AzureManagedControlPlane, _ []*unstructured.Unstructured) resourceReconciler {
 				return &fakeResourceReconciler{
 					owner: azureManagedControlPlane,
 					deleteFunc: func(_ context.Context, azureManagedControlPlane resourceStatusObject) error {
@@ -665,7 +663,7 @@ func TestAzureManagedControlPlaneReconcile(t *testing.T) {
 
 		r := &AzureManagedControlPlaneReconciler{
 			Client: c,
-			newResourceReconciler: func(_ *infrav1.AzureManagedControlPlane, _ []runtime.RawExtension) resourceReconciler {
+			newResourceReconciler: func(_ *infrav1.AzureManagedControlPlane, _ []*unstructured.Unstructured) resourceReconciler {
 				return &fakeResourceReconciler{
 					deleteFunc: func(_ context.Context, _ resourceStatusObject) error {
 						return nil

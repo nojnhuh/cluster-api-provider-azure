@@ -18,7 +18,6 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	asoresourcesv1 "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
@@ -76,7 +75,7 @@ func TestInfraReconcilerReconcile(t *testing.T) {
 
 	t.Run("empty resources", func(t *testing.T) {
 		r := &InfraReconciler{
-			resources: []runtime.RawExtension{},
+			resources: []*unstructured.Unstructured{},
 			owner:     &infrav1.AzureManagedCluster{},
 		}
 
@@ -89,6 +88,7 @@ func TestInfraReconcilerReconcile(t *testing.T) {
 		s := runtime.NewScheme()
 		sb := runtime.NewSchemeBuilder(
 			infrav1.AddToScheme,
+			asoresourcesv1.AddToScheme,
 		)
 		t.Run("build scheme", expectSuccess(sb.AddToScheme(s)))
 		c := fakeclient.NewClientBuilder().
@@ -97,31 +97,27 @@ func TestInfraReconcilerReconcile(t *testing.T) {
 
 		r := &InfraReconciler{
 			Client: &FakeClient{Client: c},
-			resources: []runtime.RawExtension{
-				{
-					Raw: rgJSON(t, &asoresourcesv1.ResourceGroup{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "rg1",
-						},
-						// status is supplied here to simulate the API server response after patching.
-						Status: asoresourcesv1.ResourceGroup_STATUS{
-							Conditions: conditions.Conditions{
-								{
-									Type:    conditions.ConditionTypeReady,
-									Status:  metav1.ConditionFalse,
-									Message: "rg1 message",
-								},
+			resources: []*unstructured.Unstructured{
+				rgJSON(t, s, &asoresourcesv1.ResourceGroup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "rg1",
+					},
+					// status is supplied here to simulate the API server response after patching.
+					Status: asoresourcesv1.ResourceGroup_STATUS{
+						Conditions: conditions.Conditions{
+							{
+								Type:    conditions.ConditionTypeReady,
+								Status:  metav1.ConditionFalse,
+								Message: "rg1 message",
 							},
 						},
-					}),
-				},
-				{
-					Raw: rgJSON(t, &asoresourcesv1.ResourceGroup{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "rg2",
-						},
-					}),
-				},
+					},
+				}),
+				rgJSON(t, s, &asoresourcesv1.ResourceGroup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "rg2",
+					},
+				}),
 			},
 			owner: &infrav1.AzureManagedCluster{
 				Status: infrav1.AzureManagedClusterStatus{
@@ -215,7 +211,7 @@ func TestInfraReconcilerReconcile(t *testing.T) {
 
 		r := &InfraReconciler{
 			Client:    c,
-			resources: []runtime.RawExtension{},
+			resources: []*unstructured.Unstructured{},
 			owner:     owner,
 		}
 
@@ -241,7 +237,7 @@ func TestInfraReconcilerDelete(t *testing.T) {
 
 	t.Run("empty resources", func(t *testing.T) {
 		r := &InfraReconciler{
-			resources: []runtime.RawExtension{},
+			resources: []*unstructured.Unstructured{},
 			owner:     &infrav1.AzureManagedCluster{},
 		}
 
@@ -304,21 +300,17 @@ func TestInfraReconcilerDelete(t *testing.T) {
 
 		r := &InfraReconciler{
 			Client: &FakeClient{Client: c},
-			resources: []runtime.RawExtension{
-				{
-					Raw: rgJSON(t, &asoresourcesv1.ResourceGroup{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "rg1",
-						},
-					}),
-				},
-				{
-					Raw: rgJSON(t, &asoresourcesv1.ResourceGroup{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "rg2",
-						},
-					}),
-				},
+			resources: []*unstructured.Unstructured{
+				rgJSON(t, s, &asoresourcesv1.ResourceGroup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "rg1",
+					},
+				}),
+				rgJSON(t, s, &asoresourcesv1.ResourceGroup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "rg2",
+					},
+				}),
 			},
 			owner: owner,
 		}
@@ -566,16 +558,17 @@ func TestReadyStatus(t *testing.T) {
 	})
 }
 
-func rgJSON(t *testing.T, rg *asoresourcesv1.ResourceGroup) []byte {
+func rgJSON(t *testing.T, scheme *runtime.Scheme, rg *asoresourcesv1.ResourceGroup) *unstructured.Unstructured {
 	t.Helper()
 	rg.SetGroupVersionKind(asoresourcesv1.GroupVersion.WithKind("ResourceGroup"))
-	j, err := json.Marshal(rg)
-	t.Run("marshal", expectSuccess(err))
-	return j
+	u := &unstructured.Unstructured{}
+	t.Run("convert to unstructured", expectSuccess(scheme.Convert(rg, u, nil)))
+	return u
 }
 
 func expectSuccess(err error) func(*testing.T) {
 	return func(t *testing.T) {
+		t.Helper()
 		if err != nil {
 			t.Error("expected success, got error", err)
 		}
@@ -584,6 +577,7 @@ func expectSuccess(err error) func(*testing.T) {
 
 func checkEqual[T comparable](actual, expected T) func(*testing.T) {
 	return func(t *testing.T) {
+		t.Helper()
 		if actual != expected {
 			t.Errorf("expected %v, got %v", expected, actual)
 		}

@@ -25,6 +25,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -259,7 +260,7 @@ func TestAzureManagedClusterReconcile(t *testing.T) {
 
 		r := &AzureManagedClusterReconciler{
 			Client: c,
-			newResourceReconciler: func(azureManagedCluster *infrav1.AzureManagedCluster) resourceReconciler {
+			newResourceReconciler: func(azureManagedCluster *infrav1.AzureManagedCluster, _ []*unstructured.Unstructured) resourceReconciler {
 				return &fakeResourceReconciler{
 					owner: azureManagedCluster,
 					reconcileFunc: func(_ context.Context, azureManagedCluster resourceStatusObject) error {
@@ -322,7 +323,7 @@ func TestAzureManagedClusterReconcile(t *testing.T) {
 		resourceReconcileErr := errors.New("resource reconcile error")
 		r := &AzureManagedClusterReconciler{
 			Client: c,
-			newResourceReconciler: func(azureManagedCluster *infrav1.AzureManagedCluster) resourceReconciler {
+			newResourceReconciler: func(azureManagedCluster *infrav1.AzureManagedCluster, _ []*unstructured.Unstructured) resourceReconciler {
 				return &fakeResourceReconciler{
 					reconcileFunc: func(_ context.Context, _ resourceStatusObject) error {
 						return resourceReconcileErr
@@ -377,7 +378,7 @@ func TestAzureManagedClusterReconcile(t *testing.T) {
 
 		r := &AzureManagedClusterReconciler{
 			Client: c,
-			newResourceReconciler: func(azureManagedCluster *infrav1.AzureManagedCluster) resourceReconciler {
+			newResourceReconciler: func(azureManagedCluster *infrav1.AzureManagedCluster, _ []*unstructured.Unstructured) resourceReconciler {
 				return &fakeResourceReconciler{
 					reconcileFunc: func(_ context.Context, _ resourceStatusObject) error {
 						return nil
@@ -445,7 +446,7 @@ func TestAzureManagedClusterReconcile(t *testing.T) {
 
 		r := &AzureManagedClusterReconciler{
 			Client: c,
-			newResourceReconciler: func(azureManagedCluster *infrav1.AzureManagedCluster) resourceReconciler {
+			newResourceReconciler: func(azureManagedCluster *infrav1.AzureManagedCluster, _ []*unstructured.Unstructured) resourceReconciler {
 				return &fakeResourceReconciler{
 					reconcileFunc: func(_ context.Context, _ resourceStatusObject) error {
 						return nil
@@ -518,7 +519,7 @@ func TestAzureManagedClusterReconcile(t *testing.T) {
 		deleteErr := errors.New("delete error")
 		r := &AzureManagedClusterReconciler{
 			Client: c,
-			newResourceReconciler: func(azureManagedCluster *infrav1.AzureManagedCluster) resourceReconciler {
+			newResourceReconciler: func(azureManagedCluster *infrav1.AzureManagedCluster, _ []*unstructured.Unstructured) resourceReconciler {
 				return &fakeResourceReconciler{
 					deleteFunc: func(_ context.Context, _ resourceStatusObject) error {
 						return deleteErr
@@ -564,7 +565,7 @@ func TestAzureManagedClusterReconcile(t *testing.T) {
 
 		r := &AzureManagedClusterReconciler{
 			Client: c,
-			newResourceReconciler: func(azureManagedCluster *infrav1.AzureManagedCluster) resourceReconciler {
+			newResourceReconciler: func(azureManagedCluster *infrav1.AzureManagedCluster, _ []*unstructured.Unstructured) resourceReconciler {
 				return &fakeResourceReconciler{
 					owner: azureManagedCluster,
 					deleteFunc: func(_ context.Context, azureManagedCluster resourceStatusObject) error {
@@ -615,7 +616,7 @@ func TestAzureManagedClusterReconcile(t *testing.T) {
 
 		r := &AzureManagedClusterReconciler{
 			Client: c,
-			newResourceReconciler: func(azureManagedCluster *infrav1.AzureManagedCluster) resourceReconciler {
+			newResourceReconciler: func(azureManagedCluster *infrav1.AzureManagedCluster, _ []*unstructured.Unstructured) resourceReconciler {
 				return &fakeResourceReconciler{
 					deleteFunc: func(_ context.Context, _ resourceStatusObject) error {
 						return nil

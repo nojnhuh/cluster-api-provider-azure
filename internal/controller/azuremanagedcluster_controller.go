@@ -24,6 +24,7 @@ import (
 	"github.com/go-logr/logr"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -51,7 +52,7 @@ type AzureManagedClusterReconciler struct {
 	client.Client
 	Scheme                *runtime.Scheme
 	externalTracker       *external.ObjectTracker
-	newResourceReconciler func(*infrav1.AzureManagedCluster) resourceReconciler
+	newResourceReconciler func(*infrav1.AzureManagedCluster, []*unstructured.Unstructured) resourceReconciler
 }
 
 type resourceReconciler interface {
@@ -126,8 +127,15 @@ func (r *AzureManagedClusterReconciler) reconcileNormal(ctx context.Context, azu
 	}
 
 	azureManagedCluster.Status.Ready = false
-	resourceReconciler := r.newResourceReconciler(azureManagedCluster)
-	err := resourceReconciler.Reconcile(ctx)
+
+	var mutators []resourcesMutator
+	resources, err := applyMutators(azureManagedCluster.Spec.Resources, mutators...)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	resourceReconciler := r.newResourceReconciler(azureManagedCluster, resources)
+
+	err = resourceReconciler.Reconcile(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -160,8 +168,13 @@ func (r *AzureManagedClusterReconciler) reconcileDelete(ctx context.Context, azu
 		return ctrl.Result{}, nil
 	}
 
-	resourceReconciler := r.newResourceReconciler(azureManagedCluster)
-	err := resourceReconciler.Delete(ctx)
+	resources, err := applyMutators(azureManagedCluster.Spec.Resources)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	resourceReconciler := r.newResourceReconciler(azureManagedCluster, resources)
+
+	err = resourceReconciler.Delete(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -206,10 +219,10 @@ func (r *AzureManagedClusterReconciler) SetupWithManager(ctx context.Context, mg
 		Controller: c,
 	}
 
-	r.newResourceReconciler = func(azureManagedCluster *infrav1.AzureManagedCluster) resourceReconciler {
+	r.newResourceReconciler = func(azureManagedCluster *infrav1.AzureManagedCluster, us []*unstructured.Unstructured) resourceReconciler {
 		return &InfraReconciler{
 			Client:    r.Client,
-			resources: azureManagedCluster.Spec.Resources,
+			resources: us,
 			owner:     azureManagedCluster,
 			watcher:   r.externalTracker,
 		}

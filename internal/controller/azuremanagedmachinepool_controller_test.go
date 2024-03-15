@@ -26,6 +26,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
@@ -227,7 +228,11 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 				AzureManagedMachinePoolTemplateResourceSpec: infrav1.AzureManagedMachinePoolTemplateResourceSpec{
 					Resources: []runtime.RawExtension{
 						{
-							Raw: apJSON(t, &asocontainerservicev1.ManagedClustersAgentPool{}),
+							Raw: apJSON(t, &asocontainerservicev1.ManagedClustersAgentPool{
+								ObjectMeta: metav1.ObjectMeta{
+									Name: "pool0",
+								},
+							}),
 						},
 					},
 				},
@@ -241,7 +246,7 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 			Build()
 		r := &AzureManagedMachinePoolReconciler{
 			Client: c,
-			newResourceReconciler: func(azureManagedMachinePool *infrav1.AzureManagedMachinePool, resources []runtime.RawExtension) resourceReconciler {
+			newResourceReconciler: func(azureManagedMachinePool *infrav1.AzureManagedMachinePool, _ []*unstructured.Unstructured) resourceReconciler {
 				return &fakeResourceReconciler{
 					owner: azureManagedMachinePool,
 					reconcileFunc: func(_ context.Context, azureManagedMachinePool resourceStatusObject) error {
@@ -354,7 +359,7 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 			Build()
 		r := &AzureManagedMachinePoolReconciler{
 			Client: c,
-			newResourceReconciler: func(_ *infrav1.AzureManagedMachinePool, _ []runtime.RawExtension) resourceReconciler {
+			newResourceReconciler: func(_ *infrav1.AzureManagedMachinePool, _ []*unstructured.Unstructured) resourceReconciler {
 				return &fakeResourceReconciler{
 					reconcileFunc: func(_ context.Context, _ resourceStatusObject) error {
 						return nil
@@ -501,7 +506,7 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 			Build()
 		r := &AzureManagedMachinePoolReconciler{
 			Client: c,
-			newResourceReconciler: func(_ *infrav1.AzureManagedMachinePool, _ []runtime.RawExtension) resourceReconciler {
+			newResourceReconciler: func(_ *infrav1.AzureManagedMachinePool, _ []*unstructured.Unstructured) resourceReconciler {
 				return &fakeResourceReconciler{
 					reconcileFunc: func(_ context.Context, _ resourceStatusObject) error {
 						return nil
@@ -605,7 +610,7 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 
 		r := &AzureManagedMachinePoolReconciler{
 			Client: c,
-			newResourceReconciler: func(_ *infrav1.AzureManagedMachinePool, _ []runtime.RawExtension) resourceReconciler {
+			newResourceReconciler: func(_ *infrav1.AzureManagedMachinePool, _ []*unstructured.Unstructured) resourceReconciler {
 				return &fakeResourceReconciler{
 					deleteFunc: func(_ context.Context, _ resourceStatusObject) error {
 						return nil
