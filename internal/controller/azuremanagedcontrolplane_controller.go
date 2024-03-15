@@ -354,7 +354,8 @@ func ClusterUpdatePauseChange(logger logr.Logger) predicate.Funcs {
 			log.V(6).Info("Cluster spec.paused was not changed, blocking further processing")
 			return false
 		},
-		CreateFunc: func(e event.CreateEvent) bool { return true },
+		CreateFunc: func(event.CreateEvent) bool { return true },
+		DeleteFunc: func(event.DeleteEvent) bool { return false },
 	}
 }
 
