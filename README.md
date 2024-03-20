@@ -19,10 +19,10 @@ The main goals of CAPZ v2 are:
 - To fulfill basic use cases by exposing a higher-level interface building on top of CAPZ v2's low-level
   interface.
 
-Here is an example of CAPZ v2's AzureManagedCluster resource:
+Here is an example of CAPZ v2's AzureASOManagedCluster resource:
 ```yaml
 apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
-kind: AzureManagedCluster
+kind: AzureASOManagedCluster
 metadata:
   name: my-cluster
 spec:
@@ -40,9 +40,9 @@ resources to be reconciled. CAPZ v2 strives to make as few assumptions as possib
 resources, simply applying these resources to the management cluster in its reconciliation loop and reflecting
 their status.
 
-CAPZ v2's main assumption is that each object in `spec.resources` is an Azure Service Operator (ASO)
-resource, which allows CAPZ v2 to understand the state of the underlying Azure resources. It also must make
-some assumptions like that an AzureManagedControlPlane defines an ASO ManagedCluster resource. These assumptions
+CAPZ v2's main assumption is that each object in `spec.resources` is an Azure Service Operator (ASO) resource,
+which allows CAPZ v2 to understand the state of the underlying Azure resources. It also must make some
+assumptions like that an AzureASOManagedControlPlane defines an ASO ManagedCluster resource. These assumptions
 are necessary to fulfill CAPZ v2's contract with Cluster API.
 
 This interface requires much more configuration than existing providers to represent the same underlying

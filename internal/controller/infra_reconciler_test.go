@@ -76,7 +76,7 @@ func TestInfraReconcilerReconcile(t *testing.T) {
 	t.Run("empty resources", func(t *testing.T) {
 		r := &InfraReconciler{
 			resources: []*unstructured.Unstructured{},
-			owner:     &infrav1.AzureManagedCluster{},
+			owner:     &infrav1.AzureASOManagedCluster{},
 		}
 
 		t.Run("Reconcile", expectSuccess(r.Reconcile(ctx)))
@@ -119,8 +119,8 @@ func TestInfraReconcilerReconcile(t *testing.T) {
 					},
 				}),
 			},
-			owner: &infrav1.AzureManagedCluster{
-				Status: infrav1.AzureManagedClusterStatus{
+			owner: &infrav1.AzureASOManagedCluster{
+				Status: infrav1.AzureASOManagedClusterStatus{
 					Resources: []infrav1.ResourceStatus{
 						{
 							Group:   asoresourcesv1.GroupVersion.Group,
@@ -173,11 +173,11 @@ func TestInfraReconcilerReconcile(t *testing.T) {
 		)
 		t.Run("build scheme", expectSuccess(sb.AddToScheme(s)))
 
-		owner := &infrav1.AzureManagedCluster{
+		owner := &infrav1.AzureASOManagedCluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "ns",
 			},
-			Status: infrav1.AzureManagedClusterStatus{
+			Status: infrav1.AzureASOManagedClusterStatus{
 				Resources: []infrav1.ResourceStatus{
 					{
 						Group:   asoresourcesv1.GroupVersion.Group,
@@ -238,7 +238,7 @@ func TestInfraReconcilerDelete(t *testing.T) {
 	t.Run("empty resources", func(t *testing.T) {
 		r := &InfraReconciler{
 			resources: []*unstructured.Unstructured{},
-			owner:     &infrav1.AzureManagedCluster{},
+			owner:     &infrav1.AzureASOManagedCluster{},
 		}
 
 		t.Run("Delete", expectSuccess(r.Delete(ctx)))
@@ -253,11 +253,11 @@ func TestInfraReconcilerDelete(t *testing.T) {
 		)
 		t.Run("build scheme", expectSuccess(sb.AddToScheme(s)))
 
-		owner := &infrav1.AzureManagedCluster{
+		owner := &infrav1.AzureASOManagedCluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "ns",
 			},
-			Status: infrav1.AzureManagedClusterStatus{
+			Status: infrav1.AzureASOManagedClusterStatus{
 				Resources: []infrav1.ResourceStatus{
 					{
 						Group:   asoresourcesv1.GroupVersion.Group,

@@ -4,20 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.14.0
-  name: azuremanagedclusters.infrastructure.cluster.x-k8s.io
+  name: azureasomanagedmachinepools.infrastructure.cluster.x-k8s.io
 spec:
   group: infrastructure.cluster.x-k8s.io
   names:
-    kind: AzureManagedCluster
-    listKind: AzureManagedClusterList
-    plural: azuremanagedclusters
-    singular: azuremanagedcluster
+    kind: AzureASOManagedMachinePool
+    listKind: AzureASOManagedMachinePoolList
+    plural: azureasomanagedmachinepools
+    singular: azureasomanagedmachinepool
   scope: Namespaced
   versions:
   - name: v2alpha1
     schema:
       openAPIV3Schema:
-        description: AzureManagedCluster is the Schema for the azuremanagedclusters
+        description: AzureASOManagedMachinePool is the Schema for the azureasomanagedmachinepools
           API
         properties:
           apiVersion:
@@ -38,24 +38,16 @@ spec:
           metadata:
             type: object
           spec:
-            description: AzureManagedClusterSpec defines the desired state of AzureManagedCluster
+            description: AzureASOManagedMachinePoolSpec defines the desired state
+              of AzureASOManagedMachinePool
             properties:
-              controlPlaneEndpoint:
+              providerIDList:
                 description: |-
-                  ControlPlaneEndpoint is the location of the API server within the control plane. It fulfills Cluster
-                  API's cluster infrastructure provider contract.
-                properties:
-                  host:
-                    description: The hostname on which the API server is serving.
-                    type: string
-                  port:
-                    description: The port on which the API server is serving.
-                    format: int32
-                    type: integer
-                required:
-                - host
-                - port
-                type: object
+                  ProviderIDList is the list of cloud provider IDs for the instances. It fulfills Cluster API's machine
+                  pool infrastructure provider contract.
+                items:
+                  type: string
+                type: array
               resources:
                 description: Resources are embedded ASO resources to be managed by
                   this resource.
@@ -65,18 +57,23 @@ spec:
                 type: array
             type: object
           status:
-            description: AzureManagedClusterStatus defines the observed state of AzureManagedCluster
+            description: AzureASOManagedMachinePoolStatus defines the observed state
+              of AzureASOManagedMachinePool
             properties:
               observedGeneration:
-                description: ObservedGeneration is the last metadata.generation of
-                  the object that has been reconciled.
+                description: ObservedGeneration is the last generation that was successfully
+                  reconciled.
                 format: int64
                 type: integer
               ready:
                 description: |-
-                  Ready represents whether or not the cluster has been provisioned and is ready. It fulfills Cluster
-                  API's cluster infrastructure provider contract.
+                  Ready represents whether or not the infrastructure is ready to be used. It fulfills Cluster API's
+                  machine pool infrastructure provider contract.
                 type: boolean
+              replicas:
+                description: Replicas is the current number of provisioned replicas.
+                format: int32
+                type: integer
               resources:
                 description: Resources represents the status of the resources defined
                   in the spec.

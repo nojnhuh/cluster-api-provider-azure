@@ -37,11 +37,11 @@ import (
 )
 
 var (
-	NoManagedClusterDefinedErr    = fmt.Errorf("no %s ManagedCluster defined in AzureManagedControlPlane spec.resources", asocontainerservicev1.GroupVersion.Group)
-	NoAzureManagedMachinePoolsErr = errors.New("no AzureManagedMachinePools found for AzureManagedControlPlane")
+	NoManagedClusterDefinedErr       = fmt.Errorf("no %s ManagedCluster defined in AzureASOManagedControlPlane spec.resources", asocontainerservicev1.GroupVersion.Group)
+	NoAzureASOManagedMachinePoolsErr = errors.New("no AzureASOManagedMachinePools found for AzureASOManagedControlPlane")
 )
 
-func SetManagedClusterDefaults(ctrlClient client.Client, azureManagedControlPlane *infrav1.AzureManagedControlPlane, cluster *clusterv1.Cluster) ResourcesMutator {
+func SetManagedClusterDefaults(ctrlClient client.Client, asoManagedControlPlane *infrav1.AzureASOManagedControlPlane, cluster *clusterv1.Cluster) ResourcesMutator {
 	return func(ctx context.Context, us []*unstructured.Unstructured) error {
 		log := ctrl.LoggerFrom(ctx)
 
@@ -70,11 +70,11 @@ func SetManagedClusterDefaults(ctrlClient client.Client, azureManagedControlPlan
 		if err != nil {
 			return err
 		}
-		capzK8sVersion := strings.TrimPrefix(azureManagedControlPlane.Spec.Version, "v")
+		capzK8sVersion := strings.TrimPrefix(asoManagedControlPlane.Spec.Version, "v")
 		setK8sVersion := mutation{
 			location: managedClusterPath + "." + strings.Join(k8sVersionPath, "."),
 			val:      capzK8sVersion,
-			reason:   "because spec.version is set to " + azureManagedControlPlane.Spec.Version,
+			reason:   "because spec.version is set to " + asoManagedControlPlane.Spec.Version,
 		}
 		if k8sVersionFound && userK8sVersion != capzK8sVersion {
 			return Incompatible{
@@ -96,7 +96,7 @@ func SetManagedClusterDefaults(ctrlClient client.Client, azureManagedControlPlan
 		setAgentPoolProfiles := mutation{
 			location: managedClusterPath + "." + strings.Join(agentPoolProfilesPath, "."),
 			val:      "nil",
-			reason:   "because agent pool definitions must be inherited from AzureManagedMachinePools",
+			reason:   "because agent pool definitions must be inherited from AzureASOManagedMachinePools",
 		}
 		if agentPoolProfilesFound {
 			return Incompatible{
@@ -107,13 +107,13 @@ func SetManagedClusterDefaults(ctrlClient client.Client, azureManagedControlPlan
 
 		// AKS requires ManagedClusters to be created with agent pools: https://github.com/Azure/azure-service-operator/issues/2791
 		getMC := &asocontainerservicev1.ManagedCluster{}
-		err = ctrlClient.Get(ctx, client.ObjectKey{Namespace: azureManagedControlPlane.Namespace, Name: managedCluster.GetName()}, getMC)
+		err = ctrlClient.Get(ctx, client.ObjectKey{Namespace: asoManagedControlPlane.Namespace, Name: managedCluster.GetName()}, getMC)
 		if client.IgnoreNotFound(err) != nil {
 			return err
 		}
 		if len(getMC.Status.AgentPoolProfiles) == 0 {
 			log.Info("gathering agent pool profiles to include in ManagedCluster create")
-			agentPools, err := agentPoolsFromManagedMachinePools(ctx, ctrlClient, cluster.Name, azureManagedControlPlane)
+			agentPools, err := agentPoolsFromManagedMachinePools(ctx, ctrlClient, cluster.Name, asoManagedControlPlane)
 			if err != nil {
 				return err
 			}
@@ -138,39 +138,39 @@ func SetManagedClusterDefaults(ctrlClient client.Client, azureManagedControlPlan
 	}
 }
 
-func agentPoolsFromManagedMachinePools(ctx context.Context, ctrlClient client.Client, clusterName string, azureManagedControlPlane *infrav1.AzureManagedControlPlane) ([]conversion.Convertible, error) {
+func agentPoolsFromManagedMachinePools(ctx context.Context, ctrlClient client.Client, clusterName string, asoManagedControlPlane *infrav1.AzureASOManagedControlPlane) ([]conversion.Convertible, error) {
 	log := ctrl.LoggerFrom(ctx)
 
-	azureManagedMachinePools := &infrav1.AzureManagedMachinePoolList{}
-	err := ctrlClient.List(ctx, azureManagedMachinePools,
-		client.InNamespace(azureManagedControlPlane.Namespace),
+	asoManagedMachinePools := &infrav1.AzureASOManagedMachinePoolList{}
+	err := ctrlClient.List(ctx, asoManagedMachinePools,
+		client.InNamespace(asoManagedControlPlane.Namespace),
 		client.MatchingLabels{
 			clusterv1.ClusterNameLabel: clusterName,
 		},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list AzureManagedMachinePools: %w", err)
+		return nil, fmt.Errorf("failed to list AzureASOManagedMachinePools: %w", err)
 	}
-	if len(azureManagedMachinePools.Items) == 0 {
+	if len(asoManagedMachinePools.Items) == 0 {
 		// TODO: let this fail so we don't have to check for it?
-		return nil, NoAzureManagedMachinePoolsErr
+		return nil, NoAzureASOManagedMachinePoolsErr
 	}
 
 	var agentPools []conversion.Convertible
-	for _, azureManagedMachinePool := range azureManagedMachinePools.Items {
-		machinePool, err := exputil.GetOwnerMachinePool(ctx, ctrlClient, azureManagedMachinePool.ObjectMeta)
+	for _, asoManagedMachinePool := range asoManagedMachinePools.Items {
+		machinePool, err := exputil.GetOwnerMachinePool(ctx, ctrlClient, asoManagedMachinePool.ObjectMeta)
 		if err != nil {
 			return nil, err
 		}
 		if machinePool == nil {
-			log.Info("Waiting for MachinePool Controller to set OwnerRef on AzureManagedMachinePool")
+			log.Info("Waiting for MachinePool Controller to set OwnerRef on AzureASOManagedMachinePool")
 			// TODO: this error isn't very accurate, but it has some bearing on control flow
 			// that matches what we want here, which is to exit reconciliation early and requeue.
-			return nil, NoAzureManagedMachinePoolsErr
+			return nil, NoAzureASOManagedMachinePoolsErr
 		}
 
-		resources, err := ApplyMutators(ctx, azureManagedMachinePool.Spec.Resources,
-			SetAgentPoolDefaults(ctrlClient, ptr.To(azureManagedMachinePool), machinePool),
+		resources, err := ApplyMutators(ctx, asoManagedMachinePool.Spec.Resources,
+			SetAgentPoolDefaults(ctrlClient, ptr.To(asoManagedMachinePool), machinePool),
 		)
 		if err != nil {
 			return nil, err

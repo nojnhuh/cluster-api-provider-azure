@@ -21,15 +21,15 @@ spec:
 {{- else }}
   controlPlaneRef:
     apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
-    kind: AzureManagedControlPlane
+    kind: AzureASOManagedControlPlane
     name: {{ include "capz.clusterName" .  | quote }}
   infrastructureRef:
     apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
-    kind: AzureManagedCluster
+    kind: AzureASOManagedCluster
     name: {{ include "capz.clusterName" .  | quote }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
-kind: AzureManagedCluster
+kind: AzureASOManagedCluster
 metadata:
   name: {{ include "capz.clusterName" .  | quote }}
   labels:
@@ -37,16 +37,16 @@ metadata:
   annotations:
     helm.sh/resource-policy: keep
 spec:
-  {{- include "capz.azureManagedClusterSpec" (list $ (include "capz.clusterName" $)) | nindent 2 }}
+  {{- include "capz.azureASOManagedClusterSpec" (list $ (include "capz.clusterName" $)) | nindent 2 }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
-kind: AzureManagedControlPlane
+kind: AzureASOManagedControlPlane
 metadata:
   name: {{ include "capz.clusterName" .  | quote }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
-  {{- include "capz.azureManagedControlPlaneSpec" (list $ (include "capz.clusterName" $)) | nindent 2 }}
+  {{- include "capz.azureASOManagedControlPlaneSpec" (list $ (include "capz.clusterName" $)) | nindent 2 }}
 {{- range $mpName, $mp := .Values.managedMachinePoolSpecs }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
@@ -69,12 +69,12 @@ spec:
       clusterName: {{ include "capz.clusterName" $ }}
       infrastructureRef:
         apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
-        kind: AzureManagedMachinePool
+        kind: AzureASOManagedMachinePool
         name: {{ printf "%s-%s" (include "capz.clusterName" $) $mpName | quote }}
       version: {{ default $.Values.kubernetesVersion $mp.orchestratorVersion | quote }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
-kind: AzureManagedMachinePool
+kind: AzureASOManagedMachinePool
 metadata:
   name: {{ printf "%s-%s" (include "capz.clusterName" $) $mpName | quote }}
   labels:
@@ -82,6 +82,6 @@ metadata:
   annotations:
     helm.sh/resource-policy: keep
 spec:
-  {{- include "capz.azureManagedMachinePoolSpec" (list $ (include "capz.clusterName" $) $mpName $mp) | nindent 2 }}
+  {{- include "capz.azureASOManagedMachinePoolSpec" (list $ (include "capz.clusterName" $) $mpName $mp) | nindent 2 }}
 {{- end }}
 {{- end }}{{/* if .Values.withClusterTopology */}}

@@ -9,12 +9,12 @@ spec:
   controlPlane:
     ref:
       apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
-      kind: AzureManagedControlPlaneTemplate
+      kind: AzureASOManagedControlPlaneTemplate
       name: {{ .Values.clusterClassName | quote }}
   infrastructure:
     ref:
       apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
-      kind: AzureManagedClusterTemplate
+      kind: AzureASOManagedClusterTemplate
       name: {{ .Values.clusterClassName | quote }}
   workers:
     machinePools:
@@ -29,15 +29,15 @@ spec:
         infrastructure:
           ref:
             apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
-            kind: AzureManagedMachinePoolTemplate
+            kind: AzureASOManagedMachinePoolTemplate
             name: {{ printf "%s-%s" $.Values.clusterClassName $mpName | quote }}
     {{- end }}
   patches:
-  - name: azuremanagedcluster-spec
+  - name: azureasomanagedcluster-spec
     definitions:
     - selector:
         apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
-        kind: AzureManagedClusterTemplate
+        kind: AzureASOManagedClusterTemplate
         matchResources:
           infrastructureCluster: true
       jsonPatches:
@@ -47,12 +47,12 @@ spec:
         path: /spec/template/spec
         valueFrom:
           template: |
-            {{- include "capz.azureManagedClusterSpec" (list $ "{{ .builtin.cluster.name }}") | nindent 12 }}
-  - name: azuremanagedcontrolplane-spec
+            {{- include "capz.azureASOManagedClusterSpec" (list $ "{{ .builtin.cluster.name }}") | nindent 12 }}
+  - name: azureasomanagedcontrolplane-spec
     definitions:
     - selector:
         apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
-        kind: AzureManagedControlPlaneTemplate
+        kind: AzureASOManagedControlPlaneTemplate
         matchResources:
           controlPlane: true
       jsonPatches:
@@ -60,13 +60,13 @@ spec:
         path: /spec/template/spec
         valueFrom:
           template: |
-            {{- include "capz.azureManagedControlPlaneSpec" (list $ "{{ .builtin.cluster.name }}") | nindent 12 }}
+            {{- include "capz.azureASOManagedControlPlaneSpec" (list $ "{{ .builtin.cluster.name }}") | nindent 12 }}
   {{- range $mpName, $mp := .Values.managedMachinePoolSpecs }}
-  - name: azuremanagedmachinepool-{{ $mpName }}-spec
+  - name: azureasomanagedmachinepool-{{ $mpName }}-spec
     definitions:
     - selector:
         apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
-        kind: AzureManagedMachinePoolTemplate
+        kind: AzureASOManagedMachinePoolTemplate
         matchResources:
           machinePoolClass:
             names:
@@ -76,11 +76,11 @@ spec:
         path: /spec/template/spec
         valueFrom:
           template: |
-            {{- include "capz.azureManagedMachinePoolSpec" (list $ "{{ .builtin.cluster.name }}" $mpName $mp) | nindent 12 }}
+            {{- include "capz.azureASOManagedMachinePoolSpec" (list $ "{{ .builtin.cluster.name }}" $mpName $mp) | nindent 12 }}
   {{- end }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
-kind: AzureManagedClusterTemplate
+kind: AzureASOManagedClusterTemplate
 metadata:
   name: {{ .Values.clusterClassName | quote }}
   labels:
@@ -92,7 +92,7 @@ spec:
     spec: {} # this gets patched in by the ClusterClass
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
-kind: AzureManagedControlPlaneTemplate
+kind: AzureASOManagedControlPlaneTemplate
 metadata:
   name: {{ .Values.clusterClassName | quote }}
   annotations:
@@ -111,7 +111,7 @@ spec:
 {{- range $mpName, $mp := .Values.managedMachinePoolSpecs }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
-kind: AzureManagedMachinePoolTemplate
+kind: AzureASOManagedMachinePoolTemplate
 metadata:
   name: {{ printf "%s-%s" $.Values.clusterClassName $mpName | quote }}
   labels:

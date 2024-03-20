@@ -21,16 +21,16 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// AzureManagedControlPlaneTemplateSpec defines the desired state of AzureManagedControlPlane
-type AzureManagedControlPlaneTemplateSpec struct {
-	Template AzureManagedControlPlaneResource `json:"template"`
+// AzureASOManagedControlPlaneTemplateSpec defines the desired state of AzureASOManagedControlPlane
+type AzureASOManagedControlPlaneTemplateSpec struct {
+	Template AzureASOManagedControlPlaneResource `json:"template"`
 }
 
-type AzureManagedControlPlaneResource struct {
-	Spec AzureManagedControlPlaneTemplateResourceSpec `json:"spec,omitempty"`
+type AzureASOManagedControlPlaneResource struct {
+	Spec AzureASOManagedControlPlaneTemplateResourceSpec `json:"spec,omitempty"`
 }
 
-type AzureManagedControlPlaneTemplateResourceSpec struct {
+type AzureASOManagedControlPlaneTemplateResourceSpec struct {
 	// Version is the Kubernetes version of the control plane. It fulfills Cluster API's control plane
 	// provider contract.
 	Version string `json:"version,omitempty"`
@@ -41,23 +41,23 @@ type AzureManagedControlPlaneTemplateResourceSpec struct {
 
 //+kubebuilder:object:root=true
 
-// AzureManagedControlPlaneTemplate is the Schema for the azuremanagedcontrolplanetemplates API
-type AzureManagedControlPlaneTemplate struct {
+// AzureASOManagedControlPlaneTemplate is the Schema for the azureasomanagedcontrolplanetemplates API
+type AzureASOManagedControlPlaneTemplate struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec AzureManagedControlPlaneTemplateSpec `json:"spec,omitempty"`
+	Spec AzureASOManagedControlPlaneTemplateSpec `json:"spec,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// AzureManagedControlPlaneTemplateList contains a list of AzureManagedControlPlaneTemplate
-type AzureManagedControlPlaneTemplateList struct {
+// AzureASOManagedControlPlaneTemplateList contains a list of AzureASOManagedControlPlaneTemplate
+type AzureASOManagedControlPlaneTemplateList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []AzureManagedControlPlaneTemplate `json:"items"`
+	Items           []AzureASOManagedControlPlaneTemplate `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&AzureManagedControlPlaneTemplate{}, &AzureManagedControlPlaneTemplateList{})
+	SchemeBuilder.Register(&AzureASOManagedControlPlaneTemplate{}, &AzureASOManagedControlPlaneTemplateList{})
 }

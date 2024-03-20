@@ -21,13 +21,13 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
-// AzureManagedControlPlaneSpec defines the desired state of AzureManagedControlPlane
-type AzureManagedControlPlaneSpec struct {
-	AzureManagedControlPlaneTemplateResourceSpec `json:",inline"`
+// AzureASOManagedControlPlaneSpec defines the desired state of AzureASOManagedControlPlane
+type AzureASOManagedControlPlaneSpec struct {
+	AzureASOManagedControlPlaneTemplateResourceSpec `json:",inline"`
 }
 
-// AzureManagedControlPlaneStatus defines the observed state of AzureManagedControlPlane
-type AzureManagedControlPlaneStatus struct {
+// AzureASOManagedControlPlaneStatus defines the observed state of AzureASOManagedControlPlane
+type AzureASOManagedControlPlaneStatus struct {
 	// Initialized represents whether or not the API server has been provisioned. It fulfills Cluster API's
 	// control plane provider contract.
 	//+optional
@@ -61,32 +61,32 @@ type AzureManagedControlPlaneStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// AzureManagedControlPlane is the Schema for the azuremanagedcontrolplanes API
-type AzureManagedControlPlane struct {
+// AzureASOManagedControlPlane is the Schema for the azureasomanagedcontrolplanes API
+type AzureASOManagedControlPlane struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   AzureManagedControlPlaneSpec   `json:"spec,omitempty"`
-	Status AzureManagedControlPlaneStatus `json:"status,omitempty"`
+	Spec   AzureASOManagedControlPlaneSpec   `json:"spec,omitempty"`
+	Status AzureASOManagedControlPlaneStatus `json:"status,omitempty"`
 }
 
-func (a *AzureManagedControlPlane) GetResourceStatuses() []ResourceStatus {
+func (a *AzureASOManagedControlPlane) GetResourceStatuses() []ResourceStatus {
 	return a.Status.Resources
 }
 
-func (a *AzureManagedControlPlane) SetResourceStatuses(r []ResourceStatus) {
+func (a *AzureASOManagedControlPlane) SetResourceStatuses(r []ResourceStatus) {
 	a.Status.Resources = r
 }
 
 //+kubebuilder:object:root=true
 
-// AzureManagedControlPlaneList contains a list of AzureManagedControlPlane
-type AzureManagedControlPlaneList struct {
+// AzureASOManagedControlPlaneList contains a list of AzureASOManagedControlPlane
+type AzureASOManagedControlPlaneList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []AzureManagedControlPlane `json:"items"`
+	Items           []AzureASOManagedControlPlane `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&AzureManagedControlPlane{}, &AzureManagedControlPlaneList{})
+	SchemeBuilder.Register(&AzureASOManagedControlPlane{}, &AzureASOManagedControlPlaneList{})
 }

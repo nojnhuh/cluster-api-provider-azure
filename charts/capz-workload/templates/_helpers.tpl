@@ -13,7 +13,7 @@ app.kubernetes.io/instance: {{ $.Release.Name }}
 serviceoperator.azure.com/credential-from: {{ $.Values.credentialSecretName }}
 {{- end }}
 
-{{- define "capz.azureManagedClusterSpec" -}}
+{{- define "capz.azureASOManagedClusterSpec" -}}
 {{- $ := index . 0 -}}
 {{- $clusterName := index . 1 -}}
 resources:
@@ -27,7 +27,7 @@ resources:
     location: {{ $.Values.location }}
 {{- end }}
 
-{{- define "capz.azureManagedControlPlaneSpec" -}}
+{{- define "capz.azureASOManagedControlPlaneSpec" -}}
 {{- $ := index . 0 -}}
 {{- $clusterName := index . 1 -}}
 version: {{ $.Values.kubernetesVersion | quote  }}
@@ -51,7 +51,7 @@ resources:
           key: value
 {{- end }}
 
-{{- define "capz.azureManagedMachinePoolSpec" -}}
+{{- define "capz.azureASOManagedMachinePoolSpec" -}}
 {{- $ := index . 0 -}}
 {{- $clusterName := index . 1 -}}
 {{- $mpName := index . 2 -}}

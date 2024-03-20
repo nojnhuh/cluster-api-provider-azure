@@ -14,7 +14,7 @@ resources:
   controller: true
   domain: cluster.x-k8s.io
   group: infrastructure
-  kind: AzureManagedCluster
+  kind: AzureASOManagedCluster
   path: sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1
   version: v2alpha1
 - api:
@@ -23,7 +23,7 @@ resources:
   controller: true
   domain: cluster.x-k8s.io
   group: infrastructure
-  kind: AzureManagedControlPlane
+  kind: AzureASOManagedControlPlane
   path: sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1
   version: v2alpha1
 - api:
@@ -32,7 +32,7 @@ resources:
   controller: true
   domain: cluster.x-k8s.io
   group: infrastructure
-  kind: AzureManagedMachinePool
+  kind: AzureASOManagedMachinePool
   path: sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1
   version: v2alpha1
 version: "3"

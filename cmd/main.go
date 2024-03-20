@@ -172,26 +172,26 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controller.AzureManagedClusterReconciler{
+	if err = (&controller.AzureASOManagedClusterReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(ctx, mgr, setupLog); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "AzureManagedCluster")
+		setupLog.Error(err, "unable to create controller", "controller", "AzureASOManagedCluster")
 		os.Exit(1)
 	}
-	if err = (&controller.AzureManagedControlPlaneReconciler{
+	if err = (&controller.AzureASOManagedControlPlaneReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(ctx, mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "AzureManagedControlPlane")
+		setupLog.Error(err, "unable to create controller", "controller", "AzureASOManagedControlPlane")
 		os.Exit(1)
 	}
-	if err = (&controller.AzureManagedMachinePoolReconciler{
+	if err = (&controller.AzureASOManagedMachinePoolReconciler{
 		Client:  mgr.GetClient(),
 		Scheme:  mgr.GetScheme(),
 		Tracker: tracker,
 	}).SetupWithManager(ctx, mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "AzureManagedMachinePool")
+		setupLog.Error(err, "unable to create controller", "controller", "AzureASOManagedMachinePool")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

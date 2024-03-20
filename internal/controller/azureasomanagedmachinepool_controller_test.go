@@ -52,7 +52,7 @@ func (c *FakeClusterTracker) GetClient(ctx context.Context, name types.Namespace
 	return c.getClientFunc(ctx, name)
 }
 
-func TestAzureManagedMachinePoolReconcile(t *testing.T) {
+func TestAzureASOManagedMachinePoolReconcile(t *testing.T) {
 	ctx := context.Background()
 
 	s := runtime.NewScheme()
@@ -66,13 +66,13 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 	fakeClientBuilder := func() *fakeclient.ClientBuilder {
 		return fakeclient.NewClientBuilder().
 			WithScheme(s).
-			WithStatusSubresource(&infrav1.AzureManagedMachinePool{})
+			WithStatusSubresource(&infrav1.AzureASOManagedMachinePool{})
 	}
 
-	t.Run("AzureManagedMachinePool does not exist", func(t *testing.T) {
+	t.Run("AzureASOManagedMachinePool does not exist", func(t *testing.T) {
 		c := fakeClientBuilder().
 			Build()
-		r := &AzureManagedMachinePoolReconciler{
+		r := &AzureASOManagedMachinePoolReconciler{
 			Client: c,
 		}
 		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "doesn't", Name: "exist"}})
@@ -81,7 +81,7 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 	})
 
 	t.Run("no MachinePool ownerref", func(t *testing.T) {
-		azureManagedMachinePool := &infrav1.AzureManagedMachinePool{
+		asoManagedMachinePool := &infrav1.AzureASOManagedMachinePool{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:            "ammp",
 				Namespace:       "ns",
@@ -90,24 +90,24 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(azureManagedMachinePool).
+			WithObjects(asoManagedMachinePool).
 			Build()
-		r := &AzureManagedMachinePoolReconciler{
+		r := &AzureASOManagedMachinePoolReconciler{
 			Client: c,
 		}
-		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedMachinePool)})
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoManagedMachinePool)})
 
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should not requeue", checkEqual(result, ctrl.Result{}))
 		t.Run("should update status.observedGeneration", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedMachinePool), azureManagedMachinePool)))
-			t.Run("metadata.generation", checkEqual(azureManagedMachinePool.Generation, 1))
-			t.Run("status.observedGeneration", checkEqual(azureManagedMachinePool.Status.ObservedGeneration, 1))
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoManagedMachinePool), asoManagedMachinePool)))
+			t.Run("metadata.generation", checkEqual(asoManagedMachinePool.Generation, 1))
+			t.Run("status.observedGeneration", checkEqual(asoManagedMachinePool.Status.ObservedGeneration, 1))
 		})
 	})
 
 	t.Run("MachinePool does not exist", func(t *testing.T) {
-		azureManagedMachinePool := &infrav1.AzureManagedMachinePool{
+		asoManagedMachinePool := &infrav1.AzureASOManagedMachinePool{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "ammp",
 				Namespace: "ns",
@@ -122,18 +122,18 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(azureManagedMachinePool).
+			WithObjects(asoManagedMachinePool).
 			Build()
-		r := &AzureManagedMachinePoolReconciler{
+		r := &AzureASOManagedMachinePoolReconciler{
 			Client: c,
 		}
-		_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedMachinePool)})
+		_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoManagedMachinePool)})
 
 		t.Run("should fail", checkEqual(apierrors.IsNotFound(err), true))
 		t.Run("should not update status.observedGeneration", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedMachinePool), azureManagedMachinePool)))
-			t.Run("metadata.generation", checkEqual(azureManagedMachinePool.Generation, 1))
-			t.Run("status.observedGeneration", checkEqual(azureManagedMachinePool.Status.ObservedGeneration, 0))
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoManagedMachinePool), asoManagedMachinePool)))
+			t.Run("metadata.generation", checkEqual(asoManagedMachinePool.Generation, 1))
+			t.Run("status.observedGeneration", checkEqual(asoManagedMachinePool.Status.ObservedGeneration, 0))
 		})
 	})
 
@@ -145,7 +145,7 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 			},
 			Spec: clusterv1.ClusterSpec{
 				ControlPlaneRef: &corev1.ObjectReference{
-					Kind: "AzureManagedControlPlane",
+					Kind: "AzureASOManagedControlPlane",
 				},
 			},
 		}
@@ -158,7 +158,7 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 				},
 			},
 		}
-		azureManagedMachinePool := &infrav1.AzureManagedMachinePool{
+		asoManagedMachinePool := &infrav1.AzureASOManagedMachinePool{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "ammp",
 				Namespace: cluster.Namespace,
@@ -172,19 +172,19 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(azureManagedMachinePool, cluster, machinePool).
+			WithObjects(asoManagedMachinePool, cluster, machinePool).
 			Build()
-		r := &AzureManagedMachinePoolReconciler{
+		r := &AzureASOManagedMachinePoolReconciler{
 			Client: c,
 		}
-		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedMachinePool)})
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoManagedMachinePool)})
 
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should requeue", checkEqual(result, ctrl.Result{Requeue: true}))
 		t.Run("should update the resource", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedMachinePool), azureManagedMachinePool)))
-			t.Run("metadata.finalizers[0]", checkEqual(azureManagedMachinePool.Finalizers[0], infrav1.AzureManagedMachinePoolFinalizer))
-			_, hasBlockMove := azureManagedMachinePool.Annotations[clusterctlv1.BlockMoveAnnotation]
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoManagedMachinePool), asoManagedMachinePool)))
+			t.Run("metadata.finalizers[0]", checkEqual(asoManagedMachinePool.Finalizers[0], infrav1.AzureASOManagedMachinePoolFinalizer))
+			_, hasBlockMove := asoManagedMachinePool.Annotations[clusterctlv1.BlockMoveAnnotation]
 			t.Run("has block-move annotation", checkEqual(hasBlockMove, true))
 		})
 	})
@@ -197,7 +197,7 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 			},
 			Spec: clusterv1.ClusterSpec{
 				ControlPlaneRef: &corev1.ObjectReference{
-					Kind: "AzureManagedControlPlane",
+					Kind: "AzureASOManagedControlPlane",
 				},
 			},
 		}
@@ -216,7 +216,7 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 				Replicas: ptr.To[int32](2),
 			},
 		}
-		azureManagedMachinePool := &infrav1.AzureManagedMachinePool{
+		asoManagedMachinePool := &infrav1.AzureASOManagedMachinePool{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "ammp",
 				Namespace: cluster.Namespace,
@@ -227,13 +227,13 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 						Name:       machinePool.Name,
 					},
 				},
-				Finalizers: []string{infrav1.AzureManagedMachinePoolFinalizer},
+				Finalizers: []string{infrav1.AzureASOManagedMachinePoolFinalizer},
 				Annotations: map[string]string{
 					clusterctlv1.BlockMoveAnnotation: "true",
 				},
 			},
-			Spec: infrav1.AzureManagedMachinePoolSpec{
-				AzureManagedMachinePoolTemplateResourceSpec: infrav1.AzureManagedMachinePoolTemplateResourceSpec{
+			Spec: infrav1.AzureASOManagedMachinePoolSpec{
+				AzureASOManagedMachinePoolTemplateResourceSpec: infrav1.AzureASOManagedMachinePoolTemplateResourceSpec{
 					Resources: []runtime.RawExtension{
 						{
 							Raw: apJSON(t, &asocontainerservicev1.ManagedClustersAgentPool{
@@ -245,20 +245,20 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 					},
 				},
 			},
-			Status: infrav1.AzureManagedMachinePoolStatus{
+			Status: infrav1.AzureASOManagedMachinePoolStatus{
 				Ready: true,
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(azureManagedMachinePool, cluster, machinePool).
+			WithObjects(asoManagedMachinePool, cluster, machinePool).
 			Build()
-		r := &AzureManagedMachinePoolReconciler{
+		r := &AzureASOManagedMachinePoolReconciler{
 			Client: c,
-			newResourceReconciler: func(azureManagedMachinePool *infrav1.AzureManagedMachinePool, _ []*unstructured.Unstructured) resourceReconciler {
+			newResourceReconciler: func(asoManagedMachinePool *infrav1.AzureASOManagedMachinePool, _ []*unstructured.Unstructured) resourceReconciler {
 				return &fakeResourceReconciler{
-					owner: azureManagedMachinePool,
-					reconcileFunc: func(_ context.Context, azureManagedMachinePool resourceStatusObject) error {
-						azureManagedMachinePool.SetResourceStatuses([]infrav1.ResourceStatus{
+					owner: asoManagedMachinePool,
+					reconcileFunc: func(_ context.Context, asoManagedMachinePool resourceStatusObject) error {
+						asoManagedMachinePool.SetResourceStatuses([]infrav1.ResourceStatus{
 							{Ready: false},
 						})
 						return nil
@@ -266,13 +266,13 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 				}
 			},
 		}
-		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedMachinePool)})
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoManagedMachinePool)})
 
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should not requeue", checkEqual(result, ctrl.Result{}))
-		t.Run("should update the AzureManagedControlPlane", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedMachinePool), azureManagedMachinePool)))
-			t.Run("status.ready", checkEqual(azureManagedMachinePool.Status.Ready, false))
+		t.Run("should update the AzureASOManagedControlPlane", func(t *testing.T) {
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoManagedMachinePool), asoManagedMachinePool)))
+			t.Run("status.ready", checkEqual(asoManagedMachinePool.Status.Ready, false))
 		})
 	})
 
@@ -284,7 +284,7 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 			},
 			Spec: clusterv1.ClusterSpec{
 				ControlPlaneRef: &corev1.ObjectReference{
-					Kind: "AzureManagedControlPlane",
+					Kind: "AzureASOManagedControlPlane",
 				},
 			},
 		}
@@ -327,7 +327,7 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 				Count: ptr.To(4),
 			},
 		}
-		azureManagedMachinePool := &infrav1.AzureManagedMachinePool{
+		asoManagedMachinePool := &infrav1.AzureASOManagedMachinePool{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "ammp",
 				Namespace: cluster.Namespace,
@@ -338,13 +338,13 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 						Name:       machinePool.Name,
 					},
 				},
-				Finalizers: []string{infrav1.AzureManagedMachinePoolFinalizer},
+				Finalizers: []string{infrav1.AzureASOManagedMachinePoolFinalizer},
 				Annotations: map[string]string{
 					clusterctlv1.BlockMoveAnnotation: "true",
 				},
 			},
-			Spec: infrav1.AzureManagedMachinePoolSpec{
-				AzureManagedMachinePoolTemplateResourceSpec: infrav1.AzureManagedMachinePoolTemplateResourceSpec{
+			Spec: infrav1.AzureASOManagedMachinePoolSpec{
+				AzureASOManagedMachinePoolTemplateResourceSpec: infrav1.AzureASOManagedMachinePoolTemplateResourceSpec{
 					Resources: []runtime.RawExtension{
 						{
 							Raw: apJSON(t, &asocontainerservicev1.ManagedClustersAgentPool{
@@ -361,16 +361,16 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 					},
 				},
 			},
-			Status: infrav1.AzureManagedMachinePoolStatus{
+			Status: infrav1.AzureASOManagedMachinePoolStatus{
 				Ready: false,
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(azureManagedMachinePool, cluster, machinePool, managedCluster, agentPool).
+			WithObjects(asoManagedMachinePool, cluster, machinePool, managedCluster, agentPool).
 			Build()
-		r := &AzureManagedMachinePoolReconciler{
+		r := &AzureASOManagedMachinePoolReconciler{
 			Client: c,
-			newResourceReconciler: func(_ *infrav1.AzureManagedMachinePool, _ []*unstructured.Unstructured) resourceReconciler {
+			newResourceReconciler: func(_ *infrav1.AzureASOManagedMachinePool, _ []*unstructured.Unstructured) resourceReconciler {
 				return &fakeResourceReconciler{
 					reconcileFunc: func(_ context.Context, _ resourceStatusObject) error {
 						return nil
@@ -411,18 +411,18 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 				},
 			},
 		}
-		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedMachinePool)})
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoManagedMachinePool)})
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should not requeue", checkEqual(result, ctrl.Result{}))
-		t.Run("should update the AzureManagedControlPlane", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedMachinePool), azureManagedMachinePool)))
+		t.Run("should update the AzureASOManagedControlPlane", func(t *testing.T) {
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoManagedMachinePool), asoManagedMachinePool)))
 			t.Run("spec.providerIDList", func(t *testing.T) {
-				t.Run("length", checkEqual(len(azureManagedMachinePool.Spec.ProviderIDList), 2))
-				t.Run("0", checkEqual(azureManagedMachinePool.Spec.ProviderIDList[0], "azure://node0"))
-				t.Run("1", checkEqual(azureManagedMachinePool.Spec.ProviderIDList[1], "azure://node2"))
+				t.Run("length", checkEqual(len(asoManagedMachinePool.Spec.ProviderIDList), 2))
+				t.Run("0", checkEqual(asoManagedMachinePool.Spec.ProviderIDList[0], "azure://node0"))
+				t.Run("1", checkEqual(asoManagedMachinePool.Spec.ProviderIDList[1], "azure://node2"))
 			})
-			t.Run("status.replicas", checkEqual(azureManagedMachinePool.Status.Replicas, 4))
-			t.Run("status.ready", checkEqual(azureManagedMachinePool.Status.Ready, true))
+			t.Run("status.replicas", checkEqual(asoManagedMachinePool.Status.Replicas, 4))
+			t.Run("status.ready", checkEqual(asoManagedMachinePool.Status.Ready, true))
 		})
 		t.Run("should update the MachinePool", func(t *testing.T) {
 			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(machinePool), machinePool)))
@@ -439,7 +439,7 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 			},
 			Spec: clusterv1.ClusterSpec{
 				ControlPlaneRef: &corev1.ObjectReference{
-					Kind: "AzureManagedControlPlane",
+					Kind: "AzureASOManagedControlPlane",
 				},
 			},
 		}
@@ -476,7 +476,7 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 				Count: ptr.To(4),
 			},
 		}
-		azureManagedMachinePool := &infrav1.AzureManagedMachinePool{
+		asoManagedMachinePool := &infrav1.AzureASOManagedMachinePool{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "ammp",
 				Namespace: cluster.Namespace,
@@ -487,13 +487,13 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 						Name:       machinePool.Name,
 					},
 				},
-				Finalizers: []string{infrav1.AzureManagedMachinePoolFinalizer},
+				Finalizers: []string{infrav1.AzureASOManagedMachinePoolFinalizer},
 				Annotations: map[string]string{
 					clusterctlv1.BlockMoveAnnotation: "true",
 				},
 			},
-			Spec: infrav1.AzureManagedMachinePoolSpec{
-				AzureManagedMachinePoolTemplateResourceSpec: infrav1.AzureManagedMachinePoolTemplateResourceSpec{
+			Spec: infrav1.AzureASOManagedMachinePoolSpec{
+				AzureASOManagedMachinePoolTemplateResourceSpec: infrav1.AzureASOManagedMachinePoolTemplateResourceSpec{
 					Resources: []runtime.RawExtension{
 						{
 							Raw: apJSON(t, &asocontainerservicev1.ManagedClustersAgentPool{
@@ -511,16 +511,16 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 					},
 				},
 			},
-			Status: infrav1.AzureManagedMachinePoolStatus{
+			Status: infrav1.AzureASOManagedMachinePoolStatus{
 				Ready: false,
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(azureManagedMachinePool, cluster, machinePool, managedCluster, agentPool).
+			WithObjects(asoManagedMachinePool, cluster, machinePool, managedCluster, agentPool).
 			Build()
-		r := &AzureManagedMachinePoolReconciler{
+		r := &AzureASOManagedMachinePoolReconciler{
 			Client: c,
-			newResourceReconciler: func(_ *infrav1.AzureManagedMachinePool, _ []*unstructured.Unstructured) resourceReconciler {
+			newResourceReconciler: func(_ *infrav1.AzureASOManagedMachinePool, _ []*unstructured.Unstructured) resourceReconciler {
 				return &fakeResourceReconciler{
 					reconcileFunc: func(_ context.Context, _ resourceStatusObject) error {
 						return nil
@@ -561,18 +561,18 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 				},
 			},
 		}
-		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedMachinePool)})
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoManagedMachinePool)})
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should not requeue", checkEqual(result, ctrl.Result{}))
-		t.Run("should update the AzureManagedControlPlane", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedMachinePool), azureManagedMachinePool)))
+		t.Run("should update the AzureASOManagedControlPlane", func(t *testing.T) {
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoManagedMachinePool), asoManagedMachinePool)))
 			t.Run("spec.providerIDList", func(t *testing.T) {
-				t.Run("length", checkEqual(len(azureManagedMachinePool.Spec.ProviderIDList), 2))
-				t.Run("0", checkEqual(azureManagedMachinePool.Spec.ProviderIDList[0], "azure://node0"))
-				t.Run("1", checkEqual(azureManagedMachinePool.Spec.ProviderIDList[1], "azure://node2"))
+				t.Run("length", checkEqual(len(asoManagedMachinePool.Spec.ProviderIDList), 2))
+				t.Run("0", checkEqual(asoManagedMachinePool.Spec.ProviderIDList[0], "azure://node0"))
+				t.Run("1", checkEqual(asoManagedMachinePool.Spec.ProviderIDList[1], "azure://node2"))
 			})
-			t.Run("status.replicas", checkEqual(azureManagedMachinePool.Status.Replicas, 4))
-			t.Run("status.ready", checkEqual(azureManagedMachinePool.Status.Ready, true))
+			t.Run("status.replicas", checkEqual(asoManagedMachinePool.Status.Replicas, 4))
+			t.Run("status.ready", checkEqual(asoManagedMachinePool.Status.Ready, true))
 		})
 		t.Run("should update the MachinePool", func(t *testing.T) {
 			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(machinePool), machinePool)))
@@ -590,7 +590,7 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 			Spec: clusterv1.ClusterSpec{
 				Paused: true,
 				ControlPlaneRef: &corev1.ObjectReference{
-					Kind: "AzureManagedControlPlane",
+					Kind: "AzureASOManagedControlPlane",
 				},
 			},
 		}
@@ -633,7 +633,7 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 				Count: ptr.To(4),
 			},
 		}
-		azureManagedMachinePool := &infrav1.AzureManagedMachinePool{
+		asoManagedMachinePool := &infrav1.AzureASOManagedMachinePool{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "ammp",
 				Namespace: cluster.Namespace,
@@ -644,13 +644,13 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 						Name:       machinePool.Name,
 					},
 				},
-				Finalizers: []string{infrav1.AzureManagedMachinePoolFinalizer},
+				Finalizers: []string{infrav1.AzureASOManagedMachinePoolFinalizer},
 				Annotations: map[string]string{
 					clusterctlv1.BlockMoveAnnotation: "true",
 				},
 			},
-			Spec: infrav1.AzureManagedMachinePoolSpec{
-				AzureManagedMachinePoolTemplateResourceSpec: infrav1.AzureManagedMachinePoolTemplateResourceSpec{
+			Spec: infrav1.AzureASOManagedMachinePoolSpec{
+				AzureASOManagedMachinePoolTemplateResourceSpec: infrav1.AzureASOManagedMachinePoolTemplateResourceSpec{
 					Resources: []runtime.RawExtension{
 						{
 							Raw: apJSON(t, &asocontainerservicev1.ManagedClustersAgentPool{
@@ -667,16 +667,16 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 					},
 				},
 			},
-			Status: infrav1.AzureManagedMachinePoolStatus{
+			Status: infrav1.AzureASOManagedMachinePoolStatus{
 				Ready: false,
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(azureManagedMachinePool, cluster, machinePool, managedCluster, agentPool).
+			WithObjects(asoManagedMachinePool, cluster, machinePool, managedCluster, agentPool).
 			Build()
-		r := &AzureManagedMachinePoolReconciler{
+		r := &AzureASOManagedMachinePoolReconciler{
 			Client: c,
-			newResourceReconciler: func(_ *infrav1.AzureManagedMachinePool, _ []*unstructured.Unstructured) resourceReconciler {
+			newResourceReconciler: func(_ *infrav1.AzureASOManagedMachinePool, _ []*unstructured.Unstructured) resourceReconciler {
 				return &fakeResourceReconciler{
 					reconcileFunc: func(_ context.Context, _ resourceStatusObject) error {
 						return nil
@@ -691,17 +691,17 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 				},
 			},
 		}
-		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedMachinePool)})
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoManagedMachinePool)})
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should not requeue", checkEqual(result, ctrl.Result{}))
-		t.Run("should update the AzureManagedControlPlane", func(t *testing.T) {
-			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(azureManagedMachinePool), azureManagedMachinePool)))
-			_, hasBlockMove := azureManagedMachinePool.Annotations[clusterctlv1.BlockMoveAnnotation]
+		t.Run("should update the AzureASOManagedControlPlane", func(t *testing.T) {
+			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoManagedMachinePool), asoManagedMachinePool)))
+			_, hasBlockMove := asoManagedMachinePool.Annotations[clusterctlv1.BlockMoveAnnotation]
 			t.Run("block-move annotation is removed", checkEqual(hasBlockMove, false))
 		})
 	})
 
-	t.Run("AzureManagedMachinePool delete succeeds", func(t *testing.T) {
+	t.Run("AzureASOManagedMachinePool delete succeeds", func(t *testing.T) {
 		namespace := "ns"
 		cluster := &clusterv1.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
@@ -710,7 +710,7 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 			},
 			Spec: clusterv1.ClusterSpec{
 				ControlPlaneRef: &corev1.ObjectReference{
-					Kind: "AzureManagedControlPlane",
+					Kind: "AzureASOManagedControlPlane",
 				},
 			},
 		}
@@ -723,7 +723,7 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 				},
 			},
 		}
-		azureManagedMachinePool := &infrav1.AzureManagedMachinePool{
+		asoManagedMachinePool := &infrav1.AzureASOManagedMachinePool{
 			ObjectMeta: metav1.ObjectMeta{
 				DeletionTimestamp: &metav1.Time{Time: time.Date(1, 0, 0, 0, 0, 0, 0, time.UTC)},
 				Name:              "ammp",
@@ -735,16 +735,16 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 						Name:       machinePool.Name,
 					},
 				},
-				Finalizers: []string{infrav1.AzureManagedMachinePoolFinalizer},
+				Finalizers: []string{infrav1.AzureASOManagedMachinePoolFinalizer},
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(cluster, machinePool, azureManagedMachinePool).
+			WithObjects(cluster, machinePool, asoManagedMachinePool).
 			Build()
 
-		r := &AzureManagedMachinePoolReconciler{
+		r := &AzureASOManagedMachinePoolReconciler{
 			Client: c,
-			newResourceReconciler: func(_ *infrav1.AzureManagedMachinePool, _ []*unstructured.Unstructured) resourceReconciler {
+			newResourceReconciler: func(_ *infrav1.AzureASOManagedMachinePool, _ []*unstructured.Unstructured) resourceReconciler {
 				return &fakeResourceReconciler{
 					deleteFunc: func(_ context.Context, _ resourceStatusObject) error {
 						return nil
@@ -752,11 +752,11 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 				}
 			},
 		}
-		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedMachinePool)})
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoManagedMachinePool)})
 
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should not requeue", checkEqual(result, ctrl.Result{}))
-		t.Run("should delete the AzureManagedMachinePool", checkEqual(apierrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(azureManagedMachinePool), azureManagedMachinePool)), true))
+		t.Run("should delete the AzureASOManagedMachinePool", checkEqual(apierrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(asoManagedMachinePool), asoManagedMachinePool)), true))
 	})
 
 	t.Run("Cluster delete succeeds", func(t *testing.T) {
@@ -770,7 +770,7 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 			},
 			Spec: clusterv1.ClusterSpec{
 				ControlPlaneRef: &corev1.ObjectReference{
-					Kind: "AzureManagedControlPlane",
+					Kind: "AzureASOManagedControlPlane",
 				},
 			},
 		}
@@ -783,7 +783,7 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 				},
 			},
 		}
-		azureManagedMachinePool := &infrav1.AzureManagedMachinePool{
+		asoManagedMachinePool := &infrav1.AzureASOManagedMachinePool{
 			ObjectMeta: metav1.ObjectMeta{
 				DeletionTimestamp: &metav1.Time{Time: time.Date(1, 0, 0, 0, 0, 0, 0, time.UTC)},
 				Name:              "ammp",
@@ -795,20 +795,20 @@ func TestAzureManagedMachinePoolReconcile(t *testing.T) {
 						Name:       machinePool.Name,
 					},
 				},
-				Finalizers: []string{infrav1.AzureManagedMachinePoolFinalizer},
+				Finalizers: []string{infrav1.AzureASOManagedMachinePoolFinalizer},
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(cluster, machinePool, azureManagedMachinePool).
+			WithObjects(cluster, machinePool, asoManagedMachinePool).
 			Build()
 
-		r := &AzureManagedMachinePoolReconciler{
+		r := &AzureASOManagedMachinePoolReconciler{
 			Client: c,
 		}
-		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(azureManagedMachinePool)})
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoManagedMachinePool)})
 
 		t.Run("should succeed", expectSuccess(err))
 		t.Run("should not requeue", checkEqual(result, ctrl.Result{}))
-		t.Run("should delete the AzureManagedMachinePool", checkEqual(apierrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(azureManagedMachinePool), azureManagedMachinePool)), true))
+		t.Run("should delete the AzureASOManagedMachinePool", checkEqual(apierrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(asoManagedMachinePool), asoManagedMachinePool)), true))
 	})
 }

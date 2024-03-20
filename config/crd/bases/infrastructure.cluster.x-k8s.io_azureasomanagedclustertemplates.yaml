@@ -4,20 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.14.0
-  name: azuremanagedclustertemplates.infrastructure.cluster.x-k8s.io
+  name: azureasomanagedclustertemplates.infrastructure.cluster.x-k8s.io
 spec:
   group: infrastructure.cluster.x-k8s.io
   names:
-    kind: AzureManagedClusterTemplate
-    listKind: AzureManagedClusterTemplateList
-    plural: azuremanagedclustertemplates
-    singular: azuremanagedclustertemplate
+    kind: AzureASOManagedClusterTemplate
+    listKind: AzureASOManagedClusterTemplateList
+    plural: azureasomanagedclustertemplates
+    singular: azureasomanagedclustertemplate
   scope: Namespaced
   versions:
   - name: v2alpha1
     schema:
       openAPIV3Schema:
-        description: AzureManagedClusterTemplate is the Schema for the azuremanagedclustertemplates
+        description: AzureASOManagedClusterTemplate is the Schema for the azuremanagedclustertemplates
           API
         properties:
           apiVersion:
@@ -38,8 +38,8 @@ spec:
           metadata:
             type: object
           spec:
-            description: AzureManagedClusterTemplateSpec defines the desired state
-              of AzureManagedClusterTemplate
+            description: AzureASOManagedClusterTemplateSpec defines the desired state
+              of AzureASOManagedClusterTemplate
             properties:
               template:
                 properties:

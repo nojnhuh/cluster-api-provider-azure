@@ -21,39 +21,39 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// AzureManagedClusterTemplateSpec defines the desired state of AzureManagedClusterTemplate
-type AzureManagedClusterTemplateSpec struct {
+// AzureASOManagedClusterTemplateSpec defines the desired state of AzureASOManagedClusterTemplate
+type AzureASOManagedClusterTemplateSpec struct {
 	Template AzureClusterTemplateResource `json:"template"`
 }
 
 type AzureClusterTemplateResource struct {
-	Spec AzureManagedClusterTemplateResourceSpec `json:"spec,omitempty"`
+	Spec AzureASOManagedClusterTemplateResourceSpec `json:"spec,omitempty"`
 }
 
-type AzureManagedClusterTemplateResourceSpec struct {
+type AzureASOManagedClusterTemplateResourceSpec struct {
 	// Resources are embedded ASO resources to be managed by this resource.
 	Resources []runtime.RawExtension `json:"resources,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// AzureManagedClusterTemplate is the Schema for the azuremanagedclustertemplates API
-type AzureManagedClusterTemplate struct {
+// AzureASOManagedClusterTemplate is the Schema for the azuremanagedclustertemplates API
+type AzureASOManagedClusterTemplate struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec AzureManagedClusterTemplateSpec `json:"spec,omitempty"`
+	Spec AzureASOManagedClusterTemplateSpec `json:"spec,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// AzureManagedClusterTemplateList contains a list of AzureManagedClusterTemplate
-type AzureManagedClusterTemplateList struct {
+// AzureASOManagedClusterTemplateList contains a list of AzureASOManagedClusterTemplate
+type AzureASOManagedClusterTemplateList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []AzureManagedClusterTemplate `json:"items"`
+	Items           []AzureASOManagedClusterTemplate `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&AzureManagedClusterTemplate{}, &AzureManagedClusterTemplateList{})
+	SchemeBuilder.Register(&AzureASOManagedClusterTemplate{}, &AzureASOManagedClusterTemplateList{})
 }

@@ -4,20 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.14.0
-  name: azuremanagedcontrolplanes.infrastructure.cluster.x-k8s.io
+  name: azureasomanagedcontrolplanes.infrastructure.cluster.x-k8s.io
 spec:
   group: infrastructure.cluster.x-k8s.io
   names:
-    kind: AzureManagedControlPlane
-    listKind: AzureManagedControlPlaneList
-    plural: azuremanagedcontrolplanes
-    singular: azuremanagedcontrolplane
+    kind: AzureASOManagedControlPlane
+    listKind: AzureASOManagedControlPlaneList
+    plural: azureasomanagedcontrolplanes
+    singular: azureasomanagedcontrolplane
   scope: Namespaced
   versions:
   - name: v2alpha1
     schema:
       openAPIV3Schema:
-        description: AzureManagedControlPlane is the Schema for the azuremanagedcontrolplanes
+        description: AzureASOManagedControlPlane is the Schema for the azureasomanagedcontrolplanes
           API
         properties:
           apiVersion:
@@ -38,8 +38,8 @@ spec:
           metadata:
             type: object
           spec:
-            description: AzureManagedControlPlaneSpec defines the desired state of
-              AzureManagedControlPlane
+            description: AzureASOManagedControlPlaneSpec defines the desired state
+              of AzureASOManagedControlPlane
             properties:
               resources:
                 description: Resources are embedded ASO resources to be managed by
@@ -55,8 +55,8 @@ spec:
                 type: string
             type: object
           status:
-            description: AzureManagedControlPlaneStatus defines the observed state
-              of AzureManagedControlPlane
+            description: AzureASOManagedControlPlaneStatus defines the observed state
+              of AzureASOManagedControlPlane
             properties:
               controlPlaneEndpoint:
                 description: ControlPlaneEndpoint represents the endpoint for the

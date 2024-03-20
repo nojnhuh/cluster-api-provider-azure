@@ -21,16 +21,16 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// AzureManagedMachinePoolTemplateSpec defines the desired state of AzureManagedMachinePoolTemplate
-type AzureManagedMachinePoolTemplateSpec struct {
-	Template AzureManagedControlPlaneResource `json:"template"`
+// AzureASOManagedMachinePoolTemplateSpec defines the desired state of AzureASOManagedMachinePoolTemplate
+type AzureASOManagedMachinePoolTemplateSpec struct {
+	Template AzureASOManagedControlPlaneResource `json:"template"`
 }
 
-type AzureManagedMachinePoolResource struct {
-	Spec AzureManagedMachinePoolTemplateResourceSpec `json:"spec,omitempty"`
+type AzureASOManagedMachinePoolResource struct {
+	Spec AzureASOManagedMachinePoolTemplateResourceSpec `json:"spec,omitempty"`
 }
 
-type AzureManagedMachinePoolTemplateResourceSpec struct {
+type AzureASOManagedMachinePoolTemplateResourceSpec struct {
 	// ProviderIDList is the list of cloud provider IDs for the instances. It fulfills Cluster API's machine
 	// pool infrastructure provider contract.
 	ProviderIDList []string `json:"providerIDList,omitempty"`
@@ -41,23 +41,23 @@ type AzureManagedMachinePoolTemplateResourceSpec struct {
 
 //+kubebuilder:object:root=true
 
-// AzureManagedMachinePoolTemplate is the Schema for the azuremanagedmachinepooltemplates API
-type AzureManagedMachinePoolTemplate struct {
+// AzureASOManagedMachinePoolTemplate is the Schema for the azureasomanagedmachinepooltemplates API
+type AzureASOManagedMachinePoolTemplate struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec AzureManagedMachinePoolTemplateSpec `json:"spec,omitempty"`
+	Spec AzureASOManagedMachinePoolTemplateSpec `json:"spec,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// AzureManagedMachinePoolTemplateList contains a list of AzureManagedMachinePoolTemplate
-type AzureManagedMachinePoolTemplateList struct {
+// AzureASOManagedMachinePoolTemplateList contains a list of AzureASOManagedMachinePoolTemplate
+type AzureASOManagedMachinePoolTemplateList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []AzureManagedMachinePoolTemplate `json:"items"`
+	Items           []AzureASOManagedMachinePoolTemplate `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&AzureManagedMachinePoolTemplate{}, &AzureManagedMachinePoolTemplateList{})
+	SchemeBuilder.Register(&AzureASOManagedMachinePoolTemplate{}, &AzureASOManagedMachinePoolTemplateList{})
 }

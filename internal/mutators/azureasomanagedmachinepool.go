@@ -34,9 +34,9 @@ import (
 
 const ReplicasManagedByValue = "aks"
 
-var NoManagedClustersAgentPoolDefined = fmt.Errorf("no %s ManagedClustersAgentPools defined in AzureManagedMachinePool spec.resources", asocontainerservicev1.GroupVersion.Group)
+var NoManagedClustersAgentPoolDefined = fmt.Errorf("no %s ManagedClustersAgentPools defined in AzureASOManagedMachinePool spec.resources", asocontainerservicev1.GroupVersion.Group)
 
-func SetAgentPoolDefaults(ctrlClient client.Client, azureManagedMachinePool *infrav1.AzureManagedMachinePool, machinePool *expv1.MachinePool) ResourcesMutator {
+func SetAgentPoolDefaults(ctrlClient client.Client, asoManagedMachinePool *infrav1.AzureASOManagedMachinePool, machinePool *expv1.MachinePool) ResourcesMutator {
 	return func(ctx context.Context, us []*unstructured.Unstructured) error {
 		log := ctrl.LoggerFrom(ctx)
 
@@ -117,9 +117,9 @@ func SetAgentPoolDefaults(ctrlClient client.Client, azureManagedMachinePool *inf
 			// TODO: should we give some feedback if the MachinePool replicas are already being managed, but
 			// by something else?
 
-			// TODO: Ideally, CAPZ would also patch the machine pools after an AzureManagedControlPlane
+			// TODO: Ideally, CAPZ would also patch the machine pools after an AzureASOManagedControlPlane
 			// reconciliation to add this annotation then, but that gets a little too involved more than it's
-			// worth I think since the first AzureManagedMachinePool reconciliation will persist these
+			// worth I think since the first AzureASOManagedMachinePool reconciliation will persist these
 			// changes. https://github.com/Azure/azure-service-operator/issues/2791
 
 			machinePool.Annotations[clusterv1.ReplicasManagedByAnnotation] = ReplicasManagedByValue

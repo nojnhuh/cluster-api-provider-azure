@@ -53,40 +53,40 @@ import (
 )
 
 var (
-	invalidClusterKindErr = errors.New("AzureManagedControlPlane cannot be used without AzureManagedCluster")
+	invalidClusterKindErr = errors.New("AzureASOManagedControlPlane cannot be used without AzureASOManagedCluster")
 )
 
-// AzureManagedControlPlaneReconciler reconciles a AzureManagedControlPlane object
-type AzureManagedControlPlaneReconciler struct {
+// AzureASOManagedControlPlaneReconciler reconciles a AzureASOManagedControlPlane object
+type AzureASOManagedControlPlaneReconciler struct {
 	client.Client
 	Scheme                *runtime.Scheme // TODO: do we need this? Should this ever be different from Client.GetScheme()?
 	externalTracker       *external.ObjectTracker
-	newResourceReconciler func(*infrav1.AzureManagedControlPlane, []*unstructured.Unstructured) resourceReconciler
+	newResourceReconciler func(*infrav1.AzureASOManagedControlPlane, []*unstructured.Unstructured) resourceReconciler
 }
 
-//+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=azuremanagedcontrolplanes,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=azuremanagedcontrolplanes/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=azuremanagedcontrolplanes/finalizers,verbs=update
+//+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=azureasomanagedcontrolplanes,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=azureasomanagedcontrolplanes/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=azureasomanagedcontrolplanes/finalizers,verbs=update
 
-// Reconcile reconciles an AzureManagedControlPlane
-func (r *AzureManagedControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, resultErr error) {
-	azureManagedControlPlane := &infrav1.AzureManagedControlPlane{}
-	err := r.Get(ctx, req.NamespacedName, azureManagedControlPlane)
+// Reconcile reconciles an AzureASOManagedControlPlane
+func (r *AzureASOManagedControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, resultErr error) {
+	asoManagedControlPlane := &infrav1.AzureASOManagedControlPlane{}
+	err := r.Get(ctx, req.NamespacedName, asoManagedControlPlane)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	patchHelper, err := patch.NewHelper(azureManagedControlPlane, r.Client)
+	patchHelper, err := patch.NewHelper(asoManagedControlPlane, r.Client)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to init patch helper: %w", err)
 	}
 	defer func() {
 		if resultErr == nil {
-			azureManagedControlPlane.Status.ObservedGeneration = azureManagedControlPlane.Generation
+			asoManagedControlPlane.Status.ObservedGeneration = asoManagedControlPlane.Generation
 		}
 
-		err := patchHelper.Patch(ctx, azureManagedControlPlane)
-		if !azureManagedControlPlane.GetDeletionTimestamp().IsZero() {
+		err := patchHelper.Patch(ctx, asoManagedControlPlane)
+		if !asoManagedControlPlane.GetDeletionTimestamp().IsZero() {
 			err = ignorePatchErrNotFound(err)
 		}
 		if err != nil && resultErr == nil {
@@ -95,49 +95,49 @@ func (r *AzureManagedControlPlaneReconciler) Reconcile(ctx context.Context, req 
 		}
 	}()
 
-	azureManagedControlPlane.Status.ExternalManagedControlPlane = true
+	asoManagedControlPlane.Status.ExternalManagedControlPlane = true
 
-	cluster, err := util.GetOwnerCluster(ctx, r.Client, azureManagedControlPlane.ObjectMeta)
+	cluster, err := util.GetOwnerCluster(ctx, r.Client, asoManagedControlPlane.ObjectMeta)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	if !azureManagedControlPlane.GetDeletionTimestamp().IsZero() {
-		return r.reconcileDelete(ctx, azureManagedControlPlane, cluster)
+	if !asoManagedControlPlane.GetDeletionTimestamp().IsZero() {
+		return r.reconcileDelete(ctx, asoManagedControlPlane, cluster)
 	}
 
-	return r.reconcileNormal(ctx, azureManagedControlPlane, cluster)
+	return r.reconcileNormal(ctx, asoManagedControlPlane, cluster)
 }
 
-func (r *AzureManagedControlPlaneReconciler) reconcileNormal(ctx context.Context, azureManagedControlPlane *infrav1.AzureManagedControlPlane, cluster *clusterv1.Cluster) (ctrl.Result, error) {
+func (r *AzureASOManagedControlPlaneReconciler) reconcileNormal(ctx context.Context, asoManagedControlPlane *infrav1.AzureASOManagedControlPlane, cluster *clusterv1.Cluster) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
 	if cluster == nil {
 		log.Info("Cluster Controller has not yet set OwnerRef")
 		return ctrl.Result{}, nil
 	}
-	if cluster.Spec.InfrastructureRef == nil || cluster.Spec.InfrastructureRef.Kind != "AzureManagedCluster" {
+	if cluster.Spec.InfrastructureRef == nil || cluster.Spec.InfrastructureRef.Kind != "AzureASOManagedCluster" {
 		return ctrl.Result{}, reconcile.TerminalError(invalidClusterKindErr)
 	}
 
-	needsPatch := controllerutil.AddFinalizer(azureManagedControlPlane, clusterv1.ClusterFinalizer)
+	needsPatch := controllerutil.AddFinalizer(asoManagedControlPlane, clusterv1.ClusterFinalizer)
 	if !cluster.Spec.Paused {
-		needsPatch = addBlockMoveAnnotation(azureManagedControlPlane) || needsPatch
+		needsPatch = addBlockMoveAnnotation(asoManagedControlPlane) || needsPatch
 	}
 	if needsPatch {
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	azureManagedControlPlane.Status.Ready = false
-	azureManagedControlPlane.Status.Initialized = azureManagedControlPlane.Status.Ready
+	asoManagedControlPlane.Status.Ready = false
+	asoManagedControlPlane.Status.Initialized = asoManagedControlPlane.Status.Ready
 
-	resources, err := mutators.ApplyMutators(ctx, azureManagedControlPlane.Spec.Resources,
+	resources, err := mutators.ApplyMutators(ctx, asoManagedControlPlane.Spec.Resources,
 		mutators.SetASOReconciliationPolicy(cluster),
-		mutators.SetManagedClusterDefaults(r.Client, azureManagedControlPlane, cluster),
+		mutators.SetManagedClusterDefaults(r.Client, asoManagedControlPlane, cluster),
 	)
 	if err != nil {
-		// TODO: watch AzureManagedMachinePools instead of requeueing here? Or maybe this is good enough?
-		if errors.Is(err, mutators.NoAzureManagedMachinePoolsErr) {
+		// TODO: watch AzureASOManagedMachinePools instead of requeueing here? Or maybe this is good enough?
+		if errors.Is(err, mutators.NoAzureASOManagedMachinePoolsErr) {
 			return ctrl.Result{Requeue: true}, nil
 		}
 		return ctrl.Result{}, err
@@ -156,31 +156,31 @@ func (r *AzureManagedControlPlaneReconciler) reconcileNormal(ctx context.Context
 		return ctrl.Result{}, reconcile.TerminalError(mutators.NoManagedClusterDefinedErr)
 	}
 
-	infraReconciler := r.newResourceReconciler(azureManagedControlPlane, resources)
+	infraReconciler := r.newResourceReconciler(asoManagedControlPlane, resources)
 	err = infraReconciler.Reconcile(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	for _, status := range azureManagedControlPlane.GetResourceStatuses() {
+	for _, status := range asoManagedControlPlane.GetResourceStatuses() {
 		if !status.Ready {
 			return ctrl.Result{}, nil
 		}
 	}
 
 	if cluster.Spec.Paused {
-		removeBlockMoveAnnotation(azureManagedControlPlane)
+		removeBlockMoveAnnotation(asoManagedControlPlane)
 	}
 
 	// get a typed resource so we don't have to try to convert this unstructured ourselves since it might be a
 	// different API version than we know how to deal with.
 	managedCluster := &asocontainerservicev1.ManagedCluster{}
-	err = r.Get(ctx, client.ObjectKey{Namespace: azureManagedControlPlane.Namespace, Name: managedClusterName}, managedCluster)
+	err = r.Get(ctx, client.ObjectKey{Namespace: asoManagedControlPlane.Namespace, Name: managedClusterName}, managedCluster)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("error getting ManagedCluster: %w", err)
 	}
 
 	if managedCluster.Status.Fqdn != nil {
-		azureManagedControlPlane.Status.ControlPlaneEndpoint = clusterv1.APIEndpoint{
+		asoManagedControlPlane.Status.ControlPlaneEndpoint = clusterv1.APIEndpoint{
 			Host: ptr.Deref(managedCluster.Status.Fqdn, ""),
 			Port: 443,
 		}
@@ -188,28 +188,28 @@ func (r *AzureManagedControlPlaneReconciler) reconcileNormal(ctx context.Context
 	if managedCluster.Status.ApiServerAccessProfile != nil &&
 		ptr.Deref(managedCluster.Status.ApiServerAccessProfile.EnablePrivateCluster, false) &&
 		!ptr.Deref(managedCluster.Status.ApiServerAccessProfile.EnablePrivateClusterPublicFQDN, false) {
-		azureManagedControlPlane.Status.ControlPlaneEndpoint = clusterv1.APIEndpoint{
+		asoManagedControlPlane.Status.ControlPlaneEndpoint = clusterv1.APIEndpoint{
 			Host: ptr.Deref(managedCluster.Status.PrivateFQDN, ""),
 			Port: 443,
 		}
 	}
 
 	if managedCluster.Status.CurrentKubernetesVersion != nil {
-		azureManagedControlPlane.Status.Version = "v" + *managedCluster.Status.CurrentKubernetesVersion
+		asoManagedControlPlane.Status.Version = "v" + *managedCluster.Status.CurrentKubernetesVersion
 	}
 
-	err = r.reconcileKubeconfig(ctx, azureManagedControlPlane, cluster, managedCluster)
+	err = r.reconcileKubeconfig(ctx, asoManagedControlPlane, cluster, managedCluster)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to reconcile kubeconfig: %w", err)
 	}
 
-	azureManagedControlPlane.Status.Ready = true
-	azureManagedControlPlane.Status.Initialized = azureManagedControlPlane.Status.Ready
+	asoManagedControlPlane.Status.Ready = true
+	asoManagedControlPlane.Status.Initialized = asoManagedControlPlane.Status.Ready
 
 	return ctrl.Result{}, nil
 }
 
-func (r *AzureManagedControlPlaneReconciler) reconcileKubeconfig(ctx context.Context, azureManagedControlPlane *infrav1.AzureManagedControlPlane, cluster *clusterv1.Cluster, managedCluster *asocontainerservicev1.ManagedCluster) error {
+func (r *AzureASOManagedControlPlaneReconciler) reconcileKubeconfig(ctx context.Context, asoManagedControlPlane *infrav1.AzureASOManagedControlPlane, cluster *clusterv1.Cluster, managedCluster *asocontainerservicev1.ManagedCluster) error {
 	var secretRef *genruntime.SecretDestination
 	if managedCluster.Spec.OperatorSpec != nil &&
 		managedCluster.Spec.OperatorSpec.Secrets != nil {
@@ -238,7 +238,7 @@ func (r *AzureManagedControlPlaneReconciler) reconcileKubeconfig(ctx context.Con
 			Name:      secret.Name(cluster.Name, secret.Kubeconfig),
 			Namespace: cluster.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(azureManagedControlPlane, infrav1.GroupVersion.WithKind("AzureManagedControlPlane")),
+				*metav1.NewControllerRef(asoManagedControlPlane, infrav1.GroupVersion.WithKind("AzureASOManagedControlPlane")),
 			},
 			Labels: map[string]string{clusterv1.ClusterNameLabel: cluster.Name},
 		},
@@ -250,40 +250,40 @@ func (r *AzureManagedControlPlaneReconciler) reconcileKubeconfig(ctx context.Con
 	return r.Patch(ctx, expectedSecret, client.Apply, client.FieldOwner("capz-manager"), client.ForceOwnership)
 }
 
-func (r *AzureManagedControlPlaneReconciler) reconcileDelete(ctx context.Context, azureManagedControlPlane *infrav1.AzureManagedControlPlane, cluster *clusterv1.Cluster) (ctrl.Result, error) {
+func (r *AzureASOManagedControlPlaneReconciler) reconcileDelete(ctx context.Context, asoManagedControlPlane *infrav1.AzureASOManagedControlPlane, cluster *clusterv1.Cluster) (ctrl.Result, error) {
 	if cluster == nil {
 		// Cluster owner ref not set
-		controllerutil.RemoveFinalizer(azureManagedControlPlane, clusterv1.ClusterFinalizer)
+		controllerutil.RemoveFinalizer(asoManagedControlPlane, clusterv1.ClusterFinalizer)
 		return ctrl.Result{}, nil
 	}
 
-	resources, err := mutators.ApplyMutators(ctx, azureManagedControlPlane.Spec.Resources)
+	resources, err := mutators.ApplyMutators(ctx, asoManagedControlPlane.Spec.Resources)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	infraReconciler := r.newResourceReconciler(azureManagedControlPlane, resources)
+	infraReconciler := r.newResourceReconciler(asoManagedControlPlane, resources)
 
 	err = infraReconciler.Delete(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	if len(azureManagedControlPlane.GetResourceStatuses()) > 0 {
+	if len(asoManagedControlPlane.GetResourceStatuses()) > 0 {
 		// waiting for resources to be deleted
 		return ctrl.Result{}, nil
 	}
 
-	controllerutil.RemoveFinalizer(azureManagedControlPlane, clusterv1.ClusterFinalizer)
+	controllerutil.RemoveFinalizer(asoManagedControlPlane, clusterv1.ClusterFinalizer)
 	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *AzureManagedControlPlaneReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
+func (r *AzureASOManagedControlPlaneReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	log := ctrl.LoggerFrom(ctx)
 	c, err := ctrl.NewControllerManagedBy(mgr).
-		For(&infrav1.AzureManagedControlPlane{}).
+		For(&infrav1.AzureASOManagedControlPlane{}).
 		Watches(
 			&clusterv1.Cluster{},
-			handler.EnqueueRequestsFromMapFunc(clusterToAzureManagedControlPlane),
+			handler.EnqueueRequestsFromMapFunc(clusterToAzureASOManagedControlPlane),
 			builder.WithPredicates(
 				predicates.Any(
 					log,
@@ -294,11 +294,11 @@ func (r *AzureManagedControlPlaneReconciler) SetupWithManager(ctx context.Contex
 			),
 		).
 		// User errors that CAPZ passes through agentPoolProfiles on create must be fixed in the
-		// AzureManagedMachinePool, so trigger a reconciliation to consume those fixes.
+		// AzureASOManagedMachinePool, so trigger a reconciliation to consume those fixes.
 		Watches(
-			&infrav1.AzureManagedMachinePool{},
-			handler.EnqueueRequestsFromMapFunc(r.azureManagedMachinePoolToAzureManagedControlPlane),
-			// TODO: add predicates so we only enqueue when the AzureManagedControlPlane is in charge of the
+			&infrav1.AzureASOManagedMachinePool{},
+			handler.EnqueueRequestsFromMapFunc(r.azureASOManagedMachinePoolToAzureASOManagedControlPlane),
+			// TODO: add predicates so we only enqueue when the AzureASOManagedControlPlane is in charge of the
 			// agent pools (when the ManagedCluster's status.agentPoolProfile is empty).
 		).
 		Owns(&corev1.Secret{}).
@@ -312,11 +312,11 @@ func (r *AzureManagedControlPlaneReconciler) SetupWithManager(ctx context.Contex
 		Controller: c,
 	}
 
-	r.newResourceReconciler = func(azureManagedControlPlane *infrav1.AzureManagedControlPlane, resources []*unstructured.Unstructured) resourceReconciler {
+	r.newResourceReconciler = func(asoManagedControlPlane *infrav1.AzureASOManagedControlPlane, resources []*unstructured.Unstructured) resourceReconciler {
 		return &InfraReconciler{
 			Client:    r.Client,
 			resources: resources,
-			owner:     azureManagedControlPlane,
+			owner:     asoManagedControlPlane,
 			watcher:   r.externalTracker,
 		}
 	}
@@ -324,27 +324,27 @@ func (r *AzureManagedControlPlaneReconciler) SetupWithManager(ctx context.Contex
 	return nil
 }
 
-// clusterToAzureManagedControlPlane is a handler.ToRequestsFunc to be used to enqueue requests for
-// reconciliation for AzureManagedControlPlane based on updates to a Cluster.
-func clusterToAzureManagedControlPlane(_ context.Context, o client.Object) []ctrl.Request {
+// clusterToAzureASOManagedControlPlane is a handler.ToRequestsFunc to be used to enqueue requests for
+// reconciliation for AzureASOManagedControlPlane based on updates to a Cluster.
+func clusterToAzureASOManagedControlPlane(_ context.Context, o client.Object) []ctrl.Request {
 	controlPlaneRef := o.(*clusterv1.Cluster).Spec.ControlPlaneRef
-	if controlPlaneRef != nil && controlPlaneRef.Kind == "AzureManagedControlPlane" {
+	if controlPlaneRef != nil && controlPlaneRef.Kind == "AzureASOManagedControlPlane" {
 		return []ctrl.Request{{NamespacedName: client.ObjectKey{Namespace: controlPlaneRef.Namespace, Name: controlPlaneRef.Name}}}
 	}
 	return nil
 }
 
-func (r *AzureManagedControlPlaneReconciler) azureManagedMachinePoolToAzureManagedControlPlane(ctx context.Context, o client.Object) []ctrl.Request {
-	azureManagedMachinePool := o.(*infrav1.AzureManagedMachinePool)
-	clusterName := azureManagedMachinePool.Labels[clusterv1.ClusterNameLabel]
+func (r *AzureASOManagedControlPlaneReconciler) azureASOManagedMachinePoolToAzureASOManagedControlPlane(ctx context.Context, o client.Object) []ctrl.Request {
+	asoManagedMachinePool := o.(*infrav1.AzureASOManagedMachinePool)
+	clusterName := asoManagedMachinePool.Labels[clusterv1.ClusterNameLabel]
 	if clusterName == "" {
 		return nil
 	}
-	cluster, err := util.GetClusterByName(ctx, r.Client, azureManagedMachinePool.Namespace, clusterName)
+	cluster, err := util.GetClusterByName(ctx, r.Client, asoManagedMachinePool.Namespace, clusterName)
 	if client.IgnoreNotFound(err) != nil || cluster == nil {
 		return nil
 	}
-	return clusterToAzureManagedControlPlane(ctx, cluster)
+	return clusterToAzureASOManagedControlPlane(ctx, cluster)
 }
 
 // ClusterUpdatePauseChange returns a predicate that returns true for an update event when a cluster has

@@ -21,9 +21,9 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
-// AzureManagedClusterSpec defines the desired state of AzureManagedCluster
-type AzureManagedClusterSpec struct {
-	AzureManagedClusterTemplateResourceSpec `json:",inline"`
+// AzureASOManagedClusterSpec defines the desired state of AzureASOManagedCluster
+type AzureASOManagedClusterSpec struct {
+	AzureASOManagedClusterTemplateResourceSpec `json:",inline"`
 
 	// ControlPlaneEndpoint is the location of the API server within the control plane. It fulfills Cluster
 	// API's cluster infrastructure provider contract.
@@ -31,8 +31,8 @@ type AzureManagedClusterSpec struct {
 	ControlPlaneEndpoint clusterv1.APIEndpoint `json:"controlPlaneEndpoint"`
 }
 
-// AzureManagedClusterStatus defines the observed state of AzureManagedCluster
-type AzureManagedClusterStatus struct {
+// AzureASOManagedClusterStatus defines the observed state of AzureASOManagedCluster
+type AzureASOManagedClusterStatus struct {
 	// Ready represents whether or not the cluster has been provisioned and is ready. It fulfills Cluster
 	// API's cluster infrastructure provider contract.
 	//+optional
@@ -62,32 +62,32 @@ type ResourceStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// AzureManagedCluster is the Schema for the azuremanagedclusters API
-type AzureManagedCluster struct {
+// AzureASOManagedCluster is the Schema for the azuremanagedclusters API
+type AzureASOManagedCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   AzureManagedClusterSpec   `json:"spec,omitempty"`
-	Status AzureManagedClusterStatus `json:"status,omitempty"`
+	Spec   AzureASOManagedClusterSpec   `json:"spec,omitempty"`
+	Status AzureASOManagedClusterStatus `json:"status,omitempty"`
 }
 
-func (a *AzureManagedCluster) GetResourceStatuses() []ResourceStatus {
+func (a *AzureASOManagedCluster) GetResourceStatuses() []ResourceStatus {
 	return a.Status.Resources
 }
 
-func (a *AzureManagedCluster) SetResourceStatuses(r []ResourceStatus) {
+func (a *AzureASOManagedCluster) SetResourceStatuses(r []ResourceStatus) {
 	a.Status.Resources = r
 }
 
 //+kubebuilder:object:root=true
 
-// AzureManagedClusterList contains a list of AzureManagedCluster
-type AzureManagedClusterList struct {
+// AzureASOManagedClusterList contains a list of AzureASOManagedCluster
+type AzureASOManagedClusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []AzureManagedCluster `json:"items"`
+	Items           []AzureASOManagedCluster `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&AzureManagedCluster{}, &AzureManagedClusterList{})
+	SchemeBuilder.Register(&AzureASOManagedCluster{}, &AzureASOManagedClusterList{})
 }

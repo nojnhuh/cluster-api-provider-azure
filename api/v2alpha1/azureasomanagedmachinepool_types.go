@@ -20,15 +20,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const AzureManagedMachinePoolFinalizer = "azureManagedMachinePool.infrastructure.cluster.x-k8s.io"
+const AzureASOManagedMachinePoolFinalizer = "azureASOManagedMachinePool.infrastructure.cluster.x-k8s.io"
 
-// AzureManagedMachinePoolSpec defines the desired state of AzureManagedMachinePool
-type AzureManagedMachinePoolSpec struct {
-	AzureManagedMachinePoolTemplateResourceSpec `json:",inline"`
+// AzureASOManagedMachinePoolSpec defines the desired state of AzureASOManagedMachinePool
+type AzureASOManagedMachinePoolSpec struct {
+	AzureASOManagedMachinePoolTemplateResourceSpec `json:",inline"`
 }
 
-// AzureManagedMachinePoolStatus defines the observed state of AzureManagedMachinePool
-type AzureManagedMachinePoolStatus struct {
+// AzureASOManagedMachinePoolStatus defines the observed state of AzureASOManagedMachinePool
+type AzureASOManagedMachinePoolStatus struct {
 	// Ready represents whether or not the infrastructure is ready to be used. It fulfills Cluster API's
 	// machine pool infrastructure provider contract.
 	//+optional
@@ -48,32 +48,32 @@ type AzureManagedMachinePoolStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// AzureManagedMachinePool is the Schema for the azuremanagedmachinepools API
-type AzureManagedMachinePool struct {
+// AzureASOManagedMachinePool is the Schema for the azureasomanagedmachinepools API
+type AzureASOManagedMachinePool struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   AzureManagedMachinePoolSpec   `json:"spec,omitempty"`
-	Status AzureManagedMachinePoolStatus `json:"status,omitempty"`
+	Spec   AzureASOManagedMachinePoolSpec   `json:"spec,omitempty"`
+	Status AzureASOManagedMachinePoolStatus `json:"status,omitempty"`
 }
 
-func (a *AzureManagedMachinePool) GetResourceStatuses() []ResourceStatus {
+func (a *AzureASOManagedMachinePool) GetResourceStatuses() []ResourceStatus {
 	return a.Status.Resources
 }
 
-func (a *AzureManagedMachinePool) SetResourceStatuses(r []ResourceStatus) {
+func (a *AzureASOManagedMachinePool) SetResourceStatuses(r []ResourceStatus) {
 	a.Status.Resources = r
 }
 
 //+kubebuilder:object:root=true
 
-// AzureManagedMachinePoolList contains a list of AzureManagedMachinePool
-type AzureManagedMachinePoolList struct {
+// AzureASOManagedMachinePoolList contains a list of AzureASOManagedMachinePool
+type AzureASOManagedMachinePoolList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []AzureManagedMachinePool `json:"items"`
+	Items           []AzureASOManagedMachinePool `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&AzureManagedMachinePool{}, &AzureManagedMachinePoolList{})
+	SchemeBuilder.Register(&AzureASOManagedMachinePool{}, &AzureASOManagedMachinePoolList{})
 }
