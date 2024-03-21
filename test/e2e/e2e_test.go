@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"sigs.k8s.io/cluster-api-provider-azure/v2/test/utils"
+	"sigs.k8s.io/cluster-api-provider-azure/test/utils"
 )
 
 const namespace = "capz-system"

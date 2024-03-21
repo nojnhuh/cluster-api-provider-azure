@@ -31,7 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	infrav1 "sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1"
+	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 )
 
 type FakeClient struct {

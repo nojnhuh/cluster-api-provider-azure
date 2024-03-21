@@ -21,7 +21,7 @@ The main goals of CAPZ v2 are:
 
 Here is an example of CAPZ v2's AzureASOManagedCluster resource:
 ```yaml
-apiVersion: infrastructure.cluster.x-k8s.io/v2alpha1
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: AzureASOManagedCluster
 metadata:
   name: my-cluster

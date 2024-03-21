@@ -48,8 +48,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	infrav1 "sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1"
-	"sigs.k8s.io/cluster-api-provider-azure/v2/internal/mutators"
+	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
+	"sigs.k8s.io/cluster-api-provider-azure/internal/mutators"
 )
 
 var (

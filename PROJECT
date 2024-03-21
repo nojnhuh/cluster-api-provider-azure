@@ -6,7 +6,7 @@ domain: cluster.x-k8s.io
 layout:
 - go.kubebuilder.io/v4
 projectName: cluster-api-provider-azure
-repo: sigs.k8s.io/cluster-api-provider-azure/v2
+repo: sigs.k8s.io/cluster-api-provider-azure
 resources:
 - api:
     crdVersion: v1
@@ -15,8 +15,8 @@ resources:
   domain: cluster.x-k8s.io
   group: infrastructure
   kind: AzureASOManagedCluster
-  path: sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1
-  version: v2alpha1
+  path: sigs.k8s.io/cluster-api-provider-azure/api/v1beta1
+  version: v1beta1
 - api:
     crdVersion: v1
     namespaced: true
@@ -24,8 +24,8 @@ resources:
   domain: cluster.x-k8s.io
   group: infrastructure
   kind: AzureASOManagedControlPlane
-  path: sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1
-  version: v2alpha1
+  path: sigs.k8s.io/cluster-api-provider-azure/api/v1beta1
+  version: v1beta1
 - api:
     crdVersion: v1
     namespaced: true
@@ -33,6 +33,6 @@ resources:
   domain: cluster.x-k8s.io
   group: infrastructure
   kind: AzureASOManagedMachinePool
-  path: sigs.k8s.io/cluster-api-provider-azure/v2/api/v2alpha1
-  version: v2alpha1
+  path: sigs.k8s.io/cluster-api-provider-azure/api/v1beta1
+  version: v1beta1
 version: "3"

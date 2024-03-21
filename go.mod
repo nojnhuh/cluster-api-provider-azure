@@ -1,4 +1,4 @@
-module sigs.k8s.io/cluster-api-provider-azure/v2
+module sigs.k8s.io/cluster-api-provider-azure
 
 go 1.21
 

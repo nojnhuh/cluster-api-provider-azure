@@ -14,7 +14,7 @@ spec:
     singular: azureasomanagedmachinepool
   scope: Namespaced
   versions:
-  - name: v2alpha1
+  - name: v1beta1
     schema:
       openAPIV3Schema:
         description: AzureASOManagedMachinePool is the Schema for the azureasomanagedmachinepools
