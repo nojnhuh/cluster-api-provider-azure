@@ -22,6 +22,7 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -30,6 +31,7 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/controllers/external"
 	"sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -86,11 +88,24 @@ func (r *AzureASOManagedClusterReconciler) Reconcile(ctx context.Context, req ct
 		return ctrl.Result{}, fmt.Errorf("failed to init patch helper: %w", err)
 	}
 	defer func() {
+		r.reconcileConditions(asoManagedCluster)
+
+		conditions.SetSummary(asoManagedCluster)
+
+		asoManagedCluster.Status.Ready = conditions.Get(asoManagedCluster, clusterv1.ReadyCondition).Status == corev1.ConditionTrue
+
+		opts := []patch.Option{
+			patch.WithOwnedConditions{Conditions: []clusterv1.ConditionType{
+				clusterv1.ReadyCondition,
+				infrav1.ResourcesReady,
+				infrav1.ControlPlaneEndpointReady,
+			}},
+		}
 		if resultErr == nil {
-			asoManagedCluster.Status.ObservedGeneration = asoManagedCluster.Generation
+			opts = append(opts, patch.WithStatusObservedGeneration{})
 		}
 
-		err := patchHelper.Patch(ctx, asoManagedCluster)
+		err := patchHelper.Patch(ctx, asoManagedCluster, opts...)
 		if !asoManagedCluster.GetDeletionTimestamp().IsZero() {
 			err = ignorePatchErrNotFound(err)
 		}
@@ -130,8 +145,6 @@ func (r *AzureASOManagedClusterReconciler) reconcileNormal(ctx context.Context, 
 	if needsPatch {
 		return ctrl.Result{Requeue: true}, nil
 	}
-
-	asoManagedCluster.Status.Ready = false
 
 	resources, err := mutators.ApplyMutators(ctx, asoManagedCluster.Spec.Resources, mutators.SetASOReconciliationPolicy(cluster))
 	if err != nil {
@@ -236,6 +249,25 @@ func (r *AzureASOManagedClusterReconciler) SetupWithManager(ctx context.Context,
 	}
 
 	return nil
+}
+
+func (r *AzureASOManagedClusterReconciler) reconcileConditions(asoManagedCluster *infrav1.AzureASOManagedCluster) {
+	conditions.MarkTrue(asoManagedCluster, infrav1.ResourcesReady)
+	readyCount := 0
+	total := len(asoManagedCluster.GetResourceStatuses())
+	for _, status := range asoManagedCluster.GetResourceStatuses() {
+		if status.Ready {
+			readyCount++
+		}
+	}
+	if readyCount < total {
+		conditions.MarkFalse(asoManagedCluster, infrav1.ResourcesReady, "ResourcesNotReady", clusterv1.ConditionSeverityInfo, fmt.Sprintf("%d of %d resources are ready", readyCount, total))
+	}
+
+	conditions.MarkTrue(asoManagedCluster, infrav1.ControlPlaneEndpointReady)
+	if asoManagedCluster.Spec.ControlPlaneEndpoint.IsZero() {
+		conditions.MarkFalse(asoManagedCluster, infrav1.ControlPlaneEndpointReady, "WaitingForControlPlaneEndpoint", clusterv1.ConditionSeverityInfo, fmt.Sprintf("Waiting for spec.controlPlaneEndpoint"))
+	}
 }
 
 func (r *AzureASOManagedClusterReconciler) asoManagedControlPlaneToManagedClusterMap() handler.MapFunc {

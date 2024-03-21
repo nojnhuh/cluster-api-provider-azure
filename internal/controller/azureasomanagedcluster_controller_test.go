@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	clusterctlv1 "sigs.k8s.io/cluster-api/cmd/clusterctl/api/v1alpha3"
+	"sigs.k8s.io/cluster-api/util/conditions"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -287,6 +288,7 @@ func TestAzureASOManagedClusterReconcile(t *testing.T) {
 		t.Run("should update the AzureASOManagedCluster", func(t *testing.T) {
 			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoManagedCluster), asoManagedCluster)))
 			t.Run("should not be ready", checkEqual(asoManagedCluster.Status.Ready, false))
+			t.Run("status.conditions sets ResourcesReady false", checkEqual(conditions.Get(asoManagedCluster, infrav1.ResourcesReady).Status, corev1.ConditionFalse))
 		})
 	})
 
@@ -405,6 +407,7 @@ func TestAzureASOManagedClusterReconcile(t *testing.T) {
 		t.Run("should update the AzureASOManagedCluster", func(t *testing.T) {
 			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoManagedCluster), asoManagedCluster)))
 			t.Run("status.ready", checkEqual(asoManagedCluster.Status.Ready, false))
+			t.Run("status.conditions sets ControlPlaneEndpointReady false", checkEqual(conditions.Get(asoManagedCluster, infrav1.ControlPlaneEndpointReady).Status, corev1.ConditionFalse))
 			t.Run("spec.controlPlaneEndpoint", checkEqual(asoManagedCluster.Spec.ControlPlaneEndpoint.IsZero(), true))
 		})
 	})
@@ -453,6 +456,20 @@ func TestAzureASOManagedClusterReconcile(t *testing.T) {
 			},
 			Status: infrav1.AzureASOManagedClusterStatus{
 				Ready: false,
+				Conditions: clusterv1.Conditions{
+					{
+						Type:   clusterv1.ReadyCondition,
+						Status: corev1.ConditionFalse,
+					},
+					{
+						Type:   infrav1.ResourcesReady,
+						Status: corev1.ConditionFalse,
+					},
+					{
+						Type:   infrav1.ControlPlaneEndpointReady,
+						Status: corev1.ConditionFalse,
+					},
+				},
 			},
 		}
 		c := fakeClientBuilder().
@@ -476,6 +493,9 @@ func TestAzureASOManagedClusterReconcile(t *testing.T) {
 		t.Run("should update the AzureASOManagedCluster", func(t *testing.T) {
 			t.Run("GET", expectSuccess(c.Get(ctx, client.ObjectKeyFromObject(asoManagedCluster), asoManagedCluster)))
 			t.Run("status.ready", checkEqual(asoManagedCluster.Status.Ready, true))
+			t.Run("status.conditions sets Ready true", checkEqual(conditions.Get(asoManagedCluster, clusterv1.ReadyCondition).Status, corev1.ConditionTrue))
+			t.Run("status.conditions sets ResourcesReady true", checkEqual(conditions.Get(asoManagedCluster, infrav1.ResourcesReady).Status, corev1.ConditionTrue))
+			t.Run("status.conditions sets ControlPlaneEndpointReady true", checkEqual(conditions.Get(asoManagedCluster, infrav1.ControlPlaneEndpointReady).Status, corev1.ConditionTrue))
 			t.Run("spec.controlPlaneEndpoint", checkEqual(asoManagedCluster.Spec.ControlPlaneEndpoint, clusterv1.APIEndpoint{Host: "bingo"}))
 		})
 	})

@@ -21,6 +21,11 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
+const (
+	ResourcesReady            clusterv1.ConditionType = "ResourcesReady"
+	ControlPlaneEndpointReady                         = "ControlPlaneEndpointReady"
+)
+
 // AzureASOManagedClusterSpec defines the desired state of AzureASOManagedCluster
 type AzureASOManagedClusterSpec struct {
 	AzureASOManagedClusterTemplateResourceSpec `json:",inline"`
@@ -43,6 +48,9 @@ type AzureASOManagedClusterStatus struct {
 
 	// Resources represents the status of the resources defined in the spec.
 	Resources []ResourceStatus `json:"resources,omitempty"`
+
+	// Conditions provide observations of the operational state of the resource.
+	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
 }
 
 // ResourceStatus represents the status of a resource.
@@ -77,6 +85,14 @@ func (a *AzureASOManagedCluster) GetResourceStatuses() []ResourceStatus {
 
 func (a *AzureASOManagedCluster) SetResourceStatuses(r []ResourceStatus) {
 	a.Status.Resources = r
+}
+
+func (a *AzureASOManagedCluster) GetConditions() clusterv1.Conditions {
+	return a.Status.Conditions
+}
+
+func (a *AzureASOManagedCluster) SetConditions(conds clusterv1.Conditions) {
+	a.Status.Conditions = conds
 }
 
 //+kubebuilder:object:root=true
