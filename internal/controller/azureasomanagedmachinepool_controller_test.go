@@ -23,6 +23,7 @@ import (
 
 	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20231001"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
+	asoconditions "github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -259,7 +260,7 @@ func TestAzureASOManagedMachinePoolReconcile(t *testing.T) {
 					owner: asoManagedMachinePool,
 					reconcileFunc: func(_ context.Context, asoManagedMachinePool resourceStatusObject) error {
 						asoManagedMachinePool.SetResourceStatuses([]infrav1.ResourceStatus{
-							{Ready: false},
+							{Condition: asoconditions.Condition{Status: metav1.ConditionFalse}},
 						})
 						return nil
 					},

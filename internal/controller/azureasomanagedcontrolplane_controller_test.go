@@ -26,6 +26,7 @@ import (
 	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20231001"
 	asoannotations "github.com/Azure/azure-service-operator/v2/pkg/common/annotations"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -332,7 +333,7 @@ func TestAzureASOManagedControlPlaneReconcile(t *testing.T) {
 					owner: asoManagedControlPlane,
 					reconcileFunc: func(_ context.Context, asoManagedControlPlane resourceStatusObject) error {
 						asoManagedControlPlane.SetResourceStatuses([]infrav1.ResourceStatus{
-							{Ready: false},
+							{Condition: conditions.Condition{Status: metav1.ConditionFalse}},
 						})
 						return nil
 					},
@@ -754,7 +755,7 @@ func TestAzureASOManagedControlPlaneReconcile(t *testing.T) {
 					owner: asoManagedControlPlane,
 					deleteFunc: func(_ context.Context, asoManagedControlPlane resourceStatusObject) error {
 						asoManagedControlPlane.SetResourceStatuses([]infrav1.ResourceStatus{
-							{Ready: false},
+							{Condition: conditions.Condition{Status: metav1.ConditionFalse}},
 						})
 						return nil
 					},

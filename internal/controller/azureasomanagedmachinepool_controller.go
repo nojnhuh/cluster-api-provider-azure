@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -185,7 +186,7 @@ func (r *AzureASOManagedMachinePoolReconciler) reconcileNormal(ctx context.Conte
 		return ctrl.Result{}, err
 	}
 	for _, status := range asoManagedMachinePool.GetResourceStatuses() {
-		if !status.Ready {
+		if status.Condition.Status != metav1.ConditionTrue {
 			return ctrl.Result{}, nil
 		}
 	}

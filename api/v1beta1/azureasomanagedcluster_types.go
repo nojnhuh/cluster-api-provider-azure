@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
@@ -55,16 +56,16 @@ type AzureASOManagedClusterStatus struct {
 
 // ResourceStatus represents the status of a resource.
 type ResourceStatus struct {
+	Resource StatusResource `json:"resource"`
+
+	Condition conditions.Condition `json:"condition"`
+}
+
+type StatusResource struct {
 	Group   string `json:"group"`
 	Version string `json:"version"`
 	Kind    string `json:"kind"`
 	Name    string `json:"name"`
-
-	// Ready reflects a Ready condition on an ASO resource.
-	Ready bool `json:"ready"`
-
-	// Message gives more information as to why a resource is not ready.
-	Message string `json:"message,omitempty"`
 }
 
 //+kubebuilder:object:root=true

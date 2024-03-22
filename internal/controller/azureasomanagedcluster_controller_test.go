@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	asoconditions "github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -272,9 +273,9 @@ func TestAzureASOManagedClusterReconcile(t *testing.T) {
 					owner: asoManagedCluster,
 					reconcileFunc: func(_ context.Context, asoManagedCluster resourceStatusObject) error {
 						asoManagedCluster.SetResourceStatuses([]infrav1.ResourceStatus{
-							{Ready: true},
-							{Ready: false},
-							{Ready: true},
+							{Condition: asoconditions.Condition{Status: metav1.ConditionTrue}},
+							{Condition: asoconditions.Condition{Status: metav1.ConditionFalse}},
+							{Condition: asoconditions.Condition{Status: metav1.ConditionTrue}},
 						})
 						return nil
 					},
@@ -674,7 +675,7 @@ func TestAzureASOManagedClusterReconcile(t *testing.T) {
 					owner: asoManagedCluster,
 					deleteFunc: func(_ context.Context, asoManagedCluster resourceStatusObject) error {
 						asoManagedCluster.SetResourceStatuses([]infrav1.ResourceStatus{
-							{Ready: false},
+							{Condition: asoconditions.Condition{Status: metav1.ConditionFalse}},
 						})
 						return nil
 					},

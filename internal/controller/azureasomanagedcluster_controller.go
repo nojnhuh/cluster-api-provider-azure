@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 
+	asoconditions "github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -157,7 +158,7 @@ func (r *AzureASOManagedClusterReconciler) reconcileNormal(ctx context.Context, 
 		return ctrl.Result{}, err
 	}
 	for _, status := range asoManagedCluster.GetResourceStatuses() {
-		if !status.Ready {
+		if status.Condition.Status != metav1.ConditionTrue {
 			return ctrl.Result{}, nil
 		}
 	}
@@ -253,15 +254,38 @@ func (r *AzureASOManagedClusterReconciler) SetupWithManager(ctx context.Context,
 
 func (r *AzureASOManagedClusterReconciler) reconcileConditions(asoManagedCluster *infrav1.AzureASOManagedCluster) {
 	conditions.MarkTrue(asoManagedCluster, infrav1.ResourcesReady)
+	type severity int
+	const (
+		none severity = iota
+		info
+		warning
+		error
+	)
+	severities := map[asoconditions.ConditionSeverity]severity{
+		asoconditions.ConditionSeverityNone:    none,
+		asoconditions.ConditionSeverityInfo:    info,
+		asoconditions.ConditionSeverityWarning: warning,
+		asoconditions.ConditionSeverityError:   error,
+	}
+	toCAPISeverity := map[severity]clusterv1.ConditionSeverity{
+		none:    clusterv1.ConditionSeverityNone,
+		info:    clusterv1.ConditionSeverityInfo,
+		warning: clusterv1.ConditionSeverityWarning,
+		error:   clusterv1.ConditionSeverityError,
+	}
+	highestSeverity := none
 	readyCount := 0
 	total := len(asoManagedCluster.GetResourceStatuses())
 	for _, status := range asoManagedCluster.GetResourceStatuses() {
-		if status.Ready {
+		if severities[status.Condition.Severity] > highestSeverity {
+			highestSeverity = severities[status.Condition.Severity]
+		}
+		if status.Condition.Status == metav1.ConditionTrue {
 			readyCount++
 		}
 	}
 	if readyCount < total {
-		conditions.MarkFalse(asoManagedCluster, infrav1.ResourcesReady, "ResourcesNotReady", clusterv1.ConditionSeverityInfo, fmt.Sprintf("%d of %d resources are ready", readyCount, total))
+		conditions.MarkFalse(asoManagedCluster, infrav1.ResourcesReady, "ResourcesNotReady", toCAPISeverity[highestSeverity], fmt.Sprintf("%d of %d resources are ready", readyCount, total))
 	}
 
 	conditions.MarkTrue(asoManagedCluster, infrav1.ControlPlaneEndpointReady)

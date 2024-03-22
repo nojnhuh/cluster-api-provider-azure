@@ -162,7 +162,7 @@ func (r *AzureASOManagedControlPlaneReconciler) reconcileNormal(ctx context.Cont
 		return ctrl.Result{}, err
 	}
 	for _, status := range asoManagedControlPlane.GetResourceStatuses() {
-		if !status.Ready {
+		if status.Condition.Status != metav1.ConditionTrue {
 			return ctrl.Result{}, nil
 		}
 	}

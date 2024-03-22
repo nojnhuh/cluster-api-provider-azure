@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
@@ -91,20 +92,24 @@ func (r *InfraReconciler) Reconcile(ctx context.Context) error {
 			return fmt.Errorf("failed to apply resource: %w", err)
 		}
 
-		ready, message := readyStatus(spec)
+		ready, err := readyStatus(spec)
+		if err != nil {
+			return err
+		}
 		newStatus := infrav1.ResourceStatus{
-			Group:   gvk.Group,
-			Version: gvk.Version,
-			Kind:    gvk.Kind,
-			Name:    spec.GetName(),
-			Ready:   ready,
-			Message: message,
+			Resource: infrav1.StatusResource{
+				Group:   gvk.Group,
+				Version: gvk.Version,
+				Kind:    gvk.Kind,
+				Name:    spec.GetName(),
+			},
+			Condition: ready,
 		}
 		foundStatus := false
 		for i, status := range r.owner.GetResourceStatuses() {
-			if newStatus.Group == status.Group &&
-				newStatus.Kind == status.Kind &&
-				newStatus.Name == status.Name {
+			if newStatus.Resource.Group == status.Resource.Group &&
+				newStatus.Resource.Kind == status.Resource.Kind &&
+				newStatus.Resource.Name == status.Resource.Name {
 				newStatuses[i] = newStatus
 				foundStatus = true
 				break
@@ -120,17 +125,21 @@ func (r *InfraReconciler) Reconcile(ctx context.Context) error {
 	// filteredStatuses does not contain status for resources that have been deleted and are gone.
 	var filteredStatuses []infrav1.ResourceStatus
 	for _, status := range newStatuses {
-		if _, reconciled := reconciled[reconcileKey{status.Group, status.Kind, status.Name}]; reconciled {
+		if _, reconciled := reconciled[reconcileKey{
+			status.Resource.Group,
+			status.Resource.Kind,
+			status.Resource.Name,
+		}]; reconciled {
 			filteredStatuses = append(filteredStatuses, status)
 			continue
 		}
 		d := &unstructured.Unstructured{}
 		d.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   status.Group,
-			Version: status.Version,
-			Kind:    status.Kind,
+			Group:   status.Resource.Group,
+			Version: status.Resource.Version,
+			Kind:    status.Resource.Kind,
 		})
-		d.SetName(status.Name)
+		d.SetName(status.Resource.Name)
 		d.SetNamespace(r.owner.GetNamespace())
 		log.Info("deleting resource")
 		err := r.Client.Delete(ctx, d)
@@ -147,10 +156,10 @@ func (r *InfraReconciler) Reconcile(ctx context.Context) error {
 	return nil
 }
 
-func readyStatus(u *unstructured.Unstructured) (bool, string) {
+func readyStatus(u *unstructured.Unstructured) (conditions.Condition, error) {
 	statusConditions, found, err := unstructured.NestedSlice(u.Object, "status", "conditions")
 	if !found || err != nil {
-		return false, ""
+		return conditions.Condition{}, err
 	}
 
 	for _, el := range statusConditions {
@@ -165,28 +174,30 @@ func readyStatus(u *unstructured.Unstructured) (bool, string) {
 
 		observedGen, _, err := unstructured.NestedInt64(condition, "observedGeneration")
 		if observedGen < u.GetGeneration() {
-			return false, waitingForASOReconcileMsg
+			return conditions.Condition{
+				Type:               conditions.ConditionTypeReady,
+				Status:             metav1.ConditionFalse,
+				Severity:           conditions.ConditionSeverityInfo,
+				LastTransitionTime: metav1.Time{},
+				ObservedGeneration: observedGen,
+				Reason:             "WaitingForASOReconcile",
+				Message:            waitingForASOReconcileMsg,
+			}, nil
 		}
 
-		status, found, err := unstructured.NestedString(condition, "status")
-		if !found || err != nil {
-			continue
-		}
-		ready := false
-		if status == string(metav1.ConditionTrue) {
-			ready = true
-		}
-
-		// message might not always be defined
-		message, _, err := unstructured.NestedString(condition, "message")
+		condJSON, err := json.Marshal(condition)
 		if err != nil {
-			continue
+			return conditions.Condition{}, err
 		}
-
-		return ready, message
+		asoCond := conditions.Condition{}
+		err = json.Unmarshal(condJSON, &asoCond)
+		if err != nil {
+			return conditions.Condition{}, err
+		}
+		return asoCond, nil
 	}
 
-	return false, ""
+	return conditions.Condition{}, nil
 }
 
 // Delete deletes the specified resources.
@@ -219,14 +230,18 @@ func (r *InfraReconciler) Delete(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to get status for resource being deleted: %w", err)
 		}
-		ready, message := readyStatus(spec)
+		ready, err := readyStatus(spec)
+		if err != nil {
+			return err
+		}
 		statuses = append(statuses, infrav1.ResourceStatus{
-			Group:   gvk.Group,
-			Version: gvk.Version,
-			Kind:    gvk.Kind,
-			Name:    spec.GetName(),
-			Ready:   ready,
-			Message: message,
+			Resource: infrav1.StatusResource{
+				Group:   gvk.Group,
+				Version: gvk.Version,
+				Kind:    gvk.Kind,
+				Name:    spec.GetName(),
+			},
+			Condition: ready,
 		})
 	}
 

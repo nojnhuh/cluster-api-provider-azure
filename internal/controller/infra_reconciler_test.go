@@ -123,11 +123,15 @@ func TestInfraReconcilerReconcile(t *testing.T) {
 				Status: infrav1.AzureASOManagedClusterStatus{
 					Resources: []infrav1.ResourceStatus{
 						{
-							Group:   asoresourcesv1.GroupVersion.Group,
-							Version: asoresourcesv1.GroupVersion.Version + "this should still match",
-							Kind:    "ResourceGroup",
-							Name:    "rg1",
-							Ready:   true, // this should be overridden
+							Resource: infrav1.StatusResource{
+								Group:   asoresourcesv1.GroupVersion.Group,
+								Version: asoresourcesv1.GroupVersion.Version + "this should still match",
+								Kind:    "ResourceGroup",
+								Name:    "rg1",
+							},
+							Condition: conditions.Condition{
+								Status: metav1.ConditionTrue,
+							},
 						},
 					},
 				},
@@ -146,21 +150,19 @@ func TestInfraReconcilerReconcile(t *testing.T) {
 			t.Run("length", checkEqual(len(r.owner.GetResourceStatuses()), len(r.resources)))
 			t.Run("0", func(t *testing.T) {
 				status := r.owner.GetResourceStatuses()[0]
-				t.Run("group", checkEqual(status.Group, asoresourcesv1.GroupVersion.Group))
-				t.Run("version", checkEqual(status.Version, asoresourcesv1.GroupVersion.Version))
-				t.Run("kind", checkEqual(status.Kind, "ResourceGroup"))
-				t.Run("name", checkEqual(status.Name, "rg1"))
-				t.Run("ready", checkEqual(status.Ready, false))
-				t.Run("message", checkEqual(status.Message, "rg1 message"))
+				t.Run("group", checkEqual(status.Resource.Group, asoresourcesv1.GroupVersion.Group))
+				t.Run("version", checkEqual(status.Resource.Version, asoresourcesv1.GroupVersion.Version))
+				t.Run("kind", checkEqual(status.Resource.Kind, "ResourceGroup"))
+				t.Run("name", checkEqual(status.Resource.Name, "rg1"))
+				t.Run("ready", checkEqual(status.Condition.Status, metav1.ConditionFalse))
+				t.Run("message", checkEqual(status.Condition.Message, "rg1 message"))
 			})
 			t.Run("1", func(t *testing.T) {
 				status := r.owner.GetResourceStatuses()[1]
-				t.Run("group", checkEqual(status.Group, asoresourcesv1.GroupVersion.Group))
-				t.Run("version", checkEqual(status.Version, asoresourcesv1.GroupVersion.Version))
-				t.Run("kind", checkEqual(status.Kind, "ResourceGroup"))
-				t.Run("name", checkEqual(status.Name, "rg2"))
-				t.Run("ready", checkEqual(status.Ready, false))
-				t.Run("message", checkEqual(status.Message, ""))
+				t.Run("group", checkEqual(status.Resource.Group, asoresourcesv1.GroupVersion.Group))
+				t.Run("version", checkEqual(status.Resource.Version, asoresourcesv1.GroupVersion.Version))
+				t.Run("kind", checkEqual(status.Resource.Kind, "ResourceGroup"))
+				t.Run("name", checkEqual(status.Resource.Name, "rg2"))
 			})
 		})
 	})
@@ -180,16 +182,20 @@ func TestInfraReconcilerReconcile(t *testing.T) {
 			Status: infrav1.AzureASOManagedClusterStatus{
 				Resources: []infrav1.ResourceStatus{
 					{
-						Group:   asoresourcesv1.GroupVersion.Group,
-						Version: asoresourcesv1.GroupVersion.Version,
-						Kind:    "ResourceGroup",
-						Name:    "rg1",
+						Resource: infrav1.StatusResource{
+							Group:   asoresourcesv1.GroupVersion.Group,
+							Version: asoresourcesv1.GroupVersion.Version,
+							Kind:    "ResourceGroup",
+							Name:    "rg1",
+						},
 					},
 					{
-						Group:   asoresourcesv1.GroupVersion.Group,
-						Version: asoresourcesv1.GroupVersion.Version,
-						Kind:    "ResourceGroup",
-						Name:    "rg2",
+						Resource: infrav1.StatusResource{
+							Group:   asoresourcesv1.GroupVersion.Group,
+							Version: asoresourcesv1.GroupVersion.Version,
+							Kind:    "ResourceGroup",
+							Name:    "rg2",
+						},
 					},
 				},
 			},
@@ -221,12 +227,10 @@ func TestInfraReconcilerReconcile(t *testing.T) {
 			t.Run("length", checkEqual(len(r.owner.GetResourceStatuses()), 1))
 			t.Run("0", func(t *testing.T) {
 				status := r.owner.GetResourceStatuses()[0]
-				t.Run("group", checkEqual(status.Group, asoresourcesv1.GroupVersion.Group))
-				t.Run("version", checkEqual(status.Version, asoresourcesv1.GroupVersion.Version))
-				t.Run("kind", checkEqual(status.Kind, "ResourceGroup"))
-				t.Run("name", checkEqual(status.Name, "rg1"))
-				t.Run("ready", checkEqual(status.Ready, false))
-				t.Run("message", checkEqual(status.Message, ""))
+				t.Run("group", checkEqual(status.Resource.Group, asoresourcesv1.GroupVersion.Group))
+				t.Run("version", checkEqual(status.Resource.Version, asoresourcesv1.GroupVersion.Version))
+				t.Run("kind", checkEqual(status.Resource.Kind, "ResourceGroup"))
+				t.Run("name", checkEqual(status.Resource.Name, "rg1"))
 			})
 		})
 	})
@@ -260,16 +264,20 @@ func TestInfraReconcilerDelete(t *testing.T) {
 			Status: infrav1.AzureASOManagedClusterStatus{
 				Resources: []infrav1.ResourceStatus{
 					{
-						Group:   asoresourcesv1.GroupVersion.Group,
-						Version: asoresourcesv1.GroupVersion.Version,
-						Kind:    "ResourceGroup",
-						Name:    "rg1",
+						Resource: infrav1.StatusResource{
+							Group:   asoresourcesv1.GroupVersion.Group,
+							Version: asoresourcesv1.GroupVersion.Version,
+							Kind:    "ResourceGroup",
+							Name:    "rg1",
+						},
 					},
 					{
-						Group:   asoresourcesv1.GroupVersion.Group,
-						Version: asoresourcesv1.GroupVersion.Version,
-						Kind:    "ResourceGroup",
-						Name:    "rg2",
+						Resource: infrav1.StatusResource{
+							Group:   asoresourcesv1.GroupVersion.Group,
+							Version: asoresourcesv1.GroupVersion.Version,
+							Kind:    "ResourceGroup",
+							Name:    "rg2",
+						},
 					},
 				},
 			},
@@ -321,12 +329,12 @@ func TestInfraReconcilerDelete(t *testing.T) {
 			t.Run("resource statuses length", checkEqual(len(r.owner.GetResourceStatuses()), 1))
 			t.Run("0", func(t *testing.T) {
 				status := r.owner.GetResourceStatuses()[0]
-				t.Run("group", checkEqual(status.Group, asoresourcesv1.GroupVersion.Group))
-				t.Run("version", checkEqual(status.Version, asoresourcesv1.GroupVersion.Version))
-				t.Run("kind", checkEqual(status.Kind, "ResourceGroup"))
-				t.Run("name", checkEqual(status.Name, "rg1"))
-				t.Run("ready", checkEqual(status.Ready, false))
-				t.Run("message", checkEqual(status.Message, "rg1 message"))
+				t.Run("group", checkEqual(status.Resource.Group, asoresourcesv1.GroupVersion.Group))
+				t.Run("version", checkEqual(status.Resource.Version, asoresourcesv1.GroupVersion.Version))
+				t.Run("kind", checkEqual(status.Resource.Kind, "ResourceGroup"))
+				t.Run("name", checkEqual(status.Resource.Name, "rg1"))
+				t.Run("ready", checkEqual(status.Condition.Status, metav1.ConditionFalse))
+				t.Run("message", checkEqual(status.Condition.Message, "rg1 message"))
 			})
 		})
 	})
@@ -413,7 +421,7 @@ func TestReadyStatus(t *testing.T) {
 					},
 				}},
 				expectedReady:   false,
-				expectedMessage: "",
+				expectedMessage: "a message",
 			},
 			{
 				name: "status is not True",
@@ -430,22 +438,6 @@ func TestReadyStatus(t *testing.T) {
 				}},
 				expectedReady:   false,
 				expectedMessage: "a message",
-			},
-			{
-				name: "message wrong type",
-				object: &unstructured.Unstructured{Object: map[string]interface{}{
-					"status": map[string]interface{}{
-						"conditions": []interface{}{
-							map[string]interface{}{
-								"type":    conditions.ConditionTypeReady,
-								"status":  string(metav1.ConditionTrue),
-								"message": int64(0),
-							},
-						},
-					},
-				}},
-				expectedReady:   false,
-				expectedMessage: "",
 			},
 			{
 				name: "status is True",
@@ -474,9 +466,10 @@ func TestReadyStatus(t *testing.T) {
 
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
-				ready, message := readyStatus(test.object)
-				t.Run("ready", checkEqual(ready, test.expectedReady))
-				t.Run("message", checkEqual(message, test.expectedMessage))
+				ready, err := readyStatus(test.object)
+				t.Run("success", expectSuccess(err))
+				t.Run("ready", checkEqual(ready.Status == metav1.ConditionTrue, test.expectedReady))
+				t.Run("message", checkEqual(ready.Message, test.expectedMessage))
 			})
 		}
 	})
@@ -550,9 +543,10 @@ func TestReadyStatus(t *testing.T) {
 				u := &unstructured.Unstructured{}
 				t.Run("convert to unstructured", expectSuccess(s.Convert(rg, u, nil)))
 
-				ready, message := readyStatus(u)
-				t.Run("ready", checkEqual(ready, test.expectedReady))
-				t.Run("message", checkEqual(message, test.expectedMessage))
+				ready, err := readyStatus(u)
+				t.Run("success", expectSuccess(err))
+				t.Run("ready", checkEqual(ready.Status == metav1.ConditionTrue, test.expectedReady))
+				t.Run("message", checkEqual(ready.Message, test.expectedMessage))
 			})
 		}
 	})
