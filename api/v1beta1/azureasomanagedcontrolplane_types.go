@@ -56,6 +56,8 @@ type AzureASOManagedControlPlaneStatus struct {
 
 	// Resources represents the status of the resources defined in the spec.
 	Resources []ResourceStatus `json:"resources,omitempty"`
+
+	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -76,6 +78,14 @@ func (a *AzureASOManagedControlPlane) GetResourceStatuses() []ResourceStatus {
 
 func (a *AzureASOManagedControlPlane) SetResourceStatuses(r []ResourceStatus) {
 	a.Status.Resources = r
+}
+
+func (a *AzureASOManagedControlPlane) GetConditions() clusterv1.Conditions {
+	return a.Status.Conditions
+}
+
+func (a *AzureASOManagedControlPlane) SetConditions(conds clusterv1.Conditions) {
+	a.Status.Conditions = conds
 }
 
 //+kubebuilder:object:root=true

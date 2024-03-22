@@ -333,7 +333,12 @@ func TestAzureASOManagedControlPlaneReconcile(t *testing.T) {
 					owner: asoManagedControlPlane,
 					reconcileFunc: func(_ context.Context, asoManagedControlPlane resourceStatusObject) error {
 						asoManagedControlPlane.SetResourceStatuses([]infrav1.ResourceStatus{
-							{Condition: conditions.Condition{Status: metav1.ConditionFalse}},
+							{
+								Condition: conditions.Condition{
+									Status:   metav1.ConditionFalse,
+									Severity: conditions.ConditionSeverityInfo,
+								},
+							},
 						})
 						return nil
 					},

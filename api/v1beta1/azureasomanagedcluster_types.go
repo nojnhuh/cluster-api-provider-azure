@@ -23,7 +23,8 @@ import (
 )
 
 const (
-	ResourcesReady            clusterv1.ConditionType = "ResourcesReady"
+	Reconciled                clusterv1.ConditionType = "Reconciled"
+	ResourcesReady                                    = "ResourcesReady"
 	ControlPlaneEndpointReady                         = "ControlPlaneEndpointReady"
 )
 

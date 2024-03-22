@@ -35,6 +35,7 @@ import (
 	clusterctlv1 "sigs.k8s.io/cluster-api/cmd/clusterctl/api/v1alpha3"
 	"sigs.k8s.io/cluster-api/controllers/external"
 	"sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/cluster-api/util/predicates"
 	"sigs.k8s.io/cluster-api/util/secret"
@@ -81,11 +82,20 @@ func (r *AzureASOManagedControlPlaneReconciler) Reconcile(ctx context.Context, r
 		return ctrl.Result{}, fmt.Errorf("failed to init patch helper: %w", err)
 	}
 	defer func() {
+		r.reconcileConditions(asoManagedControlPlane, resultErr)
+
+		opts := []patch.Option{
+			patch.WithOwnedConditions{Conditions: []clusterv1.ConditionType{
+				clusterv1.ReadyCondition,
+				infrav1.Reconciled,
+				infrav1.ResourcesReady,
+			}},
+		}
 		if resultErr == nil {
-			asoManagedControlPlane.Status.ObservedGeneration = asoManagedControlPlane.Generation
+			opts = append(opts, patch.WithStatusObservedGeneration{})
 		}
 
-		err := patchHelper.Patch(ctx, asoManagedControlPlane)
+		err := patchHelper.Patch(ctx, asoManagedControlPlane, opts...)
 		if !asoManagedControlPlane.GetDeletionTimestamp().IsZero() {
 			err = ignorePatchErrNotFound(err)
 		}
@@ -203,9 +213,6 @@ func (r *AzureASOManagedControlPlaneReconciler) reconcileNormal(ctx context.Cont
 		return ctrl.Result{}, fmt.Errorf("failed to reconcile kubeconfig: %w", err)
 	}
 
-	asoManagedControlPlane.Status.Ready = true
-	asoManagedControlPlane.Status.Initialized = asoManagedControlPlane.Status.Ready
-
 	return ctrl.Result{}, nil
 }
 
@@ -248,6 +255,14 @@ func (r *AzureASOManagedControlPlaneReconciler) reconcileKubeconfig(ctx context.
 	}
 
 	return r.Patch(ctx, expectedSecret, client.Apply, client.FieldOwner("capz-manager"), client.ForceOwnership)
+}
+
+func (r *AzureASOManagedControlPlaneReconciler) reconcileConditions(asoManagedControlPlane *infrav1.AzureASOManagedControlPlane, resultErr error) {
+	reconcileResourcesReadyCondition(asoManagedControlPlane)
+	reconcileResultErr(asoManagedControlPlane, resultErr)
+	conditions.SetSummary(asoManagedControlPlane)
+	asoManagedControlPlane.Status.Ready = conditions.IsTrue(asoManagedControlPlane, clusterv1.ReadyCondition)
+	asoManagedControlPlane.Status.Initialized = asoManagedControlPlane.Status.Ready
 }
 
 func (r *AzureASOManagedControlPlaneReconciler) reconcileDelete(ctx context.Context, asoManagedControlPlane *infrav1.AzureASOManagedControlPlane, cluster *clusterv1.Cluster) (ctrl.Result, error) {

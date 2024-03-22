@@ -23,7 +23,6 @@ import (
 
 	asoconditions "github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
 	"github.com/go-logr/logr"
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -89,15 +88,12 @@ func (r *AzureASOManagedClusterReconciler) Reconcile(ctx context.Context, req ct
 		return ctrl.Result{}, fmt.Errorf("failed to init patch helper: %w", err)
 	}
 	defer func() {
-		r.reconcileConditions(asoManagedCluster)
-
-		conditions.SetSummary(asoManagedCluster)
-
-		asoManagedCluster.Status.Ready = conditions.Get(asoManagedCluster, clusterv1.ReadyCondition).Status == corev1.ConditionTrue
+		r.reconcileConditions(asoManagedCluster, resultErr)
 
 		opts := []patch.Option{
 			patch.WithOwnedConditions{Conditions: []clusterv1.ConditionType{
 				clusterv1.ReadyCondition,
+				infrav1.Reconciled,
 				infrav1.ResourcesReady,
 				infrav1.ControlPlaneEndpointReady,
 			}},
@@ -209,6 +205,19 @@ func (r *AzureASOManagedClusterReconciler) reconcileDelete(ctx context.Context, 
 	return ctrl.Result{}, nil
 }
 
+func (r *AzureASOManagedClusterReconciler) reconcileConditions(asoManagedCluster *infrav1.AzureASOManagedCluster, resultErr error) {
+	reconcileResourcesReadyCondition(asoManagedCluster)
+	reconcileResultErr(asoManagedCluster, resultErr)
+
+	conditions.MarkTrue(asoManagedCluster, infrav1.ControlPlaneEndpointReady)
+	if asoManagedCluster.Spec.ControlPlaneEndpoint.IsZero() {
+		conditions.MarkFalse(asoManagedCluster, infrav1.ControlPlaneEndpointReady, "WaitingForControlPlaneEndpoint", clusterv1.ConditionSeverityInfo, fmt.Sprintf("Waiting for spec.controlPlaneEndpoint"))
+	}
+
+	conditions.SetSummary(asoManagedCluster)
+	asoManagedCluster.Status.Ready = conditions.IsTrue(asoManagedCluster, clusterv1.ReadyCondition)
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *AzureASOManagedClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, log logr.Logger) error {
 	c, err := ctrl.NewControllerManagedBy(mgr).
@@ -250,48 +259,6 @@ func (r *AzureASOManagedClusterReconciler) SetupWithManager(ctx context.Context,
 	}
 
 	return nil
-}
-
-func (r *AzureASOManagedClusterReconciler) reconcileConditions(asoManagedCluster *infrav1.AzureASOManagedCluster) {
-	conditions.MarkTrue(asoManagedCluster, infrav1.ResourcesReady)
-	type severity int
-	const (
-		none severity = iota
-		info
-		warning
-		error
-	)
-	severities := map[asoconditions.ConditionSeverity]severity{
-		asoconditions.ConditionSeverityNone:    none,
-		asoconditions.ConditionSeverityInfo:    info,
-		asoconditions.ConditionSeverityWarning: warning,
-		asoconditions.ConditionSeverityError:   error,
-	}
-	toCAPISeverity := map[severity]clusterv1.ConditionSeverity{
-		none:    clusterv1.ConditionSeverityNone,
-		info:    clusterv1.ConditionSeverityInfo,
-		warning: clusterv1.ConditionSeverityWarning,
-		error:   clusterv1.ConditionSeverityError,
-	}
-	highestSeverity := none
-	readyCount := 0
-	total := len(asoManagedCluster.GetResourceStatuses())
-	for _, status := range asoManagedCluster.GetResourceStatuses() {
-		if severities[status.Condition.Severity] > highestSeverity {
-			highestSeverity = severities[status.Condition.Severity]
-		}
-		if status.Condition.Status == metav1.ConditionTrue {
-			readyCount++
-		}
-	}
-	if readyCount < total {
-		conditions.MarkFalse(asoManagedCluster, infrav1.ResourcesReady, "ResourcesNotReady", toCAPISeverity[highestSeverity], fmt.Sprintf("%d of %d resources are ready", readyCount, total))
-	}
-
-	conditions.MarkTrue(asoManagedCluster, infrav1.ControlPlaneEndpointReady)
-	if asoManagedCluster.Spec.ControlPlaneEndpoint.IsZero() {
-		conditions.MarkFalse(asoManagedCluster, infrav1.ControlPlaneEndpointReady, "WaitingForControlPlaneEndpoint", clusterv1.ConditionSeverityInfo, fmt.Sprintf("Waiting for spec.controlPlaneEndpoint"))
-	}
 }
 
 func (r *AzureASOManagedClusterReconciler) asoManagedControlPlaneToManagedClusterMap() handler.MapFunc {
@@ -344,4 +311,53 @@ func ignorePatchErrNotFound(err error) error {
 		}
 	}
 	return err
+}
+
+func reconcileResourcesReadyCondition(obj interface {
+	conditions.Setter
+	resourceStatusObject
+}) {
+	type severity int
+	const (
+		none severity = iota
+		info
+		warning
+		error
+	)
+	severities := map[asoconditions.ConditionSeverity]severity{
+		asoconditions.ConditionSeverityNone:    none,
+		asoconditions.ConditionSeverityInfo:    info,
+		asoconditions.ConditionSeverityWarning: warning,
+		asoconditions.ConditionSeverityError:   error,
+	}
+	toCAPISeverity := map[severity]clusterv1.ConditionSeverity{
+		none:    clusterv1.ConditionSeverityNone,
+		info:    clusterv1.ConditionSeverityInfo,
+		warning: clusterv1.ConditionSeverityWarning,
+		error:   clusterv1.ConditionSeverityError,
+	}
+
+	highestSeverity := none
+	readyCount := 0
+	total := len(obj.GetResourceStatuses())
+
+	conditions.MarkTrue(obj, infrav1.ResourcesReady)
+	for _, status := range obj.GetResourceStatuses() {
+		if severities[status.Condition.Severity] > highestSeverity {
+			highestSeverity = severities[status.Condition.Severity]
+		}
+		if status.Condition.Status == metav1.ConditionTrue {
+			readyCount++
+		}
+	}
+	if readyCount < total {
+		conditions.MarkFalse(obj, infrav1.ResourcesReady, "ResourcesNotReady", toCAPISeverity[highestSeverity], fmt.Sprintf("%d of %d resources are ready", readyCount, total))
+	}
+}
+
+func reconcileResultErr(obj conditions.Setter, resultErr error) {
+	conditions.MarkTrue(obj, infrav1.Reconciled)
+	if resultErr != nil {
+		conditions.MarkFalse(obj, infrav1.Reconciled, "FailedToReconcile", clusterv1.ConditionSeverityError, resultErr.Error())
+	}
 }

@@ -130,27 +130,70 @@ spec:
                 items:
                   description: ResourceStatus represents the status of a resource.
                   properties:
-                    group:
-                      type: string
-                    kind:
-                      type: string
-                    message:
-                      description: Message gives more information as to why a resource
-                        is not ready.
-                      type: string
-                    name:
-                      type: string
-                    ready:
-                      description: Ready reflects a Ready condition on an ASO resource.
-                      type: boolean
-                    version:
-                      type: string
+                    condition:
+                      description: Condition defines an extension to status (an observation)
+                        of a resource
+                      properties:
+                        lastTransitionTime:
+                          description: LastTransitionTime is the last time the condition
+                            transitioned from one status to another.
+                          format: date-time
+                          type: string
+                        message:
+                          description: Message is a human readable message indicating
+                            details about the transition. This field may be empty.
+                          type: string
+                        observedGeneration:
+                          description: |-
+                            ObservedGeneration is the .metadata.generation that the condition was set based upon. For instance, if
+                            .metadata.generation is currently 12, but the .status.condition[x].observedGeneration is 9, the condition is out of date
+                            with respect to the current state of the instance.
+                          format: int64
+                          type: integer
+                        reason:
+                          description: |-
+                            Reason for the condition's last transition.
+                            Reasons are upper CamelCase (PascalCase) with no spaces. A reason is always provided, this field will not be empty.
+                          type: string
+                        severity:
+                          description: |-
+                            Severity with which to treat failures of this type of condition.
+                            For conditions which have positive polarity (Status == True is their normal/healthy state), this will be omitted when Status == True
+                            For conditions which have negative polarity (Status == False is their normal/healthy state), this will be omitted when Status == False.
+                            This is omitted in all cases when Status == Unknown
+                          type: string
+                        status:
+                          description: Status of the condition, one of True, False,
+                            or Unknown.
+                          type: string
+                        type:
+                          description: Type of condition.
+                          type: string
+                      required:
+                      - lastTransitionTime
+                      - reason
+                      - status
+                      - type
+                      type: object
+                    resource:
+                      properties:
+                        group:
+                          type: string
+                        kind:
+                          type: string
+                        name:
+                          type: string
+                        version:
+                          type: string
+                      required:
+                      - group
+                      - kind
+                      - name
+                      - version
+                      type: object
                   required:
-                  - group
-                  - kind
-                  - name
-                  - ready
-                  - version
+                  - condition
+                  - resource
                   type: object
                 type: array
             type: object
