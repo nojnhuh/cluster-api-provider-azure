@@ -138,9 +138,6 @@ func (r *AzureASOManagedControlPlaneReconciler) reconcileNormal(ctx context.Cont
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	asoManagedControlPlane.Status.Ready = false
-	asoManagedControlPlane.Status.Initialized = asoManagedControlPlane.Status.Ready
-
 	resources, err := mutators.ApplyMutators(ctx, asoManagedControlPlane.Spec.Resources,
 		mutators.SetASOReconciliationPolicy(cluster),
 		mutators.SetManagedClusterDefaults(r.Client, asoManagedControlPlane, cluster),
@@ -258,7 +255,7 @@ func (r *AzureASOManagedControlPlaneReconciler) reconcileKubeconfig(ctx context.
 }
 
 func (r *AzureASOManagedControlPlaneReconciler) reconcileConditions(asoManagedControlPlane *infrav1.AzureASOManagedControlPlane, resultErr error) {
-	reconcileResourcesReadyCondition(asoManagedControlPlane)
+	reconcileResourcesReadyCondition(asoManagedControlPlane, asoManagedControlPlane.Spec.Resources)
 	reconcileResultErr(asoManagedControlPlane, resultErr)
 	conditions.SetSummary(asoManagedControlPlane)
 	asoManagedControlPlane.Status.Ready = conditions.IsTrue(asoManagedControlPlane, clusterv1.ReadyCondition)

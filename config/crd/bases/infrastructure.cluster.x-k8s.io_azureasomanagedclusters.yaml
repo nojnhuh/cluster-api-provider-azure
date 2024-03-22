@@ -17,8 +17,9 @@ spec:
   - name: v1beta1
     schema:
       openAPIV3Schema:
-        description: AzureASOManagedCluster is the Schema for the azuremanagedclusters
-          API
+        description: |-
+          AzureASOManagedCluster is the Schema for the azuremanagedclusters API
+          TODO: print columns, short names
         properties:
           apiVersion:
             description: |-

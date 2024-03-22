@@ -73,6 +73,7 @@ type StatusResource struct {
 //+kubebuilder:subresource:status
 
 // AzureASOManagedCluster is the Schema for the azuremanagedclusters API
+// TODO: print columns, short names
 type AzureASOManagedCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

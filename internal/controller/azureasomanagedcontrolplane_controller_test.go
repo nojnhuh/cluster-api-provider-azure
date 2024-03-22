@@ -27,6 +27,7 @@ import (
 	asoannotations "github.com/Azure/azure-service-operator/v2/pkg/common/annotations"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
+	asoconditions "github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -517,7 +518,21 @@ func TestAzureASOManagedControlPlaneReconcile(t *testing.T) {
 					}
 				})
 				return &fakeResourceReconciler{
+					owner: asoManagedControlPlane,
 					reconcileFunc: func(_ context.Context, asoManagedControlPlane resourceStatusObject) error {
+						asoManagedControlPlane.SetResourceStatuses([]infrav1.ResourceStatus{
+							{
+								Resource: infrav1.StatusResource{
+									Group: asocontainerservicev1.GroupVersion.Group,
+									Kind:  "ManagedCluster",
+									Name:  "mc",
+								},
+								Condition: asoconditions.Condition{
+									Type:   asoconditions.ConditionTypeReady,
+									Status: metav1.ConditionTrue,
+								},
+							},
+						})
 						return nil
 					},
 				}

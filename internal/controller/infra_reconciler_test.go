@@ -352,7 +352,7 @@ func TestReadyStatus(t *testing.T) {
 				name:            "empty object",
 				object:          &unstructured.Unstructured{Object: make(map[string]interface{})},
 				expectedReady:   false,
-				expectedMessage: "",
+				expectedMessage: waitingForASOReconcileMsg,
 			},
 			{
 				name: "empty status.conditions",
@@ -362,7 +362,7 @@ func TestReadyStatus(t *testing.T) {
 					},
 				}},
 				expectedReady:   false,
-				expectedMessage: "",
+				expectedMessage: waitingForASOReconcileMsg,
 			},
 			{
 				name: "status.conditions wrong type",
@@ -374,7 +374,7 @@ func TestReadyStatus(t *testing.T) {
 					},
 				}},
 				expectedReady:   false,
-				expectedMessage: "",
+				expectedMessage: waitingForASOReconcileMsg,
 			},
 			{
 				name: "non-Ready type status.conditions",
@@ -388,7 +388,7 @@ func TestReadyStatus(t *testing.T) {
 					},
 				}},
 				expectedReady:   false,
-				expectedMessage: "",
+				expectedMessage: waitingForASOReconcileMsg,
 			},
 			{
 				name: "observedGeneration not up to date",
@@ -487,7 +487,7 @@ func TestReadyStatus(t *testing.T) {
 				name:            "empty conditions",
 				conditions:      nil,
 				expectedReady:   false,
-				expectedMessage: "",
+				expectedMessage: waitingForASOReconcileMsg,
 			},
 			{
 				name: "not ready conditions",

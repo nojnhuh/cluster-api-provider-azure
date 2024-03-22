@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
 	"github.com/go-logr/logr"
@@ -75,6 +76,7 @@ func (r *InfraReconciler) Reconcile(ctx context.Context) error {
 	for _, spec := range r.resources {
 		spec.SetNamespace(r.owner.GetNamespace())
 		gvk := spec.GroupVersionKind()
+		reconciled[reconcileKey{gvk.Group, gvk.Kind, spec.GetName()}] = struct{}{}
 
 		log := log.WithValues("resource", klog.KObj(spec), "resourceVersion", gvk.GroupVersion(), "resourceKind", gvk.Kind)
 
@@ -118,8 +120,6 @@ func (r *InfraReconciler) Reconcile(ctx context.Context) error {
 		if !foundStatus {
 			newStatuses = append(newStatuses, newStatus)
 		}
-
-		reconciled[reconcileKey{gvk.Group, gvk.Kind, spec.GetName()}] = struct{}{}
 	}
 
 	// filteredStatuses does not contain status for resources that have been deleted and are gone.
@@ -157,9 +157,21 @@ func (r *InfraReconciler) Reconcile(ctx context.Context) error {
 }
 
 func readyStatus(u *unstructured.Unstructured) (conditions.Condition, error) {
+	waitingForASO := conditions.Condition{
+		Type:               conditions.ConditionTypeReady,
+		Status:             metav1.ConditionFalse,
+		Severity:           conditions.ConditionSeverityInfo,
+		LastTransitionTime: metav1.Time{Time: time.Now()},
+		Reason:             "WaitingForASOReconcile",
+		Message:            waitingForASOReconcileMsg,
+	}
+
 	statusConditions, found, err := unstructured.NestedSlice(u.Object, "status", "conditions")
-	if !found || err != nil {
+	if err != nil {
 		return conditions.Condition{}, err
+	}
+	if !found {
+		return waitingForASO, nil
 	}
 
 	for _, el := range statusConditions {
@@ -174,15 +186,7 @@ func readyStatus(u *unstructured.Unstructured) (conditions.Condition, error) {
 
 		observedGen, _, err := unstructured.NestedInt64(condition, "observedGeneration")
 		if observedGen < u.GetGeneration() {
-			return conditions.Condition{
-				Type:               conditions.ConditionTypeReady,
-				Status:             metav1.ConditionFalse,
-				Severity:           conditions.ConditionSeverityInfo,
-				LastTransitionTime: metav1.Time{},
-				ObservedGeneration: observedGen,
-				Reason:             "WaitingForASOReconcile",
-				Message:            waitingForASOReconcileMsg,
-			}, nil
+			return waitingForASO, nil
 		}
 
 		condJSON, err := json.Marshal(condition)
@@ -197,7 +201,8 @@ func readyStatus(u *unstructured.Unstructured) (conditions.Condition, error) {
 		return asoCond, nil
 	}
 
-	return conditions.Condition{}, nil
+	// no ready condition is set
+	return waitingForASO, nil
 }
 
 // Delete deletes the specified resources.
@@ -207,6 +212,10 @@ func (r *InfraReconciler) Delete(ctx context.Context) error {
 
 	var statuses []infrav1.ResourceStatus
 
+	// TODO: loop over status resources here. If an edit comes in which removes a resource and a delete
+	// immediately follows, the reconciler may only start the delete and orphan the resource that got edited
+	// out. Double check to see if the inverse problem can happen with this approach, esp when errors occur in
+	// Reconcile. Maybe eagerly adding status for resource in Reconcile even before Patch-ing could help?
 	for _, spec := range r.resources {
 		spec.SetNamespace(r.owner.GetNamespace())
 		gvk := spec.GroupVersionKind()

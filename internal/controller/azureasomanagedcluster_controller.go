@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	asoconditions "github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
 	"github.com/go-logr/logr"
@@ -93,7 +94,7 @@ func (r *AzureASOManagedClusterReconciler) Reconcile(ctx context.Context, req ct
 		opts := []patch.Option{
 			patch.WithOwnedConditions{Conditions: []clusterv1.ConditionType{
 				clusterv1.ReadyCondition,
-				infrav1.Reconciled,
+				infrav1.Reconciled, // TODO: make sure this works
 				infrav1.ResourcesReady,
 				infrav1.ControlPlaneEndpointReady,
 			}},
@@ -111,6 +112,9 @@ func (r *AzureASOManagedClusterReconciler) Reconcile(ctx context.Context, req ct
 			result = ctrl.Result{}
 		}
 	}()
+
+	// TODO: don't reconcile when cluster is paused. Ensure no other changes get made to ASO resources other
+	// than setting the reconciliation policy.
 
 	cluster, err := util.GetOwnerCluster(ctx, r.Client, asoManagedCluster.ObjectMeta)
 	if err != nil {
@@ -175,7 +179,6 @@ func (r *AzureASOManagedClusterReconciler) reconcileNormal(ctx context.Context, 
 	}
 
 	asoManagedCluster.Spec.ControlPlaneEndpoint = asoManagedControlPlane.Status.ControlPlaneEndpoint
-	asoManagedCluster.Status.Ready = !asoManagedCluster.Spec.ControlPlaneEndpoint.IsZero()
 
 	return ctrl.Result{}, nil
 }
@@ -206,7 +209,7 @@ func (r *AzureASOManagedClusterReconciler) reconcileDelete(ctx context.Context, 
 }
 
 func (r *AzureASOManagedClusterReconciler) reconcileConditions(asoManagedCluster *infrav1.AzureASOManagedCluster, resultErr error) {
-	reconcileResourcesReadyCondition(asoManagedCluster)
+	reconcileResourcesReadyCondition(asoManagedCluster, asoManagedCluster.Spec.Resources)
 	reconcileResultErr(asoManagedCluster, resultErr)
 
 	conditions.MarkTrue(asoManagedCluster, infrav1.ControlPlaneEndpointReady)
@@ -316,7 +319,7 @@ func ignorePatchErrNotFound(err error) error {
 func reconcileResourcesReadyCondition(obj interface {
 	conditions.Setter
 	resourceStatusObject
-}) {
+}, specResources []runtime.RawExtension) {
 	type severity int
 	const (
 		none severity = iota
@@ -337,21 +340,59 @@ func reconcileResourcesReadyCondition(obj interface {
 		error:   clusterv1.ConditionSeverityError,
 	}
 
+	expectedReady := map[infrav1.StatusResource]struct{}{}
+	actualReady := map[infrav1.StatusResource]bool{}
+	for _, resource := range specResources {
+		u := &unstructured.Unstructured{}
+		u.UnmarshalJSON(resource.Raw) // TODO: err
+		expectedReady[infrav1.StatusResource{
+			Group: u.GroupVersionKind().Group,
+			Kind:  u.GroupVersionKind().Kind,
+			Name:  u.GetName(),
+		}] = struct{}{}
+	}
 	highestSeverity := none
-	readyCount := 0
-	total := len(obj.GetResourceStatuses())
-
-	conditions.MarkTrue(obj, infrav1.ResourcesReady)
 	for _, status := range obj.GetResourceStatuses() {
+		actualReady[infrav1.StatusResource{
+			Group: status.Resource.Group,
+			Kind:  status.Resource.Kind,
+			Name:  status.Resource.Name,
+		}] = status.Condition.Status == metav1.ConditionTrue
+
 		if severities[status.Condition.Severity] > highestSeverity {
 			highestSeverity = severities[status.Condition.Severity]
 		}
-		if status.Condition.Status == metav1.ConditionTrue {
+	}
+
+	readyCount := 0
+	staleCount := 0
+	total := len(specResources)
+	for expected := range expectedReady {
+		if ready := actualReady[expected]; ready {
 			readyCount++
 		}
 	}
+	for actual := range actualReady {
+		if _, exists := expectedReady[actual]; !exists {
+			staleCount++
+		}
+	}
+
+	var msgs []string
 	if readyCount < total {
-		conditions.MarkFalse(obj, infrav1.ResourcesReady, "ResourcesNotReady", toCAPISeverity[highestSeverity], fmt.Sprintf("%d of %d resources are ready", readyCount, total))
+		msgs = append(msgs, fmt.Sprintf("%d of %d resources are ready", readyCount, total))
+	}
+	if staleCount > 0 {
+		msgs = append(msgs, fmt.Sprintf("%d resources are being deleted", staleCount))
+	}
+	conditions.MarkTrue(obj, infrav1.ResourcesReady)
+	if len(msgs) > 0 {
+		if highestSeverity == none {
+			// CAPI won't process this correctly when setting the Ready condition when no severity is set.
+			// This could happen when there are no resource statuses.
+			highestSeverity = info
+		}
+		conditions.MarkFalse(obj, infrav1.ResourcesReady, "ResourcesNotReady", toCAPISeverity[highestSeverity], strings.Join(msgs, ", "))
 	}
 }
 
