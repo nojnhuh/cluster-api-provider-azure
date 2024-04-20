@@ -241,6 +241,11 @@ func (r *AzureASOManagedClusterReconciler) reconcileNormal(ctx context.Context, 
 		return ctrl.Result{}, fmt.Errorf("failed to reconcile resources: %w", err)
 	}
 	for _, status := range asoManagedCluster.Status.Resources {
+		if status.Pending {
+			return ctrl.Result{Requeue: true}, nil
+		}
+	}
+	for _, status := range asoManagedCluster.Status.Resources {
 		if !status.Ready {
 			return ctrl.Result{}, nil
 		}

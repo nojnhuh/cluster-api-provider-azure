@@ -223,6 +223,11 @@ func (r *AzureASOManagedControlPlaneReconciler) reconcileNormal(ctx context.Cont
 		return ctrl.Result{}, fmt.Errorf("failed to reconcile resources: %w", err)
 	}
 	for _, status := range asoManagedControlPlane.Status.Resources {
+		if status.Pending {
+			return ctrl.Result{Requeue: true}, nil
+		}
+	}
+	for _, status := range asoManagedControlPlane.Status.Resources {
 		if !status.Ready {
 			return ctrl.Result{}, nil
 		}

@@ -97,18 +97,21 @@ func TestResourceReconcilerReconcile(t *testing.T) {
 		c := fakeClientBuilder().
 			Build()
 
-		asoManagedCluster := &infrav1exp.AzureASOManagedCluster{}
-
-		unpatchedRGs := map[string]struct{}{
-			"rg1": {},
-			"rg2": {},
+		asoManagedCluster := &infrav1exp.AzureASOManagedCluster{
+			Status: infrav1exp.AzureASOManagedClusterStatus{
+				Resources: []infrav1exp.ResourceStatus{
+					rgStatus("rg1"),
+					rgStatus("rg2"),
+				},
+			},
 		}
+
+		var patchedRGs []string
 		r := &ResourceReconciler{
 			Client: &FakeClient{
 				Client: c,
 				patchFunc: func(ctx context.Context, o client.Object, p client.Patch, po ...client.PatchOption) error {
-					g.Expect(unpatchedRGs).To(HaveKey(o.GetName()))
-					delete(unpatchedRGs, o.GetName())
+					patchedRGs = append(patchedRGs, o.GetName())
 					return nil
 				},
 			},
@@ -132,6 +135,11 @@ func TestResourceReconcilerReconcile(t *testing.T) {
 						Name: "rg2",
 					},
 				}),
+				rgJSON(g, s, &asoresourcesv1.ResourceGroup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "rg3",
+					},
+				}),
 			},
 			owner:   asoManagedCluster,
 			watcher: w,
@@ -139,14 +147,22 @@ func TestResourceReconcilerReconcile(t *testing.T) {
 
 		g.Expect(r.Reconcile(ctx)).To(Succeed())
 		g.Expect(w.watching).To(HaveKey("ResourceGroup.resources.azure.com"))
-		g.Expect(unpatchedRGs).To(BeEmpty()) // all expected resources were patched
+		g.Expect(patchedRGs).To(ConsistOf("rg1", "rg2"))
 
 		resourcesStatuses := asoManagedCluster.Status.Resources
-		g.Expect(resourcesStatuses).To(HaveLen(2))
+		g.Expect(resourcesStatuses).To(HaveLen(3))
+
 		g.Expect(resourcesStatuses[0].Resource.Name).To(Equal("rg1"))
 		g.Expect(resourcesStatuses[0].Ready).To(BeTrue())
+		g.Expect(resourcesStatuses[0].Pending).To(BeFalse())
+
 		g.Expect(resourcesStatuses[1].Resource.Name).To(Equal("rg2"))
 		g.Expect(resourcesStatuses[1].Ready).To(BeFalse())
+		g.Expect(resourcesStatuses[1].Pending).To(BeFalse())
+
+		g.Expect(resourcesStatuses[2].Resource.Name).To(Equal("rg3"))
+		g.Expect(resourcesStatuses[2].Ready).To(BeFalse())
+		g.Expect(resourcesStatuses[2].Pending).To(BeTrue())
 	})
 
 	t.Run("delete stale resources", func(t *testing.T) {

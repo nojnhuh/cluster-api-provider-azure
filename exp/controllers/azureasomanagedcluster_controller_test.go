@@ -162,6 +162,70 @@ func TestAzureASOManagedClusterReconcile(t *testing.T) {
 		g.Expect(asoManagedCluster.GetAnnotations()).To(HaveKey(clusterctlv1.BlockMoveAnnotation))
 	})
 
+	t.Run("reconciles resources that are pending", func(t *testing.T) {
+		g := NewGomegaWithT(t)
+
+		cluster := &clusterv1.Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "cluster",
+				Namespace: "ns",
+			},
+			Spec: clusterv1.ClusterSpec{
+				ControlPlaneRef: &corev1.ObjectReference{
+					APIVersion: infrav1exp.GroupVersion.Identifier(),
+					Kind:       infrav1exp.AzureASOManagedControlPlaneKind,
+				},
+			},
+		}
+		asoManagedCluster := &infrav1exp.AzureASOManagedCluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "amc",
+				Namespace: cluster.Namespace,
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						APIVersion: clusterv1.GroupVersion.Identifier(),
+						Kind:       "Cluster",
+						Name:       cluster.Name,
+					},
+				},
+				Finalizers: []string{
+					clusterv1.ClusterFinalizer,
+				},
+				Annotations: map[string]string{
+					clusterctlv1.BlockMoveAnnotation: "true",
+				},
+			},
+			Status: infrav1exp.AzureASOManagedClusterStatus{
+				Ready: true,
+			},
+		}
+		c := fakeClientBuilder().
+			WithObjects(cluster, asoManagedCluster).
+			Build()
+		r := &AzureASOManagedClusterReconciler{
+			Client: c,
+			newResourceReconciler: func(asoManagedCluster *infrav1exp.AzureASOManagedCluster, _ []*unstructured.Unstructured) resourceReconciler {
+				return &fakeResourceReconciler{
+					owner: asoManagedCluster,
+					reconcileFunc: func(ctx context.Context, o client.Object) error {
+						asoManagedCluster.SetResourceStatuses([]infrav1exp.ResourceStatus{
+							{Pending: false},
+							{Pending: true},
+							{Pending: false},
+						})
+						return nil
+					},
+				}
+			},
+		}
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoManagedCluster)})
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(result).To(Equal(ctrl.Result{Requeue: true}))
+
+		g.Expect(r.Get(ctx, client.ObjectKeyFromObject(asoManagedCluster), asoManagedCluster)).To(Succeed())
+		g.Expect(asoManagedCluster.Status.Ready).To(BeFalse())
+	})
+
 	t.Run("reconciles resources that are not ready", func(t *testing.T) {
 		g := NewGomegaWithT(t)
 

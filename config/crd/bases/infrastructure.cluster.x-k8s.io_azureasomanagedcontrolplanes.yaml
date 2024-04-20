@@ -87,6 +87,12 @@ spec:
                 items:
                   description: ResourceStatus represents the status of a resource.
                   properties:
+                    pending:
+                      description: |-
+                        Pending resources have been acknowledged by CAPZ but not yet created. CAPZ uses this as a mechanism to
+                        eliminate a race condition between create and delete to ensure no resources defined in the spec are
+                        orphaned.
+                      type: boolean
                     ready:
                       type: boolean
                     resource:

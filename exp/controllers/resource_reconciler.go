@@ -79,16 +79,34 @@ func (r *ResourceReconciler) Reconcile(ctx context.Context) error {
 			return fmt.Errorf("failed to watch resource: %w", err)
 		}
 
-		log.V(4).Info("applying resource")
-		err := r.Patch(ctx, spec, client.Apply, client.FieldOwner("capz-manager"), client.ForceOwnership)
-		if err != nil {
-			return fmt.Errorf("failed to apply resource: %w", err)
+		hasStatus := false
+		for _, status := range r.owner.GetResourceStatuses() {
+			if status.Resource.Group == gvk.Group &&
+				status.Resource.Kind == gvk.Kind &&
+				status.Resource.Name == spec.GetName() {
+				hasStatus = true
+				break
+			}
 		}
 
-		ready, err := readyStatus(ctx, spec)
-		if err != nil {
-			return fmt.Errorf("failed to get ready status: %w", err)
+		// Newly-defined resources in the CAPZ spec are first recorded in the status as "pending" without
+		// performing a patch to create the resource. CAPZ only patches resources that have already been
+		// recorded in status to ensure no resources are orphaned. Controllers are expected to immediately
+		// requeue if any resources are pending.
+		ready := false
+		if hasStatus {
+			log.V(4).Info("applying resource")
+			err := r.Patch(ctx, spec, client.Apply, client.FieldOwner("capz-manager"), client.ForceOwnership)
+			if err != nil {
+				return fmt.Errorf("failed to apply resource: %w", err)
+			}
+
+			ready, err = readyStatus(ctx, spec)
+			if err != nil {
+				return fmt.Errorf("failed to get ready status: %w", err)
+			}
 		}
+
 		newResourceStatuses = append(newResourceStatuses, infrav1exp.ResourceStatus{
 			Resource: infrav1exp.StatusResource{
 				Group:   gvk.Group,
@@ -96,7 +114,8 @@ func (r *ResourceReconciler) Reconcile(ctx context.Context) error {
 				Kind:    gvk.Kind,
 				Name:    spec.GetName(),
 			},
-			Ready: ready,
+			Ready:   ready,
+			Pending: !hasStatus,
 		})
 	}
 

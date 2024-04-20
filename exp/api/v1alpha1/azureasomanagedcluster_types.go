@@ -56,6 +56,10 @@ type AzureASOManagedClusterStatus struct {
 type ResourceStatus struct {
 	Resource StatusResource `json:"resource"`
 	Ready    bool           `json:"ready"`
+	// Pending resources have been acknowledged by CAPZ but not yet created. CAPZ uses this as a mechanism to
+	// eliminate a race condition between create and delete to ensure no resources defined in the spec are
+	// orphaned.
+	Pending bool `json:"pending,omitempty"`
 }
 
 // StatusResource is a handle to a resource.
