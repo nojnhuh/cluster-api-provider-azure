@@ -143,7 +143,11 @@ func (r *AzureASOManagedMachinePoolReconciler) Reconcile(ctx context.Context, re
 		return ctrl.Result{}, fmt.Errorf("failed to create patch helper: %w", err)
 	}
 	defer func() {
-		err := patchHelper.Patch(ctx, asoManagedMachinePool)
+		var opts []patch.Option
+		if resultErr == nil {
+			opts = append(opts, patch.WithStatusObservedGeneration{})
+		}
+		err := patchHelper.Patch(ctx, asoManagedMachinePool, opts...)
 		if err != nil && resultErr == nil {
 			resultErr = err
 			result = ctrl.Result{}

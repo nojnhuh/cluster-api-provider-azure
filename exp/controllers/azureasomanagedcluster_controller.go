@@ -182,7 +182,11 @@ func (r *AzureASOManagedClusterReconciler) Reconcile(ctx context.Context, req ct
 		return ctrl.Result{}, fmt.Errorf("failed to create patch helper: %w", err)
 	}
 	defer func() {
-		err := patchHelper.Patch(ctx, asoManagedCluster)
+		var opts []patch.Option
+		if resultErr == nil {
+			opts = append(opts, patch.WithStatusObservedGeneration{})
+		}
+		err := patchHelper.Patch(ctx, asoManagedCluster, opts...)
 		if err != nil && resultErr == nil {
 			resultErr = err
 			result = ctrl.Result{}

@@ -47,6 +47,9 @@ type AzureASOManagedMachinePoolStatus struct {
 
 	//+optional
 	Resources []ResourceStatus `json:"resources,omitempty"`
+
+	//+optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
 
 //+kubebuilder:object:root=true

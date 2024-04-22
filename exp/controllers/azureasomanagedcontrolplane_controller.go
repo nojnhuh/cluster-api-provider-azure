@@ -150,7 +150,11 @@ func (r *AzureASOManagedControlPlaneReconciler) Reconcile(ctx context.Context, r
 		return ctrl.Result{}, fmt.Errorf("failed to create patch helper: %w", err)
 	}
 	defer func() {
-		err := patchHelper.Patch(ctx, asoManagedControlPlane)
+		var opts []patch.Option
+		if resultErr == nil {
+			opts = append(opts, patch.WithStatusObservedGeneration{})
+		}
+		err := patchHelper.Patch(ctx, asoManagedControlPlane, opts...)
 		if err != nil && resultErr == nil {
 			resultErr = err
 			result = ctrl.Result{}

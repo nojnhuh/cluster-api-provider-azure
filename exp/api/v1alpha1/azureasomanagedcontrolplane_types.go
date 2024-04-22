@@ -52,6 +52,9 @@ type AzureASOManagedControlPlaneStatus struct {
 	// ControlPlaneEndpoint represents the endpoint for the cluster's API server.
 	//+optional
 	ControlPlaneEndpoint clusterv1.APIEndpoint `json:"controlPlaneEndpoint"`
+
+	//+optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
 
 //+kubebuilder:object:root=true

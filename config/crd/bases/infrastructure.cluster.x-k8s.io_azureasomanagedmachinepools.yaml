@@ -60,6 +60,9 @@ spec:
             description: AzureASOManagedMachinePoolStatus defines the observed state
               of AzureASOManagedMachinePool.
             properties:
+              observedGeneration:
+                format: int64
+                type: integer
               ready:
                 description: |-
                   Ready represents whether or not the infrastructure is ready to be used. It fulfills Cluster API's

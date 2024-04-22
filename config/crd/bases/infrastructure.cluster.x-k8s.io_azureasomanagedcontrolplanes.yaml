@@ -78,6 +78,9 @@ spec:
                   Initialized represents whether or not the API server has been provisioned. It fulfills Cluster API's
                   control plane provider contract. For AKS, this is equivalent to `ready`.
                 type: boolean
+              observedGeneration:
+                format: int64
+                type: integer
               ready:
                 description: |-
                   Ready represents whether or not the API server is ready to receive requests. It fulfills Cluster API's

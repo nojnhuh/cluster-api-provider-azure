@@ -107,6 +107,7 @@ func TestAzureASOManagedClusterReconcile(t *testing.T) {
 						Name:       "cluster",
 					},
 				},
+				Generation: 1,
 			},
 		}
 		c := fakeClientBuilder().
@@ -117,6 +118,10 @@ func TestAzureASOManagedClusterReconcile(t *testing.T) {
 		}
 		_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoManagedCluster)})
 		g.Expect(err).To(HaveOccurred())
+
+		g.Expect(c.Get(ctx, client.ObjectKeyFromObject(asoManagedCluster), asoManagedCluster)).To(Succeed())
+		g.Expect(asoManagedCluster.Generation).To(Equal(int64(1)))
+		g.Expect(asoManagedCluster.Status.ObservedGeneration).To(Equal(int64(0)))
 	})
 
 	t.Run("adds a finalizer and block-move annotation", func(t *testing.T) {
@@ -145,6 +150,7 @@ func TestAzureASOManagedClusterReconcile(t *testing.T) {
 						Name:       cluster.Name,
 					},
 				},
+				Generation: 1,
 			},
 		}
 		c := fakeClientBuilder().
@@ -160,6 +166,8 @@ func TestAzureASOManagedClusterReconcile(t *testing.T) {
 		g.Expect(c.Get(ctx, client.ObjectKeyFromObject(asoManagedCluster), asoManagedCluster)).To(Succeed())
 		g.Expect(asoManagedCluster.GetFinalizers()).To(ContainElement(clusterv1.ClusterFinalizer))
 		g.Expect(asoManagedCluster.GetAnnotations()).To(HaveKey(clusterctlv1.BlockMoveAnnotation))
+		g.Expect(asoManagedCluster.Generation).To(Equal(int64(1)))
+		g.Expect(asoManagedCluster.Status.ObservedGeneration).To(Equal(int64(1)))
 	})
 
 	t.Run("reconciles resources that are pending", func(t *testing.T) {

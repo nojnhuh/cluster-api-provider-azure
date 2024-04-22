@@ -50,6 +50,9 @@ type AzureASOManagedClusterStatus struct {
 
 	//+optional
 	Resources []ResourceStatus `json:"resources,omitempty"`
+
+	//+optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
 
 // ResourceStatus represents the status of a resource.

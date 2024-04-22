@@ -95,6 +95,7 @@ func TestAzureASOManagedMachinePoolReconcile(t *testing.T) {
 						Name:       "mp",
 					},
 				},
+				Generation: 1,
 			},
 		}
 		c := fakeClientBuilder().
@@ -107,6 +108,10 @@ func TestAzureASOManagedMachinePoolReconcile(t *testing.T) {
 		g.Expect(err).To(HaveOccurred())
 		g.Expect(err.Error()).To(ContainSubstring("machinepools.cluster.x-k8s.io \"mp\" not found"))
 		g.Expect(result).To(Equal(ctrl.Result{}))
+
+		g.Expect(c.Get(ctx, client.ObjectKeyFromObject(asoManagedMachinePool), asoManagedMachinePool)).To(Succeed())
+		g.Expect(asoManagedMachinePool.Generation).To(Equal(int64(1)))
+		g.Expect(asoManagedMachinePool.Status.ObservedGeneration).To(Equal(int64(0)))
 	})
 
 	t.Run("Cluster does not exist", func(t *testing.T) {
@@ -172,6 +177,7 @@ func TestAzureASOManagedMachinePoolReconcile(t *testing.T) {
 						Name:       "mp",
 					},
 				},
+				Generation: 1,
 			},
 		}
 		machinePool := &expv1.MachinePool{
@@ -196,6 +202,8 @@ func TestAzureASOManagedMachinePoolReconcile(t *testing.T) {
 		g.Expect(c.Get(ctx, client.ObjectKeyFromObject(asoManagedMachinePool), asoManagedMachinePool)).To(Succeed())
 		g.Expect(asoManagedMachinePool.GetFinalizers()).To(ContainElement(clusterv1.ClusterFinalizer))
 		g.Expect(asoManagedMachinePool.GetAnnotations()).To(HaveKey(clusterctlv1.BlockMoveAnnotation))
+		g.Expect(asoManagedMachinePool.Generation).To(Equal(int64(1)))
+		g.Expect(asoManagedMachinePool.Status.ObservedGeneration).To(Equal(int64(1)))
 	})
 
 	t.Run("reconciles resources that are pending", func(t *testing.T) {
