@@ -43,7 +43,7 @@ if [[ "${OSTYPE}" == "darwin"* ]]; then
 fi
 
 setup() {
-    KUBE_ROOT="$(go env GOPATH)/src/k8s.io/kubernetes"
+    KUBE_ROOT=${KUBE_ROOT:-"$(go env GOPATH)/src/k8s.io/kubernetes"}
     export KUBE_ROOT
 
     # shellcheck disable=SC1091
