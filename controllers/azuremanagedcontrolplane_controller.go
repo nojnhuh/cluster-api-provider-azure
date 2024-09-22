@@ -50,6 +50,7 @@ type AzureManagedControlPlaneReconciler struct {
 	Recorder                                 record.EventRecorder
 	Timeouts                                 reconciler.Timeouts
 	WatchFilterValue                         string
+	CredentialCache                          azure.CredentialCache
 	getNewAzureManagedControlPlaneReconciler func(scope *scope.ManagedControlPlaneScope) (*azureManagedControlPlaneService, error)
 }
 
@@ -183,6 +184,7 @@ func (amcpr *AzureManagedControlPlaneReconciler) Reconcile(ctx context.Context, 
 		ControlPlane:        azureControlPlane,
 		ManagedMachinePools: pools,
 		Timeouts:            amcpr.Timeouts,
+		CredentialCache:     amcpr.CredentialCache,
 	})
 	if err != nil {
 		return reconcile.Result{}, errors.Wrap(err, "failed to create scope")

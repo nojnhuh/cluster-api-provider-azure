@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
+	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -291,8 +292,9 @@ func TestASOSecretReconcile(t *testing.T) {
 			clientBuilder := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(tc.objects...).Build()
 
 			reconciler := &ASOSecretReconciler{
-				Client:   clientBuilder,
-				Recorder: record.NewFakeRecorder(128),
+				Client:          clientBuilder,
+				Recorder:        record.NewFakeRecorder(128),
+				CredentialCache: azure.NewCredentialCache(),
 			}
 
 			_, err := reconciler.Reconcile(context.Background(), ctrl.Request{

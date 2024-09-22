@@ -36,6 +36,7 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
+	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	infrav1exp "sigs.k8s.io/cluster-api-provider-azure/exp/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-azure/internal/test/record"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -85,10 +86,11 @@ type (
 	TestEnvironment struct {
 		manager.Manager
 		client.Client
-		Config      *rest.Config
-		Log         logr.LogSink
-		LogRecorder *record.Logger
-		doneMgr     chan struct{}
+		Config          *rest.Config
+		Log             logr.LogSink
+		LogRecorder     *record.Logger
+		CredentialCache azure.CredentialCache
+		doneMgr         chan struct{}
 	}
 )
 
@@ -112,12 +114,13 @@ func NewTestEnvironment() *TestEnvironment {
 	}
 
 	return &TestEnvironment{
-		Manager:     mgr,
-		Client:      mgr.GetClient(),
-		Config:      mgr.GetConfig(),
-		LogRecorder: logger,
-		Log:         logger,
-		doneMgr:     make(chan struct{}),
+		Manager:         mgr,
+		Client:          mgr.GetClient(),
+		Config:          mgr.GetConfig(),
+		LogRecorder:     logger,
+		Log:             logger,
+		CredentialCache: azure.NewCredentialCache(),
+		doneMgr:         make(chan struct{}),
 	}
 }
 

@@ -28,6 +28,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
+	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	infrav1exp "sigs.k8s.io/cluster-api-provider-azure/exp/api/v1beta1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	expv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
@@ -230,8 +231,9 @@ func TestAzureJSONMachineReconciler(t *testing.T) {
 			client := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(tc.objects...).Build()
 
 			reconciler := &AzureJSONMachineReconciler{
-				Client:   client,
-				Recorder: record.NewFakeRecorder(128),
+				Client:          client,
+				Recorder:        record.NewFakeRecorder(128),
+				CredentialCache: azure.NewCredentialCache(),
 			}
 
 			_, err := reconciler.Reconcile(context.Background(), ctrl.Request{
