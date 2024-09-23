@@ -44,6 +44,7 @@ import (
 	"k8s.io/klog/v2"
 	infrav1alpha "sigs.k8s.io/cluster-api-provider-azure/api/v1alpha1"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
+	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	"sigs.k8s.io/cluster-api-provider-azure/controllers"
 	infrav1exp "sigs.k8s.io/cluster-api-provider-azure/exp/api/v1beta1"
 	infrav1controllersexp "sigs.k8s.io/cluster-api-provider-azure/exp/controllers"
@@ -370,6 +371,8 @@ func main() {
 }
 
 func registerControllers(ctx context.Context, mgr manager.Manager) {
+	credCache := azure.NewCredentialCache()
+
 	machineCache, err := coalescing.NewRequestCache(debouncingTimer)
 	if err != nil {
 		setupLog.Error(err, "failed to build machineCache ReconcileCache")
@@ -529,6 +532,7 @@ func registerControllers(ctx context.Context, mgr manager.Manager) {
 		if err := (&controllers.AzureASOManagedControlPlaneReconciler{
 			Client:           mgr.GetClient(),
 			WatchFilterValue: watchFilterValue,
+			CredentialCache:  controllers.NewASOCredentialCache(credCache, mgr.GetClient()),
 		}).SetupWithManager(ctx, mgr, controller.Options{MaxConcurrentReconciles: azureClusterConcurrency}); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "AzureASOManagedControlPlane")
 			os.Exit(1)
