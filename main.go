@@ -20,6 +20,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"time"
 
@@ -36,9 +37,12 @@ import (
 	asonetworkv1api20220701 "github.com/Azure/azure-service-operator/v2/api/network/v1api20220701"
 	asoresourcesv1 "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
 	"github.com/spf13/pflag"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	cgrecord "k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
@@ -51,6 +55,7 @@ import (
 	"sigs.k8s.io/cluster-api-provider-azure/pkg/coalescing"
 	"sigs.k8s.io/cluster-api-provider-azure/pkg/ot"
 	"sigs.k8s.io/cluster-api-provider-azure/util/reconciler"
+	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
 	"sigs.k8s.io/cluster-api-provider-azure/version"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	kubeadmv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
@@ -302,6 +307,14 @@ func main() {
 
 	restConfig := ctrl.GetConfigOrDie()
 	restConfig.UserAgent = "cluster-api-provider-azure-manager"
+
+	httpClient, err := rest.HTTPClientFor(restConfig)
+	if err != nil {
+		setupLog.Error(err, "unable to create Kubernetes HTTP client")
+		os.Exit(1)
+	}
+	httpClient.Transport = SpanRecordingRoundTripper{httpClient.Transport}
+
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme:                     scheme,
 		LeaderElection:             enableLeaderElection,
@@ -319,6 +332,7 @@ func main() {
 			SyncPeriod:        &syncPeriod,
 		},
 		Client: client.Options{
+			HTTPClient: httpClient,
 			Cache: &client.CacheOptions{
 				DisableFor: []client.Object{
 					&corev1.ConfigMap{},
@@ -675,4 +689,28 @@ func registerWebhooks(mgr manager.Manager) {
 		setupLog.Error(err, "unable to create health check")
 		os.Exit(1)
 	}
+}
+
+type SpanRecordingRoundTripper struct {
+	wrapped http.RoundTripper
+}
+
+func (s SpanRecordingRoundTripper) RoundTrip(req *http.Request) (res *http.Response, err error) {
+	_, span := tele.Tracer().Start(
+		req.Context(),
+		"k8s-client.http",
+		trace.WithAttributes(
+			attribute.KeyValue{Key: "method", Value: attribute.StringValue(req.Method)},
+			attribute.KeyValue{Key: "url", Value: attribute.StringValue(req.URL.String())},
+		),
+	)
+	defer func() {
+		span.SetAttributes(
+			attribute.KeyValue{Key: "code", Value: attribute.IntValue(res.StatusCode)},
+		)
+
+		span.End()
+	}()
+
+	return s.wrapped.RoundTrip(req)
 }
