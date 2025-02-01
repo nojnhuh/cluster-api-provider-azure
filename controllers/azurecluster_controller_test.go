@@ -68,7 +68,7 @@ var _ = Describe("AzureClusterReconciler", func() {
 
 	Context("Reconcile an AzureCluster", func() {
 		It("should not error with minimal set up", func() {
-			reconciler := NewAzureClusterReconciler(testEnv, testEnv.GetEventRecorderFor("azurecluster-reconciler"), reconciler.Timeouts{}, "", azure.NewCredentialCache())
+			reconciler := NewAzureClusterReconciler(testEnv, testEnv.GetEventRecorderFor("azurecluster-reconciler"), reconciler.Timeouts{}, "", azure.NewCredentialCache(0))
 			By("Calling reconcile")
 			name := test.RandomName("foo", 10)
 			instance := &infrav1.AzureCluster{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}
@@ -275,7 +275,7 @@ func TestAzureClusterReconcilePaused(t *testing.T) {
 
 	recorder := record.NewFakeRecorder(1)
 
-	reconciler := NewAzureClusterReconciler(c, recorder, reconciler.Timeouts{}, "", azure.NewCredentialCache())
+	reconciler := NewAzureClusterReconciler(c, recorder, reconciler.Timeouts{}, "", azure.NewCredentialCache(0))
 	name := test.RandomName("paused", 10)
 	namespace := namespace
 
@@ -509,7 +509,7 @@ func getClusterReconcileInputs(tc TestClusterReconcileInput) (*AzureClusterRecon
 		Cluster:         cluster,
 		AzureCluster:    azureCluster,
 		Cache:           tc.cache,
-		CredentialCache: azure.NewCredentialCache(),
+		CredentialCache: azure.NewCredentialCache(0),
 	})
 	if err != nil {
 		return nil, nil, err

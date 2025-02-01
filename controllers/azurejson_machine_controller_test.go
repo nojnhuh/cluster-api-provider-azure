@@ -233,7 +233,7 @@ func TestAzureJSONMachineReconciler(t *testing.T) {
 			reconciler := &AzureJSONMachineReconciler{
 				Client:          client,
 				Recorder:        record.NewFakeRecorder(128),
-				CredentialCache: azure.NewCredentialCache(),
+				CredentialCache: azure.NewCredentialCache(0),
 			}
 
 			_, err := reconciler.Reconcile(context.Background(), ctrl.Request{

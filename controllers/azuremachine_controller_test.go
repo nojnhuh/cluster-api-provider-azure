@@ -148,7 +148,7 @@ func TestAzureMachineReconcile(t *testing.T) {
 			reconciler := &AzureMachineReconciler{
 				Client:          fakeClient,
 				Recorder:        record.NewFakeRecorder(128),
-				CredentialCache: azure.NewCredentialCache(),
+				CredentialCache: azure.NewCredentialCache(0),
 			}
 
 			_, err := reconciler.Reconcile(context.Background(), ctrl.Request{
@@ -401,7 +401,7 @@ func getMachineReconcileInputs(tc TestMachineReconcileInput) (*AzureMachineRecon
 		).
 		Build()
 
-	credCache := azure.NewCredentialCache()
+	credCache := azure.NewCredentialCache(0)
 	reconciler := &AzureMachineReconciler{
 		Client:                    client,
 		Recorder:                  record.NewFakeRecorder(128),
@@ -788,7 +788,7 @@ func TestConditions(t *testing.T) {
 			g.Expect(fakeClient.Get(context.TODO(), key, resultIdentity)).To(Succeed())
 			recorder := record.NewFakeRecorder(10)
 
-			credCache := azure.NewCredentialCache()
+			credCache := azure.NewCredentialCache(0)
 			reconciler := NewAzureMachineReconciler(fakeClient, recorder, reconciler.Timeouts{}, "", credCache)
 
 			clusterScope, err := scope.NewClusterScope(context.TODO(), scope.ClusterScopeParams{

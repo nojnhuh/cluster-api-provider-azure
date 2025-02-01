@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
+	"k8s.io/utils/lru"
 )
 
 type fakeTokenCredential struct {
@@ -40,8 +41,7 @@ func TestGetOrStore(t *testing.T) {
 	g := NewGomegaWithT(t)
 
 	credCache := &credentialCache{
-		mut:   new(sync.Mutex),
-		cache: make(map[credentialCacheKey]azcore.TokenCredential),
+		cache: lru.New(1),
 	}
 
 	newCredCount := 0
@@ -73,14 +73,25 @@ func TestGetOrStore(t *testing.T) {
 	g.Expect(err).To(MatchError(expectedErr))
 	g.Expect(cred).To(BeNil())
 	g.Expect(newCredCount).To(Equal(2))
+
+	// overflow the cache, old item gets removed
+	cred, err = credCache.getOrStore(credentialCacheKey{tenantID: "3"}, newCredFunc(fakeTokenCredential{tenantID: "3"}, nil))
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(cred).To(Equal(fakeTokenCredential{tenantID: "3"}))
+	g.Expect(newCredCount).To(Equal(3))
+
+	// old item has to be created again
+	cred, err = credCache.getOrStore(credentialCacheKey{tenantID: "1"}, newCredFunc(fakeTokenCredential{tenantID: "1"}, nil))
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(cred).To(Equal(fakeTokenCredential{tenantID: "1"}))
+	g.Expect(newCredCount).To(Equal(4))
 }
 
 func TestGetOrStoreRace(t *testing.T) {
 	// This test makes no assertions, it only fails when the race detector finds race conditions.
 
 	credCache := &credentialCache{
-		mut:   new(sync.Mutex),
-		cache: make(map[credentialCacheKey]azcore.TokenCredential),
+		cache: lru.New(0),
 	}
 	newCredFunc := func(cred fakeTokenCredential, err error) func() (azcore.TokenCredential, error) {
 		return func() (azcore.TokenCredential, error) {

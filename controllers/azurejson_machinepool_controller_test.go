@@ -222,7 +222,7 @@ func TestAzureJSONPoolReconciler(t *testing.T) {
 			reconciler := &AzureJSONMachinePoolReconciler{
 				Client:          client,
 				Recorder:        record.NewFakeRecorder(128),
-				CredentialCache: azure.NewCredentialCache(),
+				CredentialCache: azure.NewCredentialCache(0),
 			}
 
 			_, err := reconciler.Reconcile(context.Background(), ctrl.Request{
@@ -379,7 +379,7 @@ func TestAzureJSONPoolReconcilerUserAssignedIdentities(t *testing.T) {
 		Client:          client,
 		Recorder:        record.NewFakeRecorder(42),
 		Timeouts:        reconciler.Timeouts{},
-		CredentialCache: azure.NewCredentialCache(),
+		CredentialCache: azure.NewCredentialCache(0),
 	}
 	id := "azure:///subscriptions/123/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/fake-provider-id"
 	getClient = func(auth azure.Authorizer) (identities.Client, error) {

@@ -204,7 +204,7 @@ func TestGetCloudProviderConfig(t *testing.T) {
 				Cluster:         tc.cluster,
 				AzureCluster:    tc.azureCluster,
 				Client:          fakeClient,
-				CredentialCache: azure.NewCredentialCache(),
+				CredentialCache: azure.NewCredentialCache(0),
 			})
 			g.Expect(err).NotTo(HaveOccurred())
 
@@ -324,7 +324,7 @@ func TestReconcileAzureSecret(t *testing.T) {
 		Cluster:         cluster,
 		AzureCluster:    azureCluster,
 		Client:          kubeclient,
-		CredentialCache: azure.NewCredentialCache(),
+		CredentialCache: azure.NewCredentialCache(0),
 	})
 	g.Expect(err).NotTo(HaveOccurred())
 

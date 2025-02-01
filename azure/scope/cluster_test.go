@@ -121,7 +121,7 @@ func TestNewClusterScope(t *testing.T) {
 		Cluster:         cluster,
 		AzureCluster:    azureCluster,
 		Client:          fakeClient,
-		CredentialCache: azure.NewCredentialCache(),
+		CredentialCache: azure.NewCredentialCache(0),
 	})
 	g.Expect(err).NotTo(HaveOccurred())
 }

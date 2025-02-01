@@ -120,7 +120,7 @@ func NewTestEnvironment() *TestEnvironment {
 		Config:          mgr.GetConfig(),
 		LogRecorder:     logger,
 		Log:             logger,
-		CredentialCache: azure.NewCredentialCache(),
+		CredentialCache: azure.NewCredentialCache(0),
 		doneMgr:         make(chan struct{}),
 	}
 }

@@ -70,7 +70,7 @@ func TestNewManagedControlPlaneScope(t *testing.T) {
 				},
 			},
 		},
-		CredentialCache: azure.NewCredentialCache(),
+		CredentialCache: azure.NewCredentialCache(0),
 	}
 	fakeIdentity := &infrav1.AzureClusterIdentity{
 		ObjectMeta: metav1.ObjectMeta{

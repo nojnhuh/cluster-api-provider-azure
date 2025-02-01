@@ -320,7 +320,7 @@ func TestASOSecretReconcile(t *testing.T) {
 			reconciler := &ASOSecretReconciler{
 				Client:          clientBuilder,
 				Recorder:        record.NewFakeRecorder(128),
-				CredentialCache: azure.NewCredentialCache(),
+				CredentialCache: azure.NewCredentialCache(0),
 			}
 
 			_, err := reconciler.Reconcile(context.Background(), ctrl.Request{

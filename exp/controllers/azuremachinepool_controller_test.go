@@ -81,7 +81,7 @@ func TestAzureMachinePoolReconcilePaused(t *testing.T) {
 
 	recorder := record.NewFakeRecorder(1)
 
-	reconciler := NewAzureMachinePoolReconciler(c, recorder, reconciler.Timeouts{}, "", "", azure.NewCredentialCache())
+	reconciler := NewAzureMachinePoolReconciler(c, recorder, reconciler.Timeouts{}, "", "", azure.NewCredentialCache(0))
 	name := test.RandomName("paused", 10)
 	namespace := "default"
 

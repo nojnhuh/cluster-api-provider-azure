@@ -118,6 +118,7 @@ var (
 	managerOptions                     = flags.ManagerOptions{}
 	timeouts                           reconciler.Timeouts
 	enableTracing                      bool
+	credentialCacheLRUSize             int
 )
 
 // InitFlags initializes all command-line flags.
@@ -264,6 +265,12 @@ func InitFlags(fs *pflag.FlagSet) {
 		"Provide fully qualified GVK string to override default kubeadm config watch source, in the form of Kind.version.group (default: KubeadmConfig.v1beta1.bootstrap.cluster.x-k8s.io)",
 	)
 
+	fs.IntVar(&credentialCacheLRUSize,
+		"credential-cache-lru-size",
+		10,
+		"Size of the LRU cache used to store Azure credentials between reconciliations. A size of zero results in a cache of unbounded size. Cannot be less than zero.",
+	)
+
 	flags.AddManagerOptions(fs, &managerOptions)
 
 	feature.MutableGates.AddFlag(fs)
@@ -372,7 +379,11 @@ func main() {
 }
 
 func registerControllers(ctx context.Context, mgr manager.Manager) {
-	credCache := azure.NewCredentialCache()
+	if credentialCacheLRUSize < 0 {
+		setupLog.Error(nil, "--credential-cache-lru-size cannot be less than zero")
+		os.Exit(1)
+	}
+	credCache := azure.NewCredentialCache(credentialCacheLRUSize)
 
 	machineCache, err := coalescing.NewRequestCache(debouncingTimer)
 	if err != nil {

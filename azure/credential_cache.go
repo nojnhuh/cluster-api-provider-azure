@@ -17,15 +17,13 @@ limitations under the License.
 package azure
 
 import (
-	"sync"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"k8s.io/utils/lru"
 )
 
 type credentialCache struct {
-	mut         *sync.Mutex
-	cache       map[credentialCacheKey]azcore.TokenCredential
+	cache       *lru.Cache
 	credFactory credentialFactory
 }
 
@@ -58,11 +56,11 @@ type credentialCacheKey struct {
 	secret         string
 }
 
-// NewCredentialCache creates a new, empty CredentialCache.
-func NewCredentialCache() CredentialCache {
+// NewCredentialCache creates a new, empty LRU CredentialCache bounded by the given size. A size of zero
+// results in a cache of unbounded size.
+func NewCredentialCache(size int) CredentialCache {
 	return &credentialCache{
-		mut:         new(sync.Mutex),
-		cache:       make(map[credentialCacheKey]azcore.TokenCredential),
+		cache:       lru.New(size),
 		credFactory: azureCredentialFactory{},
 	}
 }
@@ -126,16 +124,14 @@ func (c *credentialCache) GetOrStoreWorkloadIdentity(opts *azidentity.WorkloadId
 }
 
 func (c *credentialCache) getOrStore(key credentialCacheKey, newCredFunc func() (azcore.TokenCredential, error)) (azcore.TokenCredential, error) {
-	c.mut.Lock()
-	defer c.mut.Unlock()
-	if cred, exists := c.cache[key]; exists {
-		return cred, nil
+	if cred, exists := c.cache.Get(key); exists {
+		return cred.(azcore.TokenCredential), nil
 	}
 	cred, err := newCredFunc()
 	if err != nil {
 		return nil, err
 	}
-	c.cache[key] = cred
+	c.cache.Add(key, cred)
 	return cred, nil
 }
 
