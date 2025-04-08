@@ -64,19 +64,11 @@ ${cmd} /tmp/mdbook.${ext}
 chmod +x /tmp/mdbook
 
 # Generate API docs
-genCRDAPIReferenceDocsPath="/tmp/crddoc-${genCRDAPIReferenceDocsVersion}"
-genCRDAPIReferenceDocs="${genCRDAPIReferenceDocsPath}/crddoc document crds"
-(
-  cd /tmp
-  curl --retry 3 -sL -o crddoc.zip "https://github.com/theunrepentantgeek/crddoc/archive/${genCRDAPIReferenceDocsVersion}.zip"
-  unzip crddoc.zip
-  cd "crddoc-${genCRDAPIReferenceDocsVersion}"
-  go build .
-)
-
-${genCRDAPIReferenceDocs} --config "${genCRDAPIReferenceDocsPath}/docs/config/crddoc-config.yaml" --template "${genCRDAPIReferenceDocsPath}/templates" --output ./docs/book/src/reference/v1beta1-api-raw.html ./api/v1beta1
-${genCRDAPIReferenceDocs} --config "${genCRDAPIReferenceDocsPath}/docs/config/crddoc-config.yaml" --template "${genCRDAPIReferenceDocsPath}/templates" --output ./docs/book/src/reference/v1beta1-exp-api-raw.html ./exp/api/v1beta1
-${genCRDAPIReferenceDocs} --config "${genCRDAPIReferenceDocsPath}/docs/config/crddoc-config.yaml" --template "${genCRDAPIReferenceDocsPath}/templates" --output ./docs/book/src/reference/v1alpha1-api-raw.html ./api/v1alpha1
+CRDDOC="go run github.com/theunrepentantgeek/crddoc@${genCRDAPIReferenceDocsVersion} document crds"
+${CRDDOC} --output ./docs/book/src/reference/v1beta1-api-raw.html ./api/v1beta1
+${CRDDOC} --output ./docs/book/src/reference/v1beta1-exp-api-raw.html ./exp/api/v1beta1
+${CRDDOC} --output ./docs/book/src/reference/v1alpha1-api-raw.html ./api/v1alpha1
+${CRDDOC} --output ./docs/book/src/reference/v1alpha1-exp-api-raw.html ./exp/api/v1alpha1
 
 # Finally build the book.
 (cd docs/book && /tmp/mdbook build)
