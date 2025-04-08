@@ -640,7 +640,8 @@ func registerControllers(ctx context.Context, mgr manager.Manager) {
 
 	if feature.Gates.Enabled(feature.ASOSelfManaged) {
 		if err := (&infrav1controllersexp.AzureASOClusterReconciler{
-			Client: mgr.GetClient(),
+			Client:           mgr.GetClient(),
+			WatchFilterValue: watchFilterValue,
 		}).SetupWithManager(ctx, mgr, controller.Options{MaxConcurrentReconciles: azureClusterConcurrency}); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "AzureASOCluster")
 			os.Exit(1)

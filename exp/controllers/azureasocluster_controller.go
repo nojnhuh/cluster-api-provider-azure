@@ -19,24 +19,34 @@ package controllers
 import (
 	"context"
 
+	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1alphaexp "sigs.k8s.io/cluster-api-provider-azure/exp/api/v1alpha1"
+	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
 )
 
 // AzureASOClusterReconciler reconciles a AzureASOCluster object.
 type AzureASOClusterReconciler struct {
 	client.Client
+	WatchFilterValue string
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *AzureASOClusterReconciler) SetupWithManager(_ context.Context, mgr ctrl.Manager, options controller.Options) error {
+func (r *AzureASOClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, options controller.Options) error {
+	_, log, done := tele.StartSpanWithLogger(ctx,
+		"controllers.AzureASOClusterReconciler.SetupWithManager",
+		tele.KVP("controller", infrav1alphaexp.AzureASOClusterKind),
+	)
+	defer done()
+
 	return ctrl.NewControllerManagedBy(mgr).
 		WithOptions(options).
 		For(&infrav1alphaexp.AzureASOCluster{}).
+		WithEventFilter(predicates.ResourceHasFilterLabel(mgr.GetScheme(), log, r.WatchFilterValue)).
 		Complete(r)
 }
 
