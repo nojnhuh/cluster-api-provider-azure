@@ -22,6 +22,7 @@
 - [Self-managed Clusters](./self-managed/self-managed.md)
     - [Addons](./self-managed/addons.md)
     - [API Server Endpoint](./self-managed/api-server-endpoint.md)
+    - [ASO API](./self-managed/aso-api.md)
     - [Cloud Provider Config](./self-managed/cloud-provider-config.md)
     - [Confidential VMs](./self-managed/confidential-vms.md)
     - [Control Plane Outbound Load Balancer](./self-managed/control-plane-outbound-lb.md)
@@ -58,3 +59,4 @@
     - [v1beta1 API](./reference/v1beta1-api.md)
     - [v1beta1 exp API](./reference/v1beta1-exp-api.md)
     - [v1alpha1 API](./reference/v1alpha1-api.md)
+    - [v1alpha1 exp API](./reference/v1alpha1-exp-api.md)

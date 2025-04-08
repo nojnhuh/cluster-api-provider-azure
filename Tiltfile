@@ -324,7 +324,7 @@ def create_identity_secret():
     os.putenv("CLUSTER_IDENTITY_NAME", "cluster-identity-ci")
     os.putenv("ASO_CREDENTIAL_SECRET_NAME", "aso-credentials")
 
-    local("cat templates/flavors/aks-aso/credentials.yaml | " + envsubst_cmd + " | " + kubectl_cmd + " apply -f -", quiet = True, echo_off = True)
+    local("cat templates/asoapi-creds/credentials.yaml | " + envsubst_cmd + " | " + kubectl_cmd + " apply -f -", quiet = True, echo_off = True)
 
 def create_crs():
     # create config maps

@@ -148,6 +148,7 @@ rules:
 - apiGroups:
   - infrastructure.cluster.x-k8s.io
   resources:
+  - azureasoclusters
   - azureasomanagedclusters
   - azureasomanagedcontrolplanes
   - azureasomanagedmachinepools
@@ -171,6 +172,7 @@ rules:
 - apiGroups:
   - infrastructure.cluster.x-k8s.io
   resources:
+  - azureasoclusters/finalizers
   - azureasomanagedclusters/finalizers
   - azureasomanagedcontrolplanes/finalizers
   - azureasomanagedmachinepools/finalizers
@@ -179,6 +181,7 @@ rules:
 - apiGroups:
   - infrastructure.cluster.x-k8s.io
   resources:
+  - azureasoclusters/status
   - azureasomanagedclusters/status
   - azureasomanagedcontrolplanes/status
   - azureasomanagedmachinepools/status
