@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 
 	infracontroller "sigs.k8s.io/cluster-api-provider-azure/controllers"
@@ -118,7 +119,7 @@ func (r *AzureASOClusterReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	return r.reconcileNormal(ctx, asoCluster, cluster)
 }
 
-func (r *AzureASOClusterReconciler) reconcileNormal(ctx context.Context, _ *infrav1alphaexp.AzureASOCluster, _ *clusterv1.Cluster) (ctrl.Result, error) {
+func (r *AzureASOClusterReconciler) reconcileNormal(ctx context.Context, asoCluster *infrav1alphaexp.AzureASOCluster, cluster *clusterv1.Cluster) (ctrl.Result, error) {
 	ctx, log, done := tele.StartSpanWithLogger(ctx,
 		"controllers.AzureASOClusterReconciler.reconcileNormal",
 	)
@@ -127,6 +128,16 @@ func (r *AzureASOClusterReconciler) reconcileNormal(ctx context.Context, _ *infr
 
 	// this will be used soon
 	_ = ctx
+
+	if cluster == nil {
+		log.V(4).Info("Cluster Controller has not yet set OwnerRef")
+		return ctrl.Result{}, nil
+	}
+
+	needsPatch := controllerutil.AddFinalizer(asoCluster, infrav1alphaexp.AzureASOClusterFinalizer)
+	if needsPatch {
+		return ctrl.Result{Requeue: true}, nil
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -144,7 +155,7 @@ func (r *AzureASOClusterReconciler) reconcilePaused(ctx context.Context, _ *infr
 	return ctrl.Result{}, nil
 }
 
-func (r *AzureASOClusterReconciler) reconcileDelete(ctx context.Context, _ *infrav1alphaexp.AzureASOCluster) (ctrl.Result, error) {
+func (r *AzureASOClusterReconciler) reconcileDelete(ctx context.Context, asoCluster *infrav1alphaexp.AzureASOCluster) (ctrl.Result, error) {
 	ctx, log, done := tele.StartSpanWithLogger(ctx,
 		"controllers.AzureASOClusterReconciler.reconcileDelete",
 	)
@@ -153,6 +164,8 @@ func (r *AzureASOClusterReconciler) reconcileDelete(ctx context.Context, _ *infr
 
 	// this will be used soon
 	_ = ctx
+
+	controllerutil.RemoveFinalizer(asoCluster, infrav1alphaexp.AzureASOClusterFinalizer)
 
 	return ctrl.Result{}, nil
 }

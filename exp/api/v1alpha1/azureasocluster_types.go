@@ -20,8 +20,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// AzureASOClusterKind is the kind for AzureASOCluster.
-const AzureASOClusterKind = "AzureASOCluster"
+const (
+	// AzureASOClusterKind is the kind for AzureASOCluster.
+	AzureASOClusterKind = "AzureASOCluster"
+
+	// AzureASOClusterFinalizer is the finalizer added to AzureASOClusters.
+	AzureASOClusterFinalizer = "azureasocluster.infrastructure.cluster.x-k8s.io"
+)
 
 // AzureASOClusterSpec defines the desired state of AzureASOCluster.
 type AzureASOClusterSpec struct {

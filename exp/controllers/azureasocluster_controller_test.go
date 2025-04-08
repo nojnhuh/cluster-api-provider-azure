@@ -21,6 +21,7 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -87,17 +88,69 @@ func TestAzureASOClusterReconcile(t *testing.T) {
 		g.Expect(err).To(HaveOccurred())
 	})
 
+	t.Run("adds a finalizer", func(t *testing.T) {
+		g := NewGomegaWithT(t)
+
+		cluster := &clusterv1.Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "cluster",
+				Namespace: "ns",
+			},
+		}
+		asoCluster := &infrav1alphaexp.AzureASOCluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "aso-cluster",
+				Namespace: cluster.Namespace,
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						APIVersion: clusterv1.GroupVersion.Identifier(),
+						Kind:       "Cluster",
+						Name:       cluster.Name,
+					},
+				},
+			},
+		}
+		c := fakeClientBuilder().
+			WithObjects(cluster, asoCluster).
+			Build()
+		r := &AzureASOClusterReconciler{
+			Client: c,
+		}
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoCluster)})
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(result).To(Equal(ctrl.Result{Requeue: true}))
+
+		g.Expect(c.Get(ctx, client.ObjectKeyFromObject(asoCluster), asoCluster)).To(Succeed())
+		g.Expect(asoCluster.GetFinalizers()).To(ContainElement(infrav1alphaexp.AzureASOClusterFinalizer))
+	})
+
 	t.Run("successfully reconciles normally", func(t *testing.T) {
 		g := NewGomegaWithT(t)
 
+		cluster := &clusterv1.Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "cluster",
+				Namespace: "ns",
+			},
+		}
 		asoCluster := &infrav1alphaexp.AzureASOCluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "aso-cluster",
 				Namespace: "ns",
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						APIVersion: clusterv1.GroupVersion.Identifier(),
+						Kind:       "Cluster",
+						Name:       cluster.Name,
+					},
+				},
+				Finalizers: []string{
+					infrav1alphaexp.AzureASOClusterFinalizer,
+				},
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(asoCluster).
+			WithObjects(cluster, asoCluster).
 			Build()
 		r := &AzureASOClusterReconciler{
 			Client: c,
@@ -151,7 +204,7 @@ func TestAzureASOClusterReconcile(t *testing.T) {
 				Name:      "aso-cluster",
 				Namespace: "ns",
 				Finalizers: []string{
-					clusterv1.ClusterFinalizer,
+					infrav1alphaexp.AzureASOClusterFinalizer,
 				},
 				DeletionTimestamp: &metav1.Time{Time: time.Date(1, 0, 0, 0, 0, 0, 0, time.UTC)},
 			},
@@ -165,5 +218,8 @@ func TestAzureASOClusterReconcile(t *testing.T) {
 		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoCluster)})
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(result).To(Equal(ctrl.Result{}))
+
+		err = c.Get(ctx, client.ObjectKeyFromObject(asoCluster), asoCluster)
+		g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
 	})
 }
