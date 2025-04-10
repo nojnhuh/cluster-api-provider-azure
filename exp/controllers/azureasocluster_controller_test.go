@@ -22,7 +22,6 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -257,8 +256,8 @@ func TestAzureASOClusterReconcile(t *testing.T) {
 								{
 									Op:   infrav1alphaexp.JSONPatchOpAdd,
 									Path: "/metadata",
-									Value: &apiextensionsv1.JSON{
-										Raw: []byte(`{"name": "rg-name"}`),
+									ValueFrom: &infrav1alphaexp.JSONPatchValueFrom{
+										Template: ptr.To("name: {{ .selfV1alpha1.metadata.name }}"),
 									},
 								},
 							},
@@ -277,7 +276,7 @@ func TestAzureASOClusterReconcile(t *testing.T) {
 			WithObjects(cluster, asoCluster).
 			Build()
 		expectReconciled := map[string]struct{}{
-			"rg-name": {},
+			"ResourceGroup/aso-cluster": {},
 		}
 		r := &AzureASOClusterReconciler{
 			Client: c,
@@ -285,8 +284,9 @@ func TestAzureASOClusterReconcile(t *testing.T) {
 				return &fakeResourceReconciler{
 					reconcileFunc: func(_ context.Context, _ client.Object) error {
 						for _, u := range us {
-							g.Expect(expectReconciled).To(HaveKey(u.GetName()), "reconciled unexpected resource")
-							delete(expectReconciled, u.GetName())
+							key := u.GetKind() + "/" + u.GetName()
+							g.Expect(expectReconciled).To(HaveKey(key), "reconciled unexpected resource")
+							delete(expectReconciled, key)
 						}
 						return nil
 					},
