@@ -18,9 +18,14 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
+	jsonpatch "github.com/evanphx/json-patch/v5"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/controllers/external"
@@ -179,11 +184,10 @@ func (r *AzureASOClusterReconciler) reconcileNormal(ctx context.Context, asoClus
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	us, err := mutators.ToUnstructured(ctx, asoCluster.Spec.Resources)
+	resourceReconciler, err := r.resourceReconciler(ctx, asoCluster)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	resourceReconciler := r.newResourceReconciler(asoCluster, us)
 	err = resourceReconciler.Reconcile(ctx)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to reconcile resources: %w", err)
@@ -204,11 +208,10 @@ func (r *AzureASOClusterReconciler) reconcilePaused(ctx context.Context, asoClus
 	defer done()
 	log.V(4).Info("reconciling pause")
 
-	resources, err := mutators.ToUnstructured(ctx, asoCluster.Spec.Resources)
+	resourceReconciler, err := r.resourceReconciler(ctx, asoCluster)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	resourceReconciler := r.newResourceReconciler(asoCluster, resources)
 	err = resourceReconciler.Pause(ctx)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to pause resources: %w", err)
@@ -226,11 +229,10 @@ func (r *AzureASOClusterReconciler) reconcileDelete(ctx context.Context, asoClus
 	defer done()
 	log.V(4).Info("reconciling delete")
 
-	resources, err := mutators.ToUnstructured(ctx, asoCluster.Spec.Resources)
+	resourceReconciler, err := r.resourceReconciler(ctx, asoCluster)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	resourceReconciler := r.newResourceReconciler(asoCluster, resources)
 	err = resourceReconciler.Delete(ctx)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to reconcile resources: %w", err)
@@ -242,4 +244,90 @@ func (r *AzureASOClusterReconciler) reconcileDelete(ctx context.Context, asoClus
 	controllerutil.RemoveFinalizer(asoCluster, infrav1alphaexp.AzureASOClusterFinalizer)
 
 	return ctrl.Result{}, nil
+}
+
+func (r *AzureASOClusterReconciler) resourceReconciler(ctx context.Context, asoCluster *infrav1alphaexp.AzureASOCluster) (resourceReconciler, error) {
+	resources, err := applyPatches(ctx, asoCluster.Spec.Resources, asoCluster.Spec.Patches)
+	if err != nil {
+		return nil, err
+	}
+	us, err := mutators.ToUnstructured(ctx, resources)
+	if err != nil {
+		return nil, err
+	}
+	return r.newResourceReconciler(asoCluster, us), nil
+}
+
+type json6902 struct {
+	Op    infrav1alphaexp.JSONPatchOp `json:"op"`
+	Path  string                      `json:"path"`
+	From  string                      `json:"from,omitempty"`
+	Value *apiextensionsv1.JSON       `json:"value,omitempty"`
+}
+
+func applyPatches(ctx context.Context, resources []runtime.RawExtension, patches []infrav1alphaexp.ResourcesPatch) ([]runtime.RawExtension, error) {
+	ctx, _, done := tele.StartSpanWithLogger(ctx,
+		"controllers.applyPatches",
+	)
+	defer done()
+
+	us, err := mutators.ToUnstructured(ctx, resources)
+	if err != nil {
+		return nil, err
+	}
+
+	var patchedResources []runtime.RawExtension
+
+	for i, u := range us {
+		resourceYAML := resources[i].Raw
+		resourceJSON, err := yaml.ToJSON(resourceYAML)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, patch := range patches {
+			var json6902Patches []json6902
+
+			if !patchSelectorsMatch(patch.Selectors, u) {
+				continue
+			}
+
+			for _, jsonPatch := range patch.JSONPatches {
+				json6902Patches = append(json6902Patches, json6902{
+					Op:    jsonPatch.Op,
+					Path:  jsonPatch.Path,
+					From:  jsonPatch.From,
+					Value: jsonPatch.Value,
+				})
+			}
+			patchData, err := json.Marshal(json6902Patches)
+			if err != nil {
+				return nil, err
+			}
+			jsonPatch, err := jsonpatch.DecodePatch(patchData)
+			if err != nil {
+				return nil, err
+			}
+			resourceJSON, err = jsonPatch.Apply(resourceJSON)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		patchedResources = append(patchedResources, runtime.RawExtension{Raw: resourceJSON})
+	}
+
+	return patchedResources, nil
+}
+
+func patchSelectorsMatch(selectors []infrav1alphaexp.ResourcesPatchSelector, u *unstructured.Unstructured) bool {
+	for _, selector := range selectors {
+		if (selector.APIVersion == "" || selector.APIVersion == u.GetAPIVersion()) &&
+			(selector.Kind == "" || selector.Kind == u.GetKind()) &&
+			(selector.Name == "" || selector.Name == u.GetName()) {
+			return true
+		}
+	}
+	// No selectors matches everything
+	return len(selectors) == 0
 }
