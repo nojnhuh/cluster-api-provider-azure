@@ -18,6 +18,19 @@ metadata:
   name: ${CLUSTER_NAME}
   namespace: default
 spec:
+  controlPlaneEndpointSource:
+    host:
+      configMap:
+        name:
+          value: ${CLUSTER_NAME}-controlplane-ip
+        key:
+          value: host
+    port:
+      configMap:
+        name:
+          value: ${CLUSTER_NAME}-controlplane-lb
+        key:
+          value: port
   patches:
   - jsonPatches:
     - op: add
@@ -139,6 +152,11 @@ spec:
       sku:
         name: Standard
       publicIPAllocationMethod: Static
+      operatorSpec:
+        configMapExpressions:
+        - name: ${CLUSTER_NAME}-controlplane-ip
+          key: host
+          value: self.status.ipAddress
   - apiVersion: network.azure.com/v1api20240301
     kind: LoadBalancer
     metadata:
@@ -172,6 +190,11 @@ spec:
       - name: apiserver
         protocol: Https
         requestPath: /readyz
+      operatorSpec:
+        configMapExpressions:
+        - name: ${CLUSTER_NAME}-controlplane-lb
+          key: port
+          value: string(self.spec.loadBalancingRules[0].frontendPort)
   - apiVersion: network.azure.com/v1api20240301
     kind: NetworkSecurityGroup
     metadata:

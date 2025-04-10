@@ -21,7 +21,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -33,6 +35,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	infrav1alphaexp "sigs.k8s.io/cluster-api-provider-azure/exp/api/v1alpha1"
@@ -66,6 +70,18 @@ func (r *fakeResourceReconciler) Delete(ctx context.Context) error {
 	return r.deleteFunc(ctx, r.owner)
 }
 
+type fakeWatcher struct {
+	watching map[string]struct{}
+}
+
+func (w *fakeWatcher) Watch(_ logr.Logger, obj client.Object, _ handler.EventHandler, _ ...predicate.Predicate) error {
+	if w.watching == nil {
+		w.watching = make(map[string]struct{})
+	}
+	w.watching[obj.GetObjectKind().GroupVersionKind().GroupKind().String()] = struct{}{}
+	return nil
+}
+
 func TestAzureASOClusterReconcile(t *testing.T) {
 	ctx := context.Background()
 
@@ -73,6 +89,7 @@ func TestAzureASOClusterReconcile(t *testing.T) {
 	sb := runtime.NewSchemeBuilder(
 		infrav1alphaexp.AddToScheme,
 		clusterv1.AddToScheme,
+		corev1.AddToScheme,
 	)
 	NewGomegaWithT(t).Expect(sb.AddToScheme(s)).To(Succeed())
 
@@ -212,6 +229,10 @@ func TestAzureASOClusterReconcile(t *testing.T) {
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(result).To(Equal(ctrl.Result{}))
 		g.Expect(reconciled).To(BeTrue())
+
+		err = c.Get(ctx, client.ObjectKeyFromObject(asoCluster), asoCluster)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(asoCluster.Status.Ready).To(BeFalse())
 	})
 
 	t.Run("successfully reconciles normally", func(t *testing.T) {
@@ -221,6 +242,16 @@ func TestAzureASOClusterReconcile(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "cluster",
 				Namespace: "ns",
+			},
+		}
+		configMap := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: cluster.Namespace,
+				Name:      "my-controlplane-endpoint",
+			},
+			Data: map[string]string{
+				"host": "configmap-host",
+				"port": "456",
 			},
 		}
 		asoCluster := &infrav1alphaexp.AzureASOCluster{
@@ -242,7 +273,34 @@ func TestAzureASOClusterReconcile(t *testing.T) {
 				},
 			},
 			Spec: infrav1alphaexp.AzureASOClusterSpec{
+				// this will be overwritten by the defined source.
+				ControlPlaneEndpoint: clusterv1.APIEndpoint{
+					Host: "user-host",
+					Port: 123,
+				},
 				AzureASOClusterTemplateResourceSpec: infrav1alphaexp.AzureASOClusterTemplateResourceSpec{
+					ControlPlaneEndpointSource: &infrav1alphaexp.ControlPlaneEndpointSource{
+						Host: &infrav1alphaexp.StringSource{
+							ConfigMap: &infrav1alphaexp.ConfigMapReference{
+								Name: infrav1alphaexp.StringValue{
+									Value: &configMap.Name,
+								},
+								Key: infrav1alphaexp.StringValue{
+									Value: ptr.To("host"),
+								},
+							},
+						},
+						Port: &infrav1alphaexp.StringSource{
+							ConfigMap: &infrav1alphaexp.ConfigMapReference{
+								Name: infrav1alphaexp.StringValue{
+									Value: &configMap.Name,
+								},
+								Key: infrav1alphaexp.StringValue{
+									Value: ptr.To("port"),
+								},
+							},
+						},
+					},
 					Patches: []infrav1alphaexp.ResourcesPatch{
 						{
 							Selectors: []infrav1alphaexp.ResourcesPatchSelector{
@@ -273,11 +331,12 @@ func TestAzureASOClusterReconcile(t *testing.T) {
 			},
 		}
 		c := fakeClientBuilder().
-			WithObjects(cluster, asoCluster).
+			WithObjects(cluster, asoCluster, configMap).
 			Build()
 		expectReconciled := map[string]struct{}{
 			"ResourceGroup/aso-cluster": {},
 		}
+		watcher := &fakeWatcher{}
 		r := &AzureASOClusterReconciler{
 			Client: c,
 			newResourceReconciler: func(_ *infrav1alphaexp.AzureASOCluster, us []*unstructured.Unstructured) resourceReconciler {
@@ -292,6 +351,7 @@ func TestAzureASOClusterReconcile(t *testing.T) {
 					},
 				}
 			},
+			watcher: watcher,
 		}
 		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoCluster)})
 		g.Expect(err).NotTo(HaveOccurred())
@@ -300,6 +360,10 @@ func TestAzureASOClusterReconcile(t *testing.T) {
 
 		err = c.Get(ctx, client.ObjectKeyFromObject(asoCluster), asoCluster)
 		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(asoCluster.Status.Ready).To(BeTrue())
+		g.Expect(asoCluster.Spec.ControlPlaneEndpoint.Host).To(Equal("configmap-host"))
+		g.Expect(asoCluster.Spec.ControlPlaneEndpoint.Port).To(Equal(int32(456)))
+		g.Expect(watcher.watching).To(HaveKey("ConfigMap"))
 	})
 
 	t.Run("successfully reconciles pause", func(t *testing.T) {

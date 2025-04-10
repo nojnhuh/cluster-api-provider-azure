@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
 func TestAzureASOClusterWebhookValidateCreate(t *testing.T) {
@@ -55,6 +56,18 @@ func TestAzureASOClusterWebhookValidateCreate(t *testing.T) {
 			matchErrs: ConsistOf(
 				MatchError(field.Required(field.NewPath("spec", "patches").Index(0).Child("jsonPatches").Index(1).Child("from"), "required for \"copy\" operations")),
 			),
+		},
+		{
+			name: "spec.controlPlaneEndpoint without spec.controlPlaneEndpointSource",
+			asoCluster: &AzureASOCluster{
+				Spec: AzureASOClusterSpec{
+					ControlPlaneEndpoint: clusterv1.APIEndpoint{
+						Host: "127.0.0.1",
+						Port: 443,
+					},
+				},
+			},
+			matchErrs: Not(HaveOccurred()),
 		},
 	}
 
