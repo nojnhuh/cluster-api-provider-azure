@@ -148,6 +148,7 @@ rules:
   - infrastructure.cluster.x-k8s.io
   resources:
   - azureasoclusters
+  - azureasomachines
   - azureasomanagedclusters
   - azureasomanagedcontrolplanes
   - azureasomanagedmachinepools
@@ -172,6 +173,7 @@ rules:
   - infrastructure.cluster.x-k8s.io
   resources:
   - azureasoclusters/finalizers
+  - azureasomachines/finalizers
   - azureasomanagedclusters/finalizers
   - azureasomanagedcontrolplanes/finalizers
   - azureasomanagedmachinepools/finalizers
@@ -181,6 +183,7 @@ rules:
   - infrastructure.cluster.x-k8s.io
   resources:
   - azureasoclusters/status
+  - azureasomachines/status
   - azureasomanagedclusters/status
   - azureasomanagedcontrolplanes/status
   - azureasomanagedmachinepools/status

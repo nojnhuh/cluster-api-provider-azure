@@ -26,6 +26,8 @@ resources:
 - bases/infrastructure.cluster.x-k8s.io_azureasomanagedmachinepooltemplates.yaml
 - bases/infrastructure.cluster.x-k8s.io_azureasoclusters.yaml
 - bases/infrastructure.cluster.x-k8s.io_azureasoclustertemplates.yaml
+- bases/infrastructure.cluster.x-k8s.io_azureasomachines.yaml
+- bases/infrastructure.cluster.x-k8s.io_azureasomachinetemplates.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:
@@ -78,6 +80,9 @@ patches:
 - path: patches/capicontract_in_azureasomanagedmachinepooltemplates.yaml
 - path: patches/capicontract_in_azureasoclusters.yaml
 - path: patches/capicontract_in_azureasoclustertemplates.yaml
+- path: patches/capicontract_in_azureasomachines.yaml
+- path: patches/capicontract_in_azureasomachinetemplates.yaml
+
 
 # the following config is for teaching kustomize how to do kustomization for CRDs.
 configurations:
