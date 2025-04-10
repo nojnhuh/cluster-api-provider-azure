@@ -17,6 +17,19 @@ metadata:
   name: ${CLUSTER_NAME}
   namespace: default
 spec:
+  controlPlaneEndpointSource:
+    host:
+      configMap:
+        key:
+          value: host
+        name:
+          value: ${CLUSTER_NAME}-controlplane-ip
+    port:
+      configMap:
+        key:
+          value: port
+        name:
+          value: ${CLUSTER_NAME}-controlplane-lb
   patches:
   - jsonPatches:
     - op: add
@@ -131,6 +144,11 @@ spec:
     metadata:
       name: ${CLUSTER_NAME}-controlplane
     spec:
+      operatorSpec:
+        configMapExpressions:
+        - key: host
+          name: ${CLUSTER_NAME}-controlplane-ip
+          value: self.status.ipAddress
       publicIPAllocationMethod: Static
       sku:
         name: Standard
@@ -161,6 +179,11 @@ spec:
           reference:
             armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CLUSTER_NAME}/providers/Microsoft.Network/loadBalancers/${CLUSTER_NAME}/probes/apiserver
         protocol: Tcp
+      operatorSpec:
+        configMapExpressions:
+        - key: port
+          name: ${CLUSTER_NAME}-controlplane-lb
+          value: string(self.spec.loadBalancingRules[0].frontendPort)
       probes:
       - name: apiserver
         protocol: Https

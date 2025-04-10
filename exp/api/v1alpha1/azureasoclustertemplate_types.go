@@ -54,6 +54,13 @@ type AzureASOClusterTemplateResourceSpec struct {
 	// +optional
 	// +kubebuilder:validation:MaxItems:=32
 	Patches []ResourcesPatch `json:"patches,omitempty"`
+
+	// ControlPlaneEndpointSource defines where the host and port for the ControlPlaneEndpoint can be found.
+	// When set, CAPZ takes ownership of setting fields in ControlPlaneEndpoint, even if already set by the
+	// user.
+	//
+	// +optional
+	ControlPlaneEndpointSource *ControlPlaneEndpointSource `json:"controlPlaneEndpointSource,omitempty"`
 }
 
 // ResourcesPatch defines an ordered list of patches to apply to
@@ -151,6 +158,58 @@ type JSONPatchValueFrom struct {
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=1024
+	Template *string `json:"template,omitempty"`
+}
+
+// ControlPlaneEndpointSource defines where the host and port for the ControlPlaneEndpoint can be found.
+type ControlPlaneEndpointSource struct {
+	// Host refers to a value to use for the ControlPlaneEndpoint's host.
+	//
+	// +optional
+	Host *StringSource `json:"host,omitempty"`
+
+	// Port refers to a value to use for the ControlPlaneEndpoint's port.
+	//
+	// +optional
+	Port *StringSource `json:"port,omitempty"`
+}
+
+// StringSource defines a location containing a string.
+type StringSource struct {
+	// +optional
+	ConfigMap *ConfigMapReference `json:"configMap,omitempty"`
+}
+
+// ConfigMapReference refers to a particular value in a ConfigMap.
+type ConfigMapReference struct {
+	// Name is the metadata.name of the ConfigMap.
+	//
+	// +required
+	Name StringValue `json:"name"`
+
+	// Key is the key of the ConfigMap's data.
+	//
+	// +required
+	Key StringValue `json:"key"`
+}
+
+// StringValue represents a string.
+type StringValue struct {
+	// Value is a literal string.
+	// +optional
+	Value *string `json:"value,omitempty"`
+
+	// Template is a Go text/template that evaluates to a string.
+	//
+	// Data passed to templates is a map consisting of the following keys:
+	//
+	// - selfV1alpha1: this CAPZ resource
+	//
+	// e.g. a template could be defined in YAML as
+	//
+	//     template: '{{ .selfV1alpha1.metadata.name }}'
+	//
+	// +optional
 	Template *string `json:"template,omitempty"`
 }
 
