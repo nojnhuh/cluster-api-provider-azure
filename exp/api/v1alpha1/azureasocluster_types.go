@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 
 	infrav1alpha "sigs.k8s.io/cluster-api-provider-azure/api/v1alpha1"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
@@ -34,12 +35,34 @@ const (
 // AzureASOClusterSpec defines the desired state of AzureASOCluster.
 type AzureASOClusterSpec struct {
 	AzureASOClusterTemplateResourceSpec `json:",inline"`
+
+	// ControlPlaneEndpoint is the location of the API server within the control plane. CAPZ manages this field
+	// and it should not be set by the user. It fulfills Cluster API's cluster infrastructure provider contract.
+	// Because this field is programmatically set by CAPZ after resource creation, we define it as +optional
+	// in the API schema to permit resource admission.
+	//
+	// +optional
+	ControlPlaneEndpoint clusterv1.APIEndpoint `json:"controlPlaneEndpoint"`
 }
 
 // AzureASOClusterStatus defines the observed state of AzureASOCluster.
 type AzureASOClusterStatus struct {
-	//+optional
+	// Initialization provides observations of the AzureASOCluster initialization process.
+	// NOTE: Fields in this struct are part of the Cluster API contract and are used to orchestrate initial Cluster provisioning.
+	// +optional
+	Initialization AzureASOClusterInitializationStatus `json:"initialization,omitempty,omitzero"`
+
+	// +optional
 	Resources []infrav1alpha.ResourceStatus `json:"resources,omitempty"`
+}
+
+// AzureASOClusterInitializationStatus provides observations of the AzureASOCluster initialization process.
+// +kubebuilder:validation:MinProperties=1
+type AzureASOClusterInitializationStatus struct {
+	// Provisioned is true when the infrastructure provider reports that the Cluster's infrastructure is fully provisioned.
+	// NOTE: this field is part of the Cluster API contract, and it is used to orchestrate initial Cluster provisioning.
+	// +optional
+	Provisioned *bool `json:"provisioned,omitempty"`
 }
 
 // +kubebuilder:object:root=true

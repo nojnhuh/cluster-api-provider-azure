@@ -21,12 +21,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"text/template"
 
 	jsonpatch "github.com/evanphx/json-patch/v5"
+	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
@@ -41,11 +48,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	infracontroller "sigs.k8s.io/cluster-api-provider-azure/controllers"
 	infrav1alphaexp "sigs.k8s.io/cluster-api-provider-azure/exp/api/v1alpha1"
 	"sigs.k8s.io/cluster-api-provider-azure/pkg/mutators"
 	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
+)
+
+const (
+	// This index will generate ConfigMap keys for ConfigMapReferences.
+	configMapIndexedField = "stringSourceConfigMapReference"
 )
 
 // AzureASOClusterReconciler reconciles a AzureASOCluster object.
@@ -54,6 +67,7 @@ type AzureASOClusterReconciler struct {
 	WatchFilterValue string
 
 	newResourceReconciler func(*infrav1alphaexp.AzureASOCluster, []*unstructured.Unstructured) resourceReconciler
+	watcher               watcher
 }
 
 type resourceReconciler interface {
@@ -67,6 +81,10 @@ type resourceReconciler interface {
 	// Delete begins deleting the specified resources and updates the object's status to reflect the state of
 	// the specified resources.
 	Delete(context.Context) error
+}
+
+type watcher interface {
+	Watch(log logr.Logger, obj client.Object, handler handler.EventHandler, p ...predicate.Predicate) error
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -98,7 +116,7 @@ func (r *AzureASOClusterReconciler) SetupWithManager(ctx context.Context, mgr ct
 		return err
 	}
 
-	externalTracker := &external.ObjectTracker{
+	r.watcher = &external.ObjectTracker{
 		Cache:           mgr.GetCache(),
 		Controller:      c,
 		Scheme:          mgr.GetScheme(),
@@ -110,8 +128,37 @@ func (r *AzureASOClusterReconciler) SetupWithManager(ctx context.Context, mgr ct
 			Client:    r.Client,
 			Resources: resources,
 			Owner:     asoCluster,
-			Watcher:   externalTracker,
+			Watcher:   r.watcher,
 		}
+	}
+
+	// Allow for efficient lookups of AzureASOClusters that are informed by a particular ConfigMap.
+	err = mgr.GetCache().IndexField(ctx, &infrav1alphaexp.AzureASOCluster{}, configMapIndexedField, func(o client.Object) (keys []string) {
+		asoCluster, ok := o.(*infrav1alphaexp.AzureASOCluster)
+		if !ok ||
+			asoCluster == nil ||
+			asoCluster.Spec.ControlPlaneEndpointSource == nil {
+			return
+		}
+		log := log.WithValues("kind", infrav1alphaexp.AzureASOClusterKind, "namespace", asoCluster, "name", asoCluster)
+		for field, source := range map[string]*infrav1alphaexp.StringSource{
+			"host": asoCluster.Spec.ControlPlaneEndpointSource.Host,
+			"port": asoCluster.Spec.ControlPlaneEndpointSource.Port,
+		} {
+			if source == nil || source.ConfigMap == nil {
+				continue
+			}
+			name, err := evalStringValue(source.ConfigMap.Name, asoCluster)
+			if err != nil {
+				log.Error(err, "failed to evaluate ConfigMap name", "field", "spec.controlPlaneEndpointSource."+field+".configMap.name")
+			} else {
+				keys = append(keys, name)
+			}
+		}
+		return
+	})
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -120,6 +167,7 @@ func (r *AzureASOClusterReconciler) SetupWithManager(ctx context.Context, mgr ct
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=azureasoclusters,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=azureasoclusters/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=azureasoclusters/finalizers,verbs=update
+//+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch
 //+kubebuilder:rbac:groups=network.azure.com,resources=publicipaddresses;loadbalancers;loadbalancersinboundnatrules;networksecuritygroups;networksecuritygroupssecurityrules;routetables,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=network.azure.com,resources=publicipaddresses/status;loadbalancers/status;loadbalancersinboundnatrules/status;networksecuritygroups/status;networksecuritygroupssecurityrules/status;routetables/status,verbs=get;list;watch
 
@@ -199,6 +247,16 @@ func (r *AzureASOClusterReconciler) reconcileNormal(ctx context.Context, asoClus
 			return ctrl.Result{}, nil
 		}
 	}
+
+	if asoCluster.Spec.ControlPlaneEndpointSource != nil {
+		controlPlaneEndpoint, err := reconcileControlPlaneEndpoint(ctx, r.Client, r.watcher, asoCluster.Spec.ControlPlaneEndpointSource, asoCluster)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		asoCluster.Spec.ControlPlaneEndpoint = controlPlaneEndpoint
+	}
+
+	asoCluster.Status.Initialization.Provisioned = ptr.To(true)
 
 	return ctrl.Result{}, nil
 }
@@ -355,6 +413,20 @@ func patchSelectorsMatch(selectors []infrav1alphaexp.ResourcesPatchSelector, u *
 	return len(selectors) == 0
 }
 
+func evalStringValue(s infrav1alphaexp.StringValue, self client.Object) (string, error) {
+	if s.Value != nil {
+		return *s.Value, nil
+	}
+	if s.Template != nil {
+		tplData, err := infrav1alphaexp.StringValueTemplateData(self)
+		if err != nil {
+			return "", err
+		}
+		return evalTemplate(*s.Template, tplData)
+	}
+	return "", nil
+}
+
 func evalTemplate(tpl string, data any) (string, error) {
 	parsed, err := template.New("tpl").Parse(tpl)
 	if err != nil {
@@ -366,4 +438,107 @@ func evalTemplate(tpl string, data any) (string, error) {
 		return "", err
 	}
 	return buf.String(), nil
+}
+
+func reconcileControlPlaneEndpoint(ctx context.Context, c client.Client, w watcher, source *infrav1alphaexp.ControlPlaneEndpointSource, asoCluster *infrav1alphaexp.AzureASOCluster) (clusterv1.APIEndpoint, error) {
+	ctx, _, done := tele.StartSpanWithLogger(ctx,
+		"controllers.reconcileControlPlaneEndpoint",
+	)
+	defer done()
+
+	host, err := reconcileStringSource(ctx, c, w, *source.Host, asoCluster, &infrav1alphaexp.AzureASOClusterList{})
+	if err != nil {
+		return clusterv1.APIEndpoint{}, fmt.Errorf("failed to get control plane endpoint host: %w", err)
+	}
+
+	portStr, err := reconcileStringSource(ctx, c, w, *source.Port, asoCluster, &infrav1alphaexp.AzureASOClusterList{})
+	if err != nil {
+		return clusterv1.APIEndpoint{}, fmt.Errorf("failed to get control plane endpoint host: %w", err)
+	}
+	port, err := strconv.ParseInt(portStr, 10, 32)
+	if err != nil {
+		return clusterv1.APIEndpoint{}, fmt.Errorf("invalid port %q: %w", port, err)
+	}
+
+	return clusterv1.APIEndpoint{
+		Host: host,
+		Port: int32(port),
+	}, nil
+}
+
+func reconcileStringSource(ctx context.Context, c client.Client, w watcher, source infrav1alphaexp.StringSource, self client.Object, list client.ObjectList) (string, error) {
+	if source.ConfigMap != nil {
+		value, err := reconcileConfigMapReference(ctx, c, w, *source.ConfigMap, self, list)
+		if err != nil {
+			return "", err
+		}
+		return value, nil
+	}
+	return "", nil
+}
+
+func reconcileConfigMapReference(ctx context.Context, c client.Client, w watcher, ref infrav1alphaexp.ConfigMapReference, self client.Object, list client.ObjectList) (string, error) {
+	ctx, log, done := tele.StartSpanWithLogger(ctx,
+		"controllers.reconcileConfigMapReference",
+	)
+	defer done()
+
+	err := w.Watch(
+		log,
+		&corev1.ConfigMap{
+			// The CAPI watcher keys off of these TypeMeta fields and can't deduce the type from the
+			// Go type alone.
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "v1",
+				Kind:       "ConfigMap",
+			},
+		},
+		handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) (reqs []ctrl.Request) {
+			err := c.List(ctx, list,
+				client.InNamespace(obj.GetNamespace()),
+				client.MatchingFields{configMapIndexedField: obj.GetName()},
+			)
+			if err != nil {
+				log.Error(err, "failed to list objects for ConfigMap", "configmap", obj.GetName())
+				return
+			}
+			err = meta.EachListItem(list, func(o runtime.Object) error {
+				reqs = append(reqs, ctrl.Request{NamespacedName: types.NamespacedName{Namespace: o.(metav1.Object).GetNamespace(), Name: o.(metav1.Object).GetName()}})
+				return nil
+			})
+			if err != nil {
+				log.Error(err, "failed to iterate over items")
+			}
+			return
+		}),
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to watch ConfigMaps: %w", err)
+	}
+
+	configMapName, err := evalStringValue(ref.Name, self)
+	if err != nil {
+		return "", err
+	}
+
+	configMapKey, err := evalStringValue(ref.Key, self)
+	if err != nil {
+		return "", err
+	}
+
+	value, err := getConfigMapValue(ctx, c, self.GetNamespace(), configMapName, configMapKey)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return "", fmt.Errorf("failed to get ConfigMap %s: %w", configMapName, err)
+	}
+
+	return value, nil
+}
+
+func getConfigMapValue(ctx context.Context, c client.Client, namespace, name, key string) (string, error) {
+	configMap := corev1.ConfigMap{}
+	err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &configMap)
+	if err != nil {
+		return "", err
+	}
+	return configMap.Data[key], nil
 }
