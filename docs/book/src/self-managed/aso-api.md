@@ -66,7 +66,7 @@ authentication. Instead, [ASO-native credentials](https://azure.github.io/azure-
 
 ### Resources
 
-The `spec.resources` field defines literal, full ASO objects inline whose lifecycles will be tied to the
+The `spec.resources` field defines literal ASO objects inline whose lifecycles will be tied to the
 enveloping CAPZ resource.
 
 e.g.
@@ -103,7 +103,7 @@ create an invalid object and fails, it will log an error message with the API se
 
 In each reconciliation loop, CAPZ will perform a [server-side apply
 patch](https://kubernetes.io/docs/reference/using-api/server-side-apply/) on each element of `spec.resources`
-with the definition as it appears in the CAPZ object. Server-side apply protects modifications made by other
+with the definition as it appears in the CAPZ object with any [patches](#patches) applied. Server-side apply protects modifications made by other
 actors (notably the ASO control plane) to non-overlapping segments of the resources managed by CAPZ from being
 overwritten by CAPZ.
 
@@ -111,6 +111,85 @@ The `status.resources` field describes the ASO resources for which the CAPZ obje
 only enough information for CAPZ to map back to a resource in `spec.resources` and determine whether or not
 the resource has been successfully provisioned. For more details about the status of an ASO resource, check
 the ASO resource directly.
+
+### Patches
+
+The `spec.patches` field defines [RFC 6902](https://tools.ietf.org/html/rfc6902) JSON patches to apply
+directly to the literal objects defined in `spec.resources`.
+
+e.g.
+```yaml
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: AzureASOCluster
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  patches:
+  - jsonPatches: # add credentials to all resources
+    - op: add
+      path: /metadata/annotations
+      value:
+        serviceoperator.azure.com/credential-from: aso-credentials
+  - selectors: # kinds requiring location
+    - kind: ResourceGroup
+    - kind: VirtualNetwork
+    jsonPatches:
+    - op: add
+      path: /spec/location
+      value: ${AZURE_LOCATION}
+  resources:
+  - apiVersion: resources.azure.com/v1api20200601
+    kind: ResourceGroup
+    metadata:
+      name: ${CLUSTER_NAME}
+    spec: {}
+  - apiVersion: network.azure.com/v1api20240301
+    kind: VirtualNetwork
+    metadata:
+      name: ${CLUSTER_NAME}
+    spec:
+      owner:
+        name: ${CLUSTER_NAME}
+      addressSpace:
+        addressPrefixes:
+        - 10.0.0.0/16
+```
+
+`jsonPatches` defines the literal RFC 6902 JSON patch to apply. `selectors` defines a list of selectors
+matched against each element of `spec.resources`. The `jsonPatches` apply to a resource if _any_ of the
+`selectors` match the resource, or if no `selectors` are defined for a patch.
+
+The above example is equivalent to if the patches had been applied directly to `spec.resources`:
+
+```yaml
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: AzureASOCluster
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  resources:
+  - apiVersion: resources.azure.com/v1api20200601
+    kind: ResourceGroup
+    metadata:
+      name: ${CLUSTER_NAME}
+      annotations:
+        serviceoperator.azure.com/credential-from: aso-credentials
+    spec:
+      location: ${AZURE_LOCATION}
+  - apiVersion: network.azure.com/v1api20240301
+    kind: VirtualNetwork
+    metadata:
+      name: ${CLUSTER_NAME}
+      annotations:
+        serviceoperator.azure.com/credential-from: aso-credentials
+    spec:
+      location: ${AZURE_LOCATION}
+      owner:
+        name: ${CLUSTER_NAME}
+      addressSpace:
+        addressPrefixes:
+        - 10.0.0.0/16
+```
 
 ### Pause
 

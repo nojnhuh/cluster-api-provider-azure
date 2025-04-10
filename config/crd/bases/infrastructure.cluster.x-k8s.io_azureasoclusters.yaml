@@ -41,6 +41,79 @@ spec:
           spec:
             description: AzureASOClusterSpec defines the desired state of AzureASOCluster.
             properties:
+              patches:
+                description: Patches are applied to Resources before they are created
+                  or updated.
+                items:
+                  description: |-
+                    ResourcesPatch defines an ordered list of patches to apply to
+                    resources matching a set of selection criteria.
+                  properties:
+                    jsonPatches:
+                      description: JSONPatches defines the patches to be applied,
+                        in order.
+                      items:
+                        description: |-
+                          JSONPatch represents a JSON Patch defined by [RFC 6902].
+
+                          [RFC 6902]: https://tools.ietf.org/html/rfc6902
+                        properties:
+                          from:
+                            maxLength: 256
+                            type: string
+                          op:
+                            description: |-
+                              JSONPatchOp is the `op` of a [RFC 6902] JSON patch.
+
+                              [RFC 6902]: https://tools.ietf.org/html/rfc6902
+                            enum:
+                            - add
+                            - remove
+                            - replace
+                            - move
+                            - copy
+                            - test
+                            type: string
+                          path:
+                            maxLength: 256
+                            type: string
+                          value:
+                            x-kubernetes-preserve-unknown-fields: true
+                        required:
+                        - op
+                        - path
+                        type: object
+                      maxItems: 32
+                      type: array
+                    selectors:
+                      description: |-
+                        Selectors declare conditions to match resources.
+                        A resource is matched when at least one selector matches.
+                      items:
+                        description: ResourcesPatchSelector filters Resources to which
+                          patches should apply.
+                        properties:
+                          apiVersion:
+                            description: |-
+                              APIVersion, when defined, matches the apiVersion of the resource exactly.
+                              Otherwise matches all APIVersions.
+                            type: string
+                          kind:
+                            description: |-
+                              Kind, when defined, matches the kind of the resource exactly.
+                              Otherwise matches all kinds.
+                            type: string
+                          name:
+                            description: |-
+                              Name, when defined, matches the metadata.name of the resource exactly.
+                              Otherwise matches all names.
+                            type: string
+                        type: object
+                      maxItems: 32
+                      type: array
+                  type: object
+                maxItems: 32
+                type: array
               resources:
                 description: Resources are embedded ASO resources to be managed by
                   this resource.
