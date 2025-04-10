@@ -191,6 +191,60 @@ spec:
         - 10.0.0.0/16
 ```
 
+#### Value Templates
+
+The `valueFrom` field is inspired by [ClusterClass
+patches](https://cluster-api.sigs.k8s.io/tasks/experimental-features/cluster-class/write-clusterclass#advanced-features-of-clusterclass-with-patches)
+and extends RFC 6902 JSON patches to supply non-literal values, such as from evaluating a Go `text/template`.
+See the API documentation for more details about how to set this field.
+
+In this partially-complete example, the Cluster's `spec.clusterNetwork.apiServerPort` is propagated to the
+`frontendPort` of one of a LoadBalancer's load balancing rules. The LoadBalancer's name is also derived from
+the AzureASOCluster's `metadata.name`:
+
+```yaml
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  clusterNetwork:
+    apiServerPort: 6443
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: AzureASOCluster
+    name: ${CLUSTER_NAME}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: AzureASOCluster
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  patches:
+  - selectors:
+    - kind: LoadBalancer
+    jsonPatches:
+    - op: add
+      path: /spec/loadBalancingRules/0/frontendPort
+      valueFrom:
+        template: |-
+          {{ .clusterV1beta2.spec.clusterNetwork.apiServerPort }}
+    - op: add
+      path: /metadata
+      valueFrom:
+        template: |-
+          name: {{ .selfV1alpha1.metadata.name }}-load-balancer
+  resources:
+  - apiVersion: network.azure.com/v1api20240301
+    kind: LoadBalancer
+    spec:
+      loadBalancingRules:
+      - name: controlplane
+        frontendIPConfiguration:
+          reference:
+            armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CLUSTER_NAME}/providers/Microsoft.Network/loadBalancers/${CLUSTER_NAME}/frontendIPConfigurations/controlplane
+```
+
 ### Pause
 
 When a CAPI Cluster object or ASO API resource is paused, CAPZ automatically adds the
