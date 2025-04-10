@@ -386,3 +386,5 @@ spec:
           key: port
           value: string(self.spec.loadBalancingRules[0].frontendPort)
 ```
+
+## AzureASOMachine
