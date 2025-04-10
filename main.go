@@ -659,6 +659,13 @@ func registerControllers(ctx context.Context, mgr manager.Manager) {
 			setupLog.Error(err, "unable to create controller", "controller", "AzureASOCluster")
 			os.Exit(1)
 		}
+
+		if err := (&infrav1controllersexp.AzureASOMachineReconciler{
+			Client: mgr.GetClient(),
+		}).SetupWithManager(ctx, mgr, controller.Options{MaxConcurrentReconciles: azureMachineConcurrency}); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "AzureASOMachine")
+			os.Exit(1)
+		}
 	}
 }
 
@@ -755,6 +762,16 @@ func registerWebhooks(mgr manager.Manager) {
 
 		if err := infrav1alphaexp.SetupAzureASOClusterTemplateWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "AzureASOClusterTemplate")
+			os.Exit(1)
+		}
+
+		if err := infrav1alphaexp.SetupAzureASOMachineWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "AzureASOMachine")
+			os.Exit(1)
+		}
+
+		if err := infrav1alphaexp.SetupAzureASOMachineTemplateWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "AzureASOMachineTemplate")
 			os.Exit(1)
 		}
 	}
