@@ -21,6 +21,8 @@ import (
 
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 func TestAzureASOClusterTemplateWebhookValidateCreate(t *testing.T) {
@@ -33,6 +35,56 @@ func TestAzureASOClusterTemplateWebhookValidateCreate(t *testing.T) {
 			name:               "empty",
 			asoClusterTemplate: &AzureASOClusterTemplate{},
 			matchErrs:          Not(HaveOccurred()),
+		},
+		{
+			name: "missing JSON patch fields",
+			asoClusterTemplate: &AzureASOClusterTemplate{
+				Spec: AzureASOClusterTemplateSpec{
+					Template: AzureASOClusterTemplateResource{
+						Spec: AzureASOClusterTemplateResourceSpec{
+							Patches: []ResourcesPatch{
+								{
+									JSONPatches: []JSONPatch{
+										{Op: JSONPatchOpAdd, Path: "/", Value: &apiextensionsv1.JSON{Raw: []byte(`7`)}},
+										{Op: JSONPatchOpAdd, Path: "/"},
+									},
+								},
+								{
+									JSONPatches: []JSONPatch{
+										{Op: JSONPatchOpReplace, Path: "/", Value: &apiextensionsv1.JSON{Raw: []byte(`7`)}},
+										{Op: JSONPatchOpReplace, Path: "/"},
+									},
+								},
+								{
+									JSONPatches: []JSONPatch{
+										{Op: JSONPatchOpTest, Path: "/", Value: &apiextensionsv1.JSON{Raw: []byte(`7`)}},
+										{Op: JSONPatchOpTest, Path: "/"},
+									},
+								},
+								{
+									JSONPatches: []JSONPatch{
+										{Op: JSONPatchOpMove, Path: "/", From: "/"},
+										{Op: JSONPatchOpMove, Path: "/"},
+									},
+								},
+								{
+									JSONPatches: []JSONPatch{
+										{Op: JSONPatchOpCopy, Path: "/", From: "/"},
+										{Op: JSONPatchOpCopy, Path: "/"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			matchErrs: ConsistOf(
+				MatchError(field.Required(field.NewPath("spec", "template", "spec", "patches").Index(0).Child("jsonPatches").Index(1).Child("value"), "required for \"add\" operations")),
+				MatchError(field.Required(field.NewPath("spec", "template", "spec", "patches").Index(1).Child("jsonPatches").Index(1).Child("value"), "required for \"replace\" operations")),
+				MatchError(field.Required(field.NewPath("spec", "template", "spec", "patches").Index(2).Child("jsonPatches").Index(1).Child("value"), "required for \"test\" operations")),
+				MatchError(field.Required(field.NewPath("spec", "template", "spec", "patches").Index(3).Child("jsonPatches").Index(1).Child("from"), "required for \"move\" operations")),
+				MatchError(field.Required(field.NewPath("spec", "template", "spec", "patches").Index(4).Child("jsonPatches").Index(1).Child("from"), "required for \"copy\" operations")),
+			),
 		},
 	}
 

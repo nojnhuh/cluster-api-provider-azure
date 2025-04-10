@@ -17,33 +17,60 @@ metadata:
   name: ${CLUSTER_NAME}
   namespace: default
 spec:
+  patches:
+  - jsonPatches:
+    - op: add
+      path: /metadata/annotations
+      value:
+        serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
+  - jsonPatches:
+    - op: add
+      path: /spec/owner
+      value:
+        name: ${CLUSTER_NAME}
+    selectors:
+    - kind: VirtualNetwork
+    - kind: PublicIPAddress
+    - kind: LoadBalancer
+    - kind: NetworkSecurityGroup
+    - kind: NatGateway
+    - kind: RouteTable
+  - jsonPatches:
+    - op: add
+      path: /spec/owner
+      value:
+        name: ${CLUSTER_NAME}
+    selectors:
+    - kind: VirtualNetworksSubnet
+  - jsonPatches:
+    - op: add
+      path: /spec/location
+      value: ${AZURE_LOCATION}
+    selectors:
+    - kind: ResourceGroup
+    - kind: VirtualNetwork
+    - kind: PublicIPAddress
+    - kind: LoadBalancer
+    - kind: NetworkSecurityGroup
+    - kind: NatGateway
+    - kind: RouteTable
   resources:
   - apiVersion: resources.azure.com/v1api20200601
     kind: ResourceGroup
     metadata:
-      annotations:
-        serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
       name: ${CLUSTER_NAME}
-    spec:
-      location: ${AZURE_LOCATION}
+    spec: {}
   - apiVersion: network.azure.com/v1api20240301
     kind: VirtualNetwork
     metadata:
-      annotations:
-        serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
       name: ${CLUSTER_NAME}
     spec:
       addressSpace:
         addressPrefixes:
         - 10.0.0.0/16
-      location: ${AZURE_LOCATION}
-      owner:
-        name: ${CLUSTER_NAME}
   - apiVersion: network.azure.com/v1api20240301
     kind: VirtualNetworksSubnet
     metadata:
-      annotations:
-        serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
       name: ${CLUSTER_NAME}-controlplane
     spec:
       addressPrefix: 10.0.0.0/24
@@ -57,13 +84,9 @@ spec:
           group: network.azure.com
           kind: NetworkSecurityGroup
           name: ${CLUSTER_NAME}-controlplane
-      owner:
-        name: ${CLUSTER_NAME}
   - apiVersion: network.azure.com/v1api20240301
     kind: VirtualNetworksSubnet
     metadata:
-      annotations:
-        serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
       name: ${CLUSTER_NAME}-worker
     spec:
       addressPrefix: 10.0.1.0/24
@@ -82,21 +105,14 @@ spec:
   - apiVersion: network.azure.com/v1api20240301
     kind: PublicIPAddress
     metadata:
-      annotations:
-        serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
       name: ${CLUSTER_NAME}-controlplane
     spec:
-      location: ${AZURE_LOCATION}
-      owner:
-        name: ${CLUSTER_NAME}
       publicIPAllocationMethod: Static
       sku:
         name: Standard
   - apiVersion: network.azure.com/v1api20240301
     kind: LoadBalancer
     metadata:
-      annotations:
-        serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
       name: ${CLUSTER_NAME}
     spec:
       backendAddressPools:
@@ -123,9 +139,6 @@ spec:
           reference:
             armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CLUSTER_NAME}/providers/Microsoft.Network/loadBalancers/${CLUSTER_NAME}/probes/apiserver
         protocol: Tcp
-      location: ${AZURE_LOCATION}
-      owner:
-        name: ${CLUSTER_NAME}
       probes:
       - name: apiserver
         port: 6443
@@ -153,18 +166,11 @@ spec:
   - apiVersion: network.azure.com/v1api20240301
     kind: NetworkSecurityGroup
     metadata:
-      annotations:
-        serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
       name: ${CLUSTER_NAME}-controlplane
-    spec:
-      location: ${AZURE_LOCATION}
-      owner:
-        name: ${CLUSTER_NAME}
+    spec: {}
   - apiVersion: network.azure.com/v1api20240301
     kind: NetworkSecurityGroupsSecurityRule
     metadata:
-      annotations:
-        serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
       name: ${CLUSTER_NAME}-allow-apiserver
     spec:
       access: Allow
@@ -199,32 +205,21 @@ spec:
   - apiVersion: network.azure.com/v1api20240301
     kind: NetworkSecurityGroup
     metadata:
-      annotations:
-        serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
       name: ${CLUSTER_NAME}-worker
-    spec:
-      location: ${AZURE_LOCATION}
-      owner:
-        name: ${CLUSTER_NAME}
+    spec: {}
   - apiVersion: network.azure.com/v1api20240301
     kind: PublicIPAddress
     metadata:
       name: ${CLUSTER_NAME}-nat-gateway
     spec:
-      location: ${AZURE_LOCATION}
       publicIPAllocationMethod: Static
       sku:
         name: Standard
   - apiVersion: network.azure.com/v1api20240301
     kind: NatGateway
     metadata:
-      annotations:
-        serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
       name: ${CLUSTER_NAME}
     spec:
-      location: ${AZURE_LOCATION}
-      owner:
-        name: ${CLUSTER_NAME}
       publicIpAddresses:
       - reference:
           group: network.azure.com
@@ -236,10 +231,7 @@ spec:
     kind: RouteTable
     metadata:
       name: ${CLUSTER_NAME}
-    spec:
-      location: ${AZURE_LOCATION}
-      owner:
-        name: ${CLUSTER_NAME}
+    spec: {}
 ---
 apiVersion: v1
 kind: Secret
