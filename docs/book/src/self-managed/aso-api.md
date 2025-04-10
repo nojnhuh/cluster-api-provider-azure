@@ -312,3 +312,77 @@ the error.
 
 AzureASOCluster defines resources for which there are a fixed number for the cluster. This generally includes
 resources like ResourceGroups, VirtualNetworks, and LoadBalancers.
+
+### Control Plane Endpoint
+
+AzureASOCluster fulfills the [Cluster API InfraCluster
+contract](https://cluster-api.sigs.k8s.io/developer/providers/contracts/infra-cluster). As such, unless an
+externally hosted control plane is used, it is expected to produce a `spec.controlPlaneEndpoint`. The
+AzureASOCluster API makes no assumptions about which resources make up which parts of the control plane
+endpoint, or even if any do at all. Therefore, it is up to the user either to define
+`spec.controlPlaneEndpoint` themselves, or specify a `spec.controlPlaneEndpointSource` which describes where
+the endpoint's constituent parts can be found.
+
+One way to define a `spec.controlPlaneEndpointSource` is to reference specific fields in ConfigMaps holding
+the control plane endpoint's `host` and `port`. Together with [ASO's native ability to produce
+ConfigMaps](https://azure.github.io/azure-service-operator/guide/configmaps/#how-to-export-configmap-data-from-aso)
+with details about the provisioned resources, an AzureASOCluster can declare specific parts of specific
+resources as the control plane endpoint.
+
+The following partial example shows how to populate a `spec.controlPlaneEndpoint` based on a PublicIPAddress
+and LoadBalancer:
+
+```yaml
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: AzureASOCluster
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  controlPlaneEndpointSource:
+    host:
+      configMap:
+        name:
+          value: ${CLUSTER_NAME}-controlplane-ip
+        key:
+          value: host
+    port:
+      configMap:
+        name:
+          value: ${CLUSTER_NAME}-controlplane-lb
+        key:
+          value: port
+  resources:
+  - apiVersion: network.azure.com/v1api20240301
+    kind: PublicIPAddress
+    metadata:
+      name: ${CLUSTER_NAME}-controlplane
+    spec:
+      operatorSpec:
+        configMapExpressions:
+        - name: ${CLUSTER_NAME}-controlplane-ip
+          key: host
+          value: self.status.ipAddress
+  - apiVersion: network.azure.com/v1api20240301
+    kind: LoadBalancer
+    metadata:
+      name: ${CLUSTER_NAME}
+    spec:
+      frontendIPConfigurations:
+      - name: controlplane
+        publicIPAddress:
+          reference:
+            group: network.azure.com
+            kind: PublicIPAddress
+            name: ${CLUSTER_NAME}-controlplane
+      loadBalancingRules:
+      - name: controlplane
+        frontendPort: 6443
+        frontendIPConfiguration:
+          reference:
+            armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CLUSTER_NAME}/providers/Microsoft.Network/loadBalancers/${CLUSTER_NAME}/frontendIPConfigurations/controlplane
+      operatorSpec:
+        configMapExpressions:
+        - name: ${CLUSTER_NAME}-controlplane-lb
+          key: port
+          value: string(self.spec.loadBalancingRules[0].frontendPort)
+```

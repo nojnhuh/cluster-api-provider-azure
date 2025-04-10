@@ -22,6 +22,7 @@ import (
 	"strings"
 	"text/template"
 
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -79,6 +80,9 @@ func validateAzureASOClusterTemplateResource(path *field.Path, template AzureASO
 func validateAzureASOClusterTemplateResourceSpec(path *field.Path, spec AzureASOClusterTemplateResourceSpec) field.ErrorList {
 	var allErrs field.ErrorList
 	allErrs = append(allErrs, validateResourcesPatches(path.Child("patches"), spec.Patches)...)
+	if spec.ControlPlaneEndpointSource != nil {
+		allErrs = append(allErrs, validateControlPlaneEndpointSource(path.Child("controlPlaneEndpointSource"), *spec.ControlPlaneEndpointSource)...)
+	}
 	return allErrs
 }
 
@@ -150,5 +154,102 @@ func validateStringTemplate(path *field.Path, tpl string) field.ErrorList {
 	if _, err := template.New("tpl").Parse(tpl); err != nil {
 		allErrs = append(allErrs, field.Invalid(path, tpl, err.Error()))
 	}
+	return allErrs
+}
+
+func validateControlPlaneEndpointSource(path *field.Path, source ControlPlaneEndpointSource) field.ErrorList {
+	var allErrs field.ErrorList
+
+	if source.Host != nil {
+		allErrs = append(allErrs, validateStringSource(path.Child("host"), *source.Host)...)
+	}
+	if source.Port != nil {
+		allErrs = append(allErrs, validateStringSource(path.Child("port"), *source.Port)...)
+	}
+
+	return allErrs
+}
+
+func validateStringSource(path *field.Path, s StringSource) field.ErrorList {
+	var allErrs field.ErrorList
+
+	var fieldsSet []string
+	if s.ConfigMap != nil {
+		fieldsSet = append(fieldsSet, "configMap")
+		allErrs = append(allErrs, validateConfigMapReference(path.Child("configMap"), *s.ConfigMap)...)
+	}
+
+	// unreachable until at least one other source is added to the API.
+	msg := "must set at most one of `configMap`"
+	if len(fieldsSet) > 1 {
+		allErrs = append(allErrs, field.Invalid(path, fmt.Sprintf("[%s]", strings.Join(fieldsSet, ", ")), msg))
+	}
+
+	return allErrs
+}
+
+func validateConfigMapReference(path *field.Path, ref ConfigMapReference) field.ErrorList {
+	var allErrs field.ErrorList
+	allErrs = append(allErrs, validateConfigMapReferenceName(path.Child("name"), ref.Name)...)
+	allErrs = append(allErrs, validateConfigMapReferenceKey(path.Child("key"), ref.Key)...)
+	return allErrs
+}
+
+func validateConfigMapReferenceName(path *field.Path, name StringValue) field.ErrorList {
+	var allErrs field.ErrorList
+	allErrs = append(allErrs, validateStringValue(path, name)...)
+	if name.Value != nil {
+		allErrs = append(allErrs, validateConfigMapReferenceNameValue(path.Child("value"), *name.Value)...)
+	}
+	return allErrs
+}
+
+func validateConfigMapReferenceNameValue(path *field.Path, name string) field.ErrorList {
+	var allErrs field.ErrorList
+	for _, err := range validation.IsDNS1123Subdomain(name) {
+		allErrs = append(allErrs, field.Invalid(path, name, err))
+	}
+	return allErrs
+}
+
+func validateConfigMapReferenceKey(path *field.Path, key StringValue) field.ErrorList {
+	var allErrs field.ErrorList
+	allErrs = append(allErrs, validateStringValue(path, key)...)
+	if key.Value != nil {
+		allErrs = append(allErrs, validateConfigMapReferenceKeyValue(path.Child("value"), *key.Value)...)
+	}
+	return allErrs
+}
+
+func validateConfigMapReferenceKeyValue(path *field.Path, key string) field.ErrorList {
+	var allErrs field.ErrorList
+	for _, err := range validation.IsConfigMapKey(key) {
+		allErrs = append(allErrs, field.Invalid(path, key, err))
+	}
+	return allErrs
+}
+
+func validateStringValue(path *field.Path, s StringValue) field.ErrorList {
+	var allErrs field.ErrorList
+
+	var fieldsSet []string
+	if s.Value != nil {
+		fieldsSet = append(fieldsSet, "value")
+	}
+	if s.Template != nil {
+		fieldsSet = append(fieldsSet, "template")
+		allErrs = append(allErrs, validateStringTemplate(path.Child("template"), *s.Template)...)
+	}
+
+	msg := "must set exactly one of `value`, `template`"
+	switch len(fieldsSet) {
+	case 1:
+		// ok
+	case 0:
+		allErrs = append(allErrs, field.Required(path, msg))
+	default:
+		allErrs = append(allErrs, field.Invalid(path, fmt.Sprintf("[%s]", strings.Join(fieldsSet, ", ")), msg))
+	}
+
 	return allErrs
 }
