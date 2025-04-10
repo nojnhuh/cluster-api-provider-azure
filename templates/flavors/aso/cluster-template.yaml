@@ -11,6 +11,10 @@ spec:
     apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
     kind: AzureASOCluster
     name: ${CLUSTER_NAME}
+  controlPlaneRef:
+    kind: KubeadmControlPlane
+    apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+    name: ${CLUSTER_NAME}-controlplane
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: AzureASOCluster
@@ -321,3 +325,81 @@ stringData:
       "useManagedIdentityExtension": true
     }
 ---
+kind: KubeadmControlPlane
+apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+metadata:
+  name: "${CLUSTER_NAME}-controlplane"
+  namespace: default
+spec:
+  replicas: ${CONTROL_PLANE_MACHINE_COUNT:=1}
+  machineTemplate:
+    infrastructureRef:
+      kind: AzureASOMachineTemplate
+      apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+      name: "${CLUSTER_NAME}-controlplane"
+  kubeadmConfigSpec:
+    initConfiguration:
+      nodeRegistration:
+        name: '{{ ds.meta_data["local_hostname"] }}'
+        kubeletExtraArgs:
+          cloud-provider: external
+    joinConfiguration:
+      nodeRegistration:
+        name: '{{ ds.meta_data["local_hostname"] }}'
+        kubeletExtraArgs:
+          cloud-provider: external
+    clusterConfiguration:
+      apiServer:
+        timeoutForControlPlane: 20m
+        extraArgs: {}
+      controllerManager:
+        extraArgs:
+          allocate-node-cidrs: "false"
+          cluster-name: ${CLUSTER_NAME}
+          cloud-provider: external
+      etcd:
+        local:
+          dataDir: "/var/lib/etcddisk/etcd"
+          extraArgs:
+            quota-backend-bytes: "8589934592"
+    files:
+      - contentFrom:
+          secret:
+            name: ${CLUSTER_NAME}-azure-json
+            key: controlplane
+        owner: root:root
+        path: /etc/kubernetes/azure.json
+        permissions: "0644"
+    diskSetup:
+      partitions:
+        - device: /dev/disk/azure/scsi1/lun0
+          tableType: gpt
+          layout: true
+          overwrite: false
+      filesystems:
+        - label: etcd_disk
+          filesystem: ext4
+          device: /dev/disk/azure/scsi1/lun0
+          extraOpts:
+            - "-E"
+            - "lazy_itable_init=1,lazy_journal_init=1"
+        - label: ephemeral0
+          filesystem: ext4
+          device: ephemeral0.1
+          replaceFS: ntfs
+    mounts:
+      - - LABEL=etcd_disk
+        - /var/lib/etcddisk
+    preKubeadmCommands: []
+    postKubeadmCommands: []
+    verbosity: 10
+  version: "${KUBERNETES_VERSION}"
+---
+kind: AzureASOMachineTemplate
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+metadata:
+  name: "${CLUSTER_NAME}-controlplane"
+  namespace: default
+spec:
+  template:
+    spec: {}
