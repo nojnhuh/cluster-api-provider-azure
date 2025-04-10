@@ -24,6 +24,7 @@ import (
 	"github.com/onsi/gomega/types"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/utils/ptr"
 )
 
 func TestAzureASOClusterTemplateWebhookValidateCreate(t *testing.T) {
@@ -46,19 +47,24 @@ func TestAzureASOClusterTemplateWebhookValidateCreate(t *testing.T) {
 							Patches: []ResourcesPatch{
 								{
 									JSONPatches: []JSONPatch{
-										{Op: JSONPatchOpAdd, Path: "/", Value: &apiextensionsv1.JSON{Raw: []byte(`7`)}},
+										{Op: JSONPatchOpAdd, Path: "/", Value: &apiextensionsv1.JSON{Raw: []byte(`value`)}},
+										{Op: JSONPatchOpAdd, Path: "/", ValueFrom: &JSONPatchValueFrom{Template: ptr.To("template")}},
 										{Op: JSONPatchOpAdd, Path: "/"},
+										{Op: JSONPatchOpAdd, Path: "/", ValueFrom: &JSONPatchValueFrom{Template: ptr.To("{{")}},
+										{Op: JSONPatchOpAdd, Path: "/", ValueFrom: &JSONPatchValueFrom{}},
 									},
 								},
 								{
 									JSONPatches: []JSONPatch{
-										{Op: JSONPatchOpReplace, Path: "/", Value: &apiextensionsv1.JSON{Raw: []byte(`7`)}},
+										{Op: JSONPatchOpReplace, Path: "/", Value: &apiextensionsv1.JSON{Raw: []byte(`value`)}},
+										{Op: JSONPatchOpReplace, Path: "/", ValueFrom: &JSONPatchValueFrom{Template: ptr.To("template")}},
 										{Op: JSONPatchOpReplace, Path: "/"},
 									},
 								},
 								{
 									JSONPatches: []JSONPatch{
-										{Op: JSONPatchOpTest, Path: "/", Value: &apiextensionsv1.JSON{Raw: []byte(`7`)}},
+										{Op: JSONPatchOpTest, Path: "/", Value: &apiextensionsv1.JSON{Raw: []byte(`value`)}},
+										{Op: JSONPatchOpTest, Path: "/", ValueFrom: &JSONPatchValueFrom{Template: ptr.To("template")}},
 										{Op: JSONPatchOpTest, Path: "/"},
 									},
 								},
@@ -80,9 +86,11 @@ func TestAzureASOClusterTemplateWebhookValidateCreate(t *testing.T) {
 				},
 			},
 			matchErrs: ConsistOf(
-				MatchError(field.Required(field.NewPath("spec", "template", "spec", "patches").Index(0).Child("jsonPatches").Index(1).Child("value"), "required for \"add\" operations")),
-				MatchError(field.Required(field.NewPath("spec", "template", "spec", "patches").Index(1).Child("jsonPatches").Index(1).Child("value"), "required for \"replace\" operations")),
-				MatchError(field.Required(field.NewPath("spec", "template", "spec", "patches").Index(2).Child("jsonPatches").Index(1).Child("value"), "required for \"test\" operations")),
+				MatchError(field.Required(field.NewPath("spec", "template", "spec", "patches").Index(0).Child("jsonPatches").Index(2), "one of \"value\" or \"valueFrom\" is required for \"add\" operations")),
+				MatchError(field.Invalid(field.NewPath("spec", "template", "spec", "patches").Index(0).Child("jsonPatches").Index(3).Child("valueFrom", "template"), "{{", "template: tpl:1: unclosed action")),
+				MatchError(field.Required(field.NewPath("spec", "template", "spec", "patches").Index(0).Child("jsonPatches").Index(4).Child("valueFrom"), "must set exactly one of `template`")),
+				MatchError(field.Required(field.NewPath("spec", "template", "spec", "patches").Index(1).Child("jsonPatches").Index(2), "one of \"value\" or \"valueFrom\" is required for \"replace\" operations")),
+				MatchError(field.Required(field.NewPath("spec", "template", "spec", "patches").Index(2).Child("jsonPatches").Index(2), "one of \"value\" or \"valueFrom\" is required for \"test\" operations")),
 				MatchError(field.Required(field.NewPath("spec", "template", "spec", "patches").Index(3).Child("jsonPatches").Index(1).Child("from"), "required for \"move\" operations")),
 				MatchError(field.Required(field.NewPath("spec", "template", "spec", "patches").Index(4).Child("jsonPatches").Index(1).Child("from"), "required for \"copy\" operations")),
 			),

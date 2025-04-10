@@ -19,6 +19,8 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
+	"strings"
+	"text/template"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -114,13 +116,47 @@ func validateJSONPatch(path *field.Path, jsonPatch JSONPatch) field.ErrorList {
 	var allErrs field.ErrorList
 	switch jsonPatch.Op {
 	case JSONPatchOpAdd, JSONPatchOpReplace, JSONPatchOpTest:
-		if jsonPatch.Value == nil {
-			allErrs = append(allErrs, field.Required(path.Child("value"), fmt.Sprintf("required for %q operations", jsonPatch.Op)))
+		if jsonPatch.Value == nil && jsonPatch.ValueFrom == nil {
+			allErrs = append(allErrs, field.Required(path, fmt.Sprintf("one of \"value\" or \"valueFrom\" is required for %q operations", jsonPatch.Op)))
 		}
 	case JSONPatchOpMove, JSONPatchOpCopy:
 		if jsonPatch.From == "" {
 			allErrs = append(allErrs, field.Required(path.Child("from"), fmt.Sprintf("required for %q operations", jsonPatch.Op)))
 		}
+	}
+	if jsonPatch.ValueFrom != nil {
+		allErrs = append(allErrs, validateJSONPatchValueFrom(path.Child("valueFrom"), *jsonPatch.ValueFrom)...)
+	}
+	return allErrs
+}
+
+func validateJSONPatchValueFrom(path *field.Path, valueFrom JSONPatchValueFrom) field.ErrorList {
+	var allErrs field.ErrorList
+
+	var fieldsSet []string
+	if valueFrom.Template != nil {
+		fieldsSet = append(fieldsSet, "template")
+		allErrs = append(allErrs, validateStringTemplate(path.Child("template"), *valueFrom.Template)...)
+	}
+
+	msg := "must set exactly one of `template`"
+	switch len(fieldsSet) {
+	case 1:
+		// ok
+	case 0:
+		allErrs = append(allErrs, field.Required(path, msg))
+	default:
+		// unreachable until at least one other source is added to the API.
+		allErrs = append(allErrs, field.Invalid(path, fmt.Sprintf("[%s]", strings.Join(fieldsSet, ", ")), msg))
+	}
+
+	return allErrs
+}
+
+func validateStringTemplate(path *field.Path, tpl string) field.ErrorList {
+	var allErrs field.ErrorList
+	if _, err := template.New("tpl").Parse(tpl); err != nil {
+		allErrs = append(allErrs, field.Invalid(path, tpl, err.Error()))
 	}
 	return allErrs
 }

@@ -17,9 +17,11 @@ limitations under the License.
 package controllers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"text/template"
 
 	jsonpatch "github.com/evanphx/json-patch/v5"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -155,11 +157,11 @@ func (r *AzureASOClusterReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	if cluster != nil && cluster.Spec.Paused ||
 		annotations.HasPaused(asoCluster) {
-		return r.reconcilePaused(ctx, asoCluster)
+		return r.reconcilePaused(ctx, asoCluster, cluster)
 	}
 
 	if !asoCluster.GetDeletionTimestamp().IsZero() {
-		return r.reconcileDelete(ctx, asoCluster)
+		return r.reconcileDelete(ctx, asoCluster, cluster)
 	}
 
 	return r.reconcileNormal(ctx, asoCluster, cluster)
@@ -183,7 +185,7 @@ func (r *AzureASOClusterReconciler) reconcileNormal(ctx context.Context, asoClus
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	resourceReconciler, err := r.resourceReconciler(ctx, asoCluster)
+	resourceReconciler, err := r.resourceReconciler(ctx, asoCluster, cluster)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -200,14 +202,14 @@ func (r *AzureASOClusterReconciler) reconcileNormal(ctx context.Context, asoClus
 	return ctrl.Result{}, nil
 }
 
-func (r *AzureASOClusterReconciler) reconcilePaused(ctx context.Context, asoCluster *infrav1alphaexp.AzureASOCluster) (ctrl.Result, error) {
+func (r *AzureASOClusterReconciler) reconcilePaused(ctx context.Context, asoCluster *infrav1alphaexp.AzureASOCluster, cluster *clusterv1.Cluster) (ctrl.Result, error) {
 	ctx, log, done := tele.StartSpanWithLogger(ctx,
 		"controllers.AzureASOClusterReconciler.reconcilePaused",
 	)
 	defer done()
 	log.V(4).Info("reconciling pause")
 
-	resourceReconciler, err := r.resourceReconciler(ctx, asoCluster)
+	resourceReconciler, err := r.resourceReconciler(ctx, asoCluster, cluster)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -221,14 +223,14 @@ func (r *AzureASOClusterReconciler) reconcilePaused(ctx context.Context, asoClus
 	return ctrl.Result{}, nil
 }
 
-func (r *AzureASOClusterReconciler) reconcileDelete(ctx context.Context, asoCluster *infrav1alphaexp.AzureASOCluster) (ctrl.Result, error) {
+func (r *AzureASOClusterReconciler) reconcileDelete(ctx context.Context, asoCluster *infrav1alphaexp.AzureASOCluster, cluster *clusterv1.Cluster) (ctrl.Result, error) {
 	ctx, log, done := tele.StartSpanWithLogger(ctx,
 		"controllers.AzureASOClusterReconciler.reconcileDelete",
 	)
 	defer done()
 	log.V(4).Info("reconciling delete")
 
-	resourceReconciler, err := r.resourceReconciler(ctx, asoCluster)
+	resourceReconciler, err := r.resourceReconciler(ctx, asoCluster, cluster)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -245,8 +247,13 @@ func (r *AzureASOClusterReconciler) reconcileDelete(ctx context.Context, asoClus
 	return ctrl.Result{}, nil
 }
 
-func (r *AzureASOClusterReconciler) resourceReconciler(ctx context.Context, asoCluster *infrav1alphaexp.AzureASOCluster) (resourceReconciler, error) {
-	resources, err := applyPatches(ctx, asoCluster.Spec.Resources, asoCluster.Spec.Patches)
+func (r *AzureASOClusterReconciler) resourceReconciler(ctx context.Context, asoCluster *infrav1alphaexp.AzureASOCluster, cluster *clusterv1.Cluster) (resourceReconciler, error) {
+	templateData, err := infrav1alphaexp.AzureASOClusterJSONPatchValueFromTemplateData(asoCluster, cluster)
+	if err != nil {
+		return nil, err
+	}
+
+	resources, err := applyPatches(ctx, asoCluster.Spec.Resources, asoCluster.Spec.Patches, templateData)
 	if err != nil {
 		return nil, err
 	}
@@ -264,7 +271,7 @@ type json6902 struct {
 	Value *apiextensionsv1.JSON       `json:"value,omitempty"`
 }
 
-func applyPatches(ctx context.Context, resources []runtime.RawExtension, patches []infrav1alphaexp.ResourcesPatch) ([]runtime.RawExtension, error) {
+func applyPatches(ctx context.Context, resources []runtime.RawExtension, patches []infrav1alphaexp.ResourcesPatch, templateData any) ([]runtime.RawExtension, error) {
 	ctx, _, done := tele.StartSpanWithLogger(ctx,
 		"controllers.applyPatches",
 	)
@@ -292,12 +299,28 @@ func applyPatches(ctx context.Context, resources []runtime.RawExtension, patches
 			}
 
 			for _, jsonPatch := range patch.JSONPatches {
-				json6902Patches = append(json6902Patches, json6902{
+				json6902Patch := json6902{
 					Op:    jsonPatch.Op,
 					Path:  jsonPatch.Path,
 					From:  jsonPatch.From,
 					Value: jsonPatch.Value,
-				})
+				}
+
+				if valueFrom := jsonPatch.ValueFrom; valueFrom != nil {
+					if valueFrom.Template != nil {
+						tplResult, err := evalTemplate(*valueFrom.Template, templateData)
+						if err != nil {
+							return nil, err
+						}
+						jsonResult, err := yaml.ToJSON([]byte(tplResult))
+						if err != nil {
+							return nil, err
+						}
+						json6902Patch.Value = &apiextensionsv1.JSON{Raw: jsonResult}
+					}
+				}
+
+				json6902Patches = append(json6902Patches, json6902Patch)
 			}
 			patchData, err := json.Marshal(json6902Patches)
 			if err != nil {
@@ -329,4 +352,17 @@ func patchSelectorsMatch(selectors []infrav1alphaexp.ResourcesPatchSelector, u *
 	}
 	// No selectors matches everything
 	return len(selectors) == 0
+}
+
+func evalTemplate(tpl string, data any) (string, error) {
+	parsed, err := template.New("tpl").Parse(tpl)
+	if err != nil {
+		return "", err
+	}
+	buf := &bytes.Buffer{}
+	err = parsed.Execute(buf, data)
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }

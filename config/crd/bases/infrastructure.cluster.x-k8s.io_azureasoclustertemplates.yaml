@@ -50,8 +50,17 @@ spec:
                       state of the templated resource.
                     properties:
                       patches:
-                        description: Patches are applied to Resources before they
-                          are created or updated.
+                        description: |-
+                          Patches are applied to Resources before they are created or updated.
+
+                          Data passed to JSONPatchValueFrom templates is a map consisting of the following keys:
+
+                          - self: this AzureASOCluster
+                          - cluster: the owning Cluster resource
+
+                          e.g. a template could be defined in YAML as
+
+                              template: '{{ .self.metadata.name }}'
                         items:
                           description: |-
                             ResourcesPatch defines an ordered list of patches to apply to
@@ -86,7 +95,25 @@ spec:
                                     maxLength: 256
                                     type: string
                                   value:
+                                    description: |-
+                                      Value is a literal value used per RFC 6902.
+                                      Only one of Value and ValueFrom may be set.
                                     x-kubernetes-preserve-unknown-fields: true
+                                  valueFrom:
+                                    description: |-
+                                      ValueFrom defines the value of the patch.
+                                      Only one of Value and ValueFrom may be set.
+                                    properties:
+                                      template:
+                                        description: |-
+                                          Template is the Go template to be used to calculate the value.
+                                          The template must evaluate to a valid YAML or JSON value.
+                                        maxLength: 1024
+                                        minLength: 1
+                                        type: string
+                                    required:
+                                    - template
+                                    type: object
                                 required:
                                 - op
                                 - path
