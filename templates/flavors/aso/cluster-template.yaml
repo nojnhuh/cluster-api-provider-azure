@@ -55,6 +55,34 @@ spec:
     - op: add
       path: /spec/location
       value: ${AZURE_LOCATION}
+  - selectors:
+    - kind: LoadBalancer
+      name: ${CLUSTER_NAME}
+    jsonPatches:
+    - op: add
+      path: /spec/loadBalancingRules/0/backendPort
+      valueFrom:
+        template: |-
+          {{ .cluster.spec.clusterNetwork.apiServerPort }}
+    - op: add
+      path: /spec/loadBalancingRules/0/frontendPort
+      valueFrom:
+        template: |-
+          {{ .cluster.spec.clusterNetwork.apiServerPort }}
+    - op: add
+      path: /spec/probes/0/port
+      valueFrom:
+        template: |-
+          {{ .cluster.spec.clusterNetwork.apiServerPort }}
+  - selectors:
+    - kind: NetworkSecurityGroupsSecurityRule
+      name: ${CLUSTER_NAME}-allow-apiserver
+    jsonPatches:
+    - op: add
+      path: /spec/destinationPortRange
+      valueFrom:
+        template: |-
+          "{{ .cluster.spec.clusterNetwork.apiServerPort }}"
   resources:
   - apiVersion: resources.azure.com/v1api20200601
     kind: ResourceGroup
@@ -132,11 +160,9 @@ spec:
         backendAddressPools:
         - reference:
             armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CLUSTER_NAME}/providers/Microsoft.Network/loadBalancers/${CLUSTER_NAME}/backendAddressPools/controlplane
-        backendPort: 6443
         frontendIPConfiguration:
           reference:
             armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CLUSTER_NAME}/providers/Microsoft.Network/loadBalancers/${CLUSTER_NAME}/frontendIPConfigurations/controlplane
-        frontendPort: 6443
         protocol: Tcp
         disableOutboundSnat: true
         probe:
@@ -146,7 +172,6 @@ spec:
       - name: apiserver
         protocol: Https
         requestPath: /readyz
-        port: 6443
   - apiVersion: network.azure.com/v1api20240301
     kind: LoadBalancersInboundNatRule
     metadata:
@@ -183,7 +208,6 @@ spec:
       sourceAddressPrefix: "*"
       sourcePortRange: "*"
       destinationAddressPrefix: "*"
-      destinationPortRange: "6443"
       priority: 2000
       direction: Inbound
       description: Allow access to kube-apiserver

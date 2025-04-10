@@ -54,6 +54,30 @@ spec:
     - kind: NetworkSecurityGroup
     - kind: NatGateway
     - kind: RouteTable
+  - jsonPatches:
+    - op: add
+      path: /spec/loadBalancingRules/0/backendPort
+      valueFrom:
+        template: '{{ .cluster.spec.clusterNetwork.apiServerPort }}'
+    - op: add
+      path: /spec/loadBalancingRules/0/frontendPort
+      valueFrom:
+        template: '{{ .cluster.spec.clusterNetwork.apiServerPort }}'
+    - op: add
+      path: /spec/probes/0/port
+      valueFrom:
+        template: '{{ .cluster.spec.clusterNetwork.apiServerPort }}'
+    selectors:
+    - kind: LoadBalancer
+      name: ${CLUSTER_NAME}
+  - jsonPatches:
+    - op: add
+      path: /spec/destinationPortRange
+      valueFrom:
+        template: '"{{ .cluster.spec.clusterNetwork.apiServerPort }}"'
+    selectors:
+    - kind: NetworkSecurityGroupsSecurityRule
+      name: ${CLUSTER_NAME}-allow-apiserver
   resources:
   - apiVersion: resources.azure.com/v1api20200601
     kind: ResourceGroup
@@ -128,12 +152,10 @@ spec:
       - backendAddressPools:
         - reference:
             armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CLUSTER_NAME}/providers/Microsoft.Network/loadBalancers/${CLUSTER_NAME}/backendAddressPools/controlplane
-        backendPort: 6443
         disableOutboundSnat: true
         frontendIPConfiguration:
           reference:
             armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CLUSTER_NAME}/providers/Microsoft.Network/loadBalancers/${CLUSTER_NAME}/frontendIPConfigurations/controlplane
-        frontendPort: 6443
         name: controlplane
         probe:
           reference:
@@ -141,7 +163,6 @@ spec:
         protocol: Tcp
       probes:
       - name: apiserver
-        port: 6443
         protocol: Https
         requestPath: /readyz
       sku:
@@ -177,7 +198,6 @@ spec:
       azureName: AllowApiServer
       description: Allow access to kube-apiserver
       destinationAddressPrefix: '*'
-      destinationPortRange: "6443"
       direction: Inbound
       owner:
         name: ${CLUSTER_NAME}-controlplane
