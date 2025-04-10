@@ -41,6 +41,134 @@ spec:
           spec:
             description: AzureASOClusterSpec defines the desired state of AzureASOCluster.
             properties:
+              controlPlaneEndpoint:
+                description: |-
+                  ControlPlaneEndpoint is the location of the API server within the control plane. CAPZ manages this field
+                  and it should not be set by the user. It fulfills Cluster API's cluster infrastructure provider contract.
+                  Because this field is programmatically set by CAPZ after resource creation, we define it as +optional
+                  in the API schema to permit resource admission.
+                properties:
+                  host:
+                    description: host is the hostname on which the API server is serving.
+                    maxLength: 512
+                    type: string
+                  port:
+                    description: port is the port on which the API server is serving.
+                    format: int32
+                    type: integer
+                required:
+                - host
+                - port
+                type: object
+              controlPlaneEndpointSource:
+                description: |-
+                  ControlPlaneEndpointSource defines where the host and port for the ControlPlaneEndpoint can be found.
+                  When set, CAPZ takes ownership of setting fields in ControlPlaneEndpoint, even if already set by the
+                  user.
+                properties:
+                  host:
+                    description: Host refers to a value to use for the ControlPlaneEndpoint's
+                      host.
+                    properties:
+                      configMap:
+                        description: ConfigMapReference refers to a particular value
+                          in a ConfigMap.
+                        properties:
+                          key:
+                            description: Key is the key of the ConfigMap's data.
+                            properties:
+                              template:
+                                description: |-
+                                  Template is a Go text/template that evaluates to a string.
+
+                                  Data passed to templates is a map consisting of the following keys:
+
+                                  - self: this CAPZ resource
+
+                                  e.g. a template could be defined in YAML as
+
+                                      template: '{{ .self.metadata.name }}'
+                                type: string
+                              value:
+                                description: Value is a literal string.
+                                type: string
+                            type: object
+                          name:
+                            description: Name is the metadata.name of the ConfigMap.
+                            properties:
+                              template:
+                                description: |-
+                                  Template is a Go text/template that evaluates to a string.
+
+                                  Data passed to templates is a map consisting of the following keys:
+
+                                  - self: this CAPZ resource
+
+                                  e.g. a template could be defined in YAML as
+
+                                      template: '{{ .self.metadata.name }}'
+                                type: string
+                              value:
+                                description: Value is a literal string.
+                                type: string
+                            type: object
+                        required:
+                        - key
+                        - name
+                        type: object
+                    type: object
+                  port:
+                    description: Port refers to a value to use for the ControlPlaneEndpoint's
+                      port.
+                    properties:
+                      configMap:
+                        description: ConfigMapReference refers to a particular value
+                          in a ConfigMap.
+                        properties:
+                          key:
+                            description: Key is the key of the ConfigMap's data.
+                            properties:
+                              template:
+                                description: |-
+                                  Template is a Go text/template that evaluates to a string.
+
+                                  Data passed to templates is a map consisting of the following keys:
+
+                                  - self: this CAPZ resource
+
+                                  e.g. a template could be defined in YAML as
+
+                                      template: '{{ .self.metadata.name }}'
+                                type: string
+                              value:
+                                description: Value is a literal string.
+                                type: string
+                            type: object
+                          name:
+                            description: Name is the metadata.name of the ConfigMap.
+                            properties:
+                              template:
+                                description: |-
+                                  Template is a Go text/template that evaluates to a string.
+
+                                  Data passed to templates is a map consisting of the following keys:
+
+                                  - self: this CAPZ resource
+
+                                  e.g. a template could be defined in YAML as
+
+                                      template: '{{ .self.metadata.name }}'
+                                type: string
+                              value:
+                                description: Value is a literal string.
+                                type: string
+                            type: object
+                        required:
+                        - key
+                        - name
+                        type: object
+                    type: object
+                type: object
               patches:
                 description: |-
                   Patches are applied to Resources before they are created or updated.
@@ -153,6 +281,11 @@ spec:
           status:
             description: AzureASOClusterStatus defines the observed state of AzureASOCluster.
             properties:
+              ready:
+                description: |-
+                  Ready represents whether or not the cluster has been provisioned. It fulfills Cluster
+                  API's cluster infrastructure provider contract.
+                type: boolean
               resources:
                 items:
                   description: ResourceStatus represents the status of a resource.

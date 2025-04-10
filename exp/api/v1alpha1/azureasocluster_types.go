@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 
 	infrav1alpha "sigs.k8s.io/cluster-api-provider-azure/api/v1alpha1"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
@@ -34,11 +35,25 @@ const (
 // AzureASOClusterSpec defines the desired state of AzureASOCluster.
 type AzureASOClusterSpec struct {
 	AzureASOClusterTemplateResourceSpec `json:",inline"`
+
+	// ControlPlaneEndpoint is the location of the API server within the control plane. CAPZ manages this field
+	// and it should not be set by the user. It fulfills Cluster API's cluster infrastructure provider contract.
+	// Because this field is programmatically set by CAPZ after resource creation, we define it as +optional
+	// in the API schema to permit resource admission.
+	//
+	// +optional
+	ControlPlaneEndpoint clusterv1.APIEndpoint `json:"controlPlaneEndpoint"`
 }
 
 // AzureASOClusterStatus defines the observed state of AzureASOCluster.
 type AzureASOClusterStatus struct {
-	//+optional
+	// Ready represents whether or not the cluster has been provisioned. It fulfills Cluster
+	// API's cluster infrastructure provider contract.
+	//
+	// +optional
+	Ready bool `json:"ready"`
+
+	// +optional
 	Resources []infrav1alpha.ResourceStatus `json:"resources,omitempty"`
 }
 

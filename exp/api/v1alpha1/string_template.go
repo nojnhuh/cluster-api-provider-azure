@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	"k8s.io/apimachinery/pkg/runtime"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // AzureASOClusterJSONPatchValueFromTemplateData returns the data passed to [JSONPatchValueFrom] templates for AzureASOClusters.
@@ -29,6 +30,15 @@ func AzureASOClusterJSONPatchValueFromTemplateData(self *AzureASOCluster, cluste
 	}
 	if cluster != nil {
 		objs["cluster"] = cluster
+	}
+	return buildTemplateData(objs)
+}
+
+// StringValueTemplateData returns the data passed to [StringValue] templates.
+func StringValueTemplateData(self client.Object) (any, error) {
+	objs := make(map[string]any)
+	if self != nil {
+		objs["self"] = self
 	}
 	return buildTemplateData(objs)
 }
