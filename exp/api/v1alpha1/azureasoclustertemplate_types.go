@@ -42,6 +42,15 @@ type AzureASOClusterTemplateResourceSpec struct {
 
 	// Patches are applied to Resources before they are created or updated.
 	//
+	// Data passed to JSONPatchValueFrom templates is a map consisting of the following keys:
+	//
+	// - selfV1alpha1: this AzureASOCluster
+	// - clusterV1beta2: the owning Cluster resource
+	//
+	// e.g. a template could be defined in YAML as
+	//
+	//     template: '{{ .selfV1alpha1.metadata.name }}'
+	//
 	// +optional
 	// +kubebuilder:validation:MaxItems:=32
 	Patches []ResourcesPatch `json:"patches,omitempty"`
@@ -121,8 +130,28 @@ type JSONPatch struct {
 	// +kubebuilder:validation:MaxLength:=256
 	From string `json:"from,omitempty"`
 
+	// Value is a literal value used per RFC 6902.
+	// Only one of Value and ValueFrom may be set.
+	//
 	// +optional
 	Value *apiextensionsv1.JSON `json:"value,omitempty"`
+
+	// ValueFrom defines the value of the patch.
+	// Only one of Value and ValueFrom may be set.
+	//
+	// +optional
+	ValueFrom *JSONPatchValueFrom `json:"valueFrom,omitempty"`
+}
+
+// JSONPatchValueFrom defines a non-literal value to be used in a [JSONPatch].
+type JSONPatchValueFrom struct {
+	// Template is the Go template to be used to calculate the value.
+	// The template must evaluate to a valid YAML or JSON value.
+	//
+	// +required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=1024
+	Template *string `json:"template,omitempty"`
 }
 
 //+kubebuilder:object:root=true
