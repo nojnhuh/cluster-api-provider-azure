@@ -6,6 +6,10 @@ metadata:
 spec:
   clusterNetwork:
     apiServerPort: 6443
+  controlPlaneRef:
+    apiGroup: controlplane.cluster.x-k8s.io
+    kind: KubeadmControlPlane
+    name: ${CLUSTER_NAME}-controlplane
   infrastructureRef:
     apiGroup: infrastructure.cluster.x-k8s.io
     kind: AzureASOCluster
@@ -314,3 +318,88 @@ stringData:
       "useInstanceMetadata": true,
       "useManagedIdentityExtension": true
     }
+---
+apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+kind: KubeadmControlPlane
+metadata:
+  name: ${CLUSTER_NAME}-controlplane
+  namespace: default
+spec:
+  kubeadmConfigSpec:
+    clusterConfiguration:
+      controllerManager:
+        extraArgs:
+        - name: allocate-node-cidrs
+          value: "false"
+        - name: cluster-name
+          value: ${CLUSTER_NAME}
+        - name: cloud-provider
+          value: external
+      etcd:
+        local:
+          dataDir: /var/lib/etcddisk/etcd
+          extraArgs:
+          - name: quota-backend-bytes
+            value: "8589934592"
+    diskSetup:
+      filesystems:
+      - device: /dev/disk/azure/scsi1/lun0
+        extraOpts:
+        - -E
+        - lazy_itable_init=1,lazy_journal_init=1
+        filesystem: ext4
+        label: etcd_disk
+      - device: ephemeral0.1
+        filesystem: ext4
+        label: ephemeral0
+        replaceFS: ntfs
+      partitions:
+      - device: /dev/disk/azure/scsi1/lun0
+        layout: true
+        overwrite: false
+        tableType: gpt
+    files:
+    - contentFrom:
+        secret:
+          key: controlplane
+          name: ${CLUSTER_NAME}-azure-json
+      owner: root:root
+      path: /etc/kubernetes/azure.json
+      permissions: "0644"
+    initConfiguration:
+      nodeRegistration:
+        kubeletExtraArgs:
+        - name: cloud-provider
+          value: external
+        name: '{{ ds.meta_data["local_hostname"] }}'
+      timeouts:
+        controlPlaneComponentHealthCheckSeconds: 1200
+    joinConfiguration:
+      nodeRegistration:
+        kubeletExtraArgs:
+        - name: cloud-provider
+          value: external
+        name: '{{ ds.meta_data["local_hostname"] }}'
+      timeouts:
+        controlPlaneComponentHealthCheckSeconds: 1200
+    mounts:
+    - - LABEL=etcd_disk
+      - /var/lib/etcddisk
+    verbosity: 10
+  machineTemplate:
+    spec:
+      infrastructureRef:
+        apiGroup: infrastructure.cluster.x-k8s.io
+        kind: AzureASOMachineTemplate
+        name: ${CLUSTER_NAME}-controlplane
+  replicas: ${CONTROL_PLANE_MACHINE_COUNT:=1}
+  version: ${KUBERNETES_VERSION}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: AzureASOMachineTemplate
+metadata:
+  name: ${CLUSTER_NAME}-controlplane
+  namespace: default
+spec:
+  template:
+    spec: {}
