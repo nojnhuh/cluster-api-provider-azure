@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	"context"
+	"fmt"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -81,7 +82,45 @@ func validateAzureASOClusterTemplateResource(path *field.Path, template AzureASO
 	return allErrs
 }
 
-func validateAzureASOClusterTemplateResourceSpec(_ *field.Path, _ AzureASOClusterTemplateResourceSpec) field.ErrorList {
+func validateAzureASOClusterTemplateResourceSpec(path *field.Path, spec AzureASOClusterTemplateResourceSpec) field.ErrorList {
 	var allErrs field.ErrorList
+	allErrs = append(allErrs, validateResourcesPatches(path.Child("patches"), spec.Patches)...)
+	return allErrs
+}
+
+func validateResourcesPatches(path *field.Path, patches []ResourcesPatch) field.ErrorList {
+	var allErrs field.ErrorList
+	for i, patch := range patches {
+		allErrs = append(allErrs, validateResourcesPatch(path.Index(i), patch)...)
+	}
+	return allErrs
+}
+
+func validateResourcesPatch(path *field.Path, patch ResourcesPatch) field.ErrorList {
+	var allErrs field.ErrorList
+	allErrs = append(allErrs, validateJSONPatches(path.Child("jsonPatches"), patch.JSONPatches)...)
+	return allErrs
+}
+
+func validateJSONPatches(path *field.Path, jsonPatches []JSONPatch) field.ErrorList {
+	var allErrs field.ErrorList
+	for i, jsonPatch := range jsonPatches {
+		allErrs = append(allErrs, validateJSONPatch(path.Index(i), jsonPatch)...)
+	}
+	return allErrs
+}
+
+func validateJSONPatch(path *field.Path, jsonPatch JSONPatch) field.ErrorList {
+	var allErrs field.ErrorList
+	switch jsonPatch.Op {
+	case JSONPatchOpAdd, JSONPatchOpReplace, JSONPatchOpTest:
+		if jsonPatch.Value == nil {
+			allErrs = append(allErrs, field.Required(path.Child("value"), fmt.Sprintf("required for %q operations", jsonPatch.Op)))
+		}
+	case JSONPatchOpMove, JSONPatchOpCopy:
+		if jsonPatch.From == "" {
+			allErrs = append(allErrs, field.Required(path.Child("from"), fmt.Sprintf("required for %q operations", jsonPatch.Op)))
+		}
+	}
 	return allErrs
 }
