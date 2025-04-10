@@ -22,6 +22,7 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -226,7 +227,7 @@ func TestAzureASOClusterReconcile(t *testing.T) {
 		asoCluster := &infrav1alphaexp.AzureASOCluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "aso-cluster",
-				Namespace: "ns",
+				Namespace: cluster.Namespace,
 				OwnerReferences: []metav1.OwnerReference{
 					{
 						APIVersion: clusterv1.GroupVersion.Identifier(),
@@ -241,17 +242,52 @@ func TestAzureASOClusterReconcile(t *testing.T) {
 					clusterctlv1.BlockMoveAnnotation: "true",
 				},
 			},
+			Spec: infrav1alphaexp.AzureASOClusterSpec{
+				AzureASOClusterTemplateResourceSpec: infrav1alphaexp.AzureASOClusterTemplateResourceSpec{
+					Patches: []infrav1alphaexp.ResourcesPatch{
+						{
+							Selectors: []infrav1alphaexp.ResourcesPatchSelector{
+								{
+									Kind:       "ResourceGroup",
+									APIVersion: "resources.azure.com/v1api20200601",
+								},
+								{Kind: "AnotherKind"},
+							},
+							JSONPatches: []infrav1alphaexp.JSONPatch{
+								{
+									Op:   infrav1alphaexp.JSONPatchOpAdd,
+									Path: "/metadata",
+									Value: &apiextensionsv1.JSON{
+										Raw: []byte(`{"name": "rg-name"}`),
+									},
+								},
+							},
+						},
+					},
+					Resources: []runtime.RawExtension{
+						{Raw: []byte(`{
+							"apiVersion": "resources.azure.com/v1api20200601",
+							"kind": "ResourceGroup"
+						}`)},
+					},
+				},
+			},
 		}
 		c := fakeClientBuilder().
 			WithObjects(cluster, asoCluster).
 			Build()
-		var reconciled bool
+		expectReconciled := map[string]struct{}{
+			"rg-name": {},
+		}
 		r := &AzureASOClusterReconciler{
 			Client: c,
-			newResourceReconciler: func(_ *infrav1alphaexp.AzureASOCluster, _ []*unstructured.Unstructured) resourceReconciler {
+			newResourceReconciler: func(_ *infrav1alphaexp.AzureASOCluster, us []*unstructured.Unstructured) resourceReconciler {
 				return &fakeResourceReconciler{
-					reconcileFunc: func(ctx context.Context, o client.Object) error {
-						reconciled = true
+					reconcileFunc: func(_ context.Context, _ client.Object) error {
+						for _, u := range us {
+							g.Expect(expectReconciled).To(HaveKey(u.GetName()), "reconciled unexpected resource")
+							delete(expectReconciled, u.GetName())
+						}
 						return nil
 					},
 				}
@@ -260,7 +296,10 @@ func TestAzureASOClusterReconcile(t *testing.T) {
 		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoCluster)})
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(result).To(Equal(ctrl.Result{}))
-		g.Expect(reconciled).To(BeTrue())
+		g.Expect(expectReconciled).To(BeEmpty(), "resources should have been reconciled but were not")
+
+		err = c.Get(ctx, client.ObjectKeyFromObject(asoCluster), asoCluster)
+		g.Expect(err).NotTo(HaveOccurred())
 	})
 
 	t.Run("successfully reconciles pause", func(t *testing.T) {

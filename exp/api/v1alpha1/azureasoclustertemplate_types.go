@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
@@ -38,6 +39,90 @@ type AzureASOClusterTemplateResourceSpec struct {
 	// +optional
 	// +kubebuilder:validation:MaxItems:=32
 	Resources []runtime.RawExtension `json:"resources,omitempty"`
+
+	// Patches are applied to Resources before they are created or updated.
+	//
+	// +optional
+	// +kubebuilder:validation:MaxItems:=32
+	Patches []ResourcesPatch `json:"patches,omitempty"`
+}
+
+// ResourcesPatch defines an ordered list of patches to apply to
+// resources matching a set of selection criteria.
+type ResourcesPatch struct {
+	// Selectors declare conditions to match resources.
+	// A resource is matched when at least one selector matches.
+	//
+	// +optional
+	// +kubebuilder:validation:MaxItems:=32
+	Selectors []ResourcesPatchSelector `json:"selectors,omitempty"`
+
+	// JSONPatches defines the patches to be applied, in order.
+	//
+	// +optional
+	// +kubebuilder:validation:MaxItems:=32
+	JSONPatches []JSONPatch `json:"jsonPatches,omitempty"`
+}
+
+// ResourcesPatchSelector filters Resources to which patches should apply.
+type ResourcesPatchSelector struct {
+	// APIVersion, when defined, matches the apiVersion of the resource exactly.
+	// Otherwise matches all APIVersions.
+	//
+	// +optional
+	APIVersion string `json:"apiVersion,omitempty"`
+
+	// Kind, when defined, matches the kind of the resource exactly.
+	// Otherwise matches all kinds.
+	//
+	// +optional
+	Kind string `json:"kind,omitempty"`
+
+	// Name, when defined, matches the metadata.name of the resource exactly.
+	// Otherwise matches all names.
+	//
+	// +optional
+	Name string `json:"name,omitempty"`
+}
+
+// JSONPatchOp is the `op` of a [RFC 6902] JSON patch.
+//
+// [RFC 6902]: https://tools.ietf.org/html/rfc6902
+type JSONPatchOp string
+
+const (
+	// JSONPatchOpAdd is "add".
+	JSONPatchOpAdd JSONPatchOp = "add"
+	// JSONPatchOpRemove is "remove".
+	JSONPatchOpRemove JSONPatchOp = "remove"
+	// JSONPatchOpReplace is "replace".
+	JSONPatchOpReplace JSONPatchOp = "replace"
+	// JSONPatchOpMove is "move".
+	JSONPatchOpMove JSONPatchOp = "move"
+	// JSONPatchOpCopy is "copy".
+	JSONPatchOpCopy JSONPatchOp = "copy"
+	// JSONPatchOpTest is "test".
+	JSONPatchOpTest JSONPatchOp = "test"
+)
+
+// JSONPatch represents a JSON Patch defined by [RFC 6902].
+//
+// [RFC 6902]: https://tools.ietf.org/html/rfc6902
+type JSONPatch struct {
+	// +required
+	// +kubebuilder:validation:Enum=add;remove;replace;move;copy;test
+	Op JSONPatchOp `json:"op"`
+
+	// +required
+	// +kubebuilder:validation:MaxLength:=256
+	Path string `json:"path"`
+
+	// +optional
+	// +kubebuilder:validation:MaxLength:=256
+	From string `json:"from,omitempty"`
+
+	// +optional
+	Value *apiextensionsv1.JSON `json:"value,omitempty"`
 }
 
 //+kubebuilder:object:root=true
