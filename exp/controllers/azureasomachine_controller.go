@@ -277,6 +277,8 @@ func (r *AzureASOMachineReconciler) reconcileNormal(ctx context.Context, asoMach
 		asoMachine.Spec.ProviderID = providerID
 	}
 
+	asoMachine.Status.Initialization.Provisioned = ptr.To(true)
+
 	return ctrl.Result{}, nil
 }
 
