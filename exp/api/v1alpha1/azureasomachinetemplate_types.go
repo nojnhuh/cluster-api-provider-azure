@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // AzureASOMachineTemplateSpec defines the desired state of AzureASOMachineTemplate.
@@ -31,7 +32,29 @@ type AzureASOMachineTemplateResource struct {
 }
 
 // AzureASOMachineTemplateResourceSpec defines the desired state of the templated resource.
-type AzureASOMachineTemplateResourceSpec struct{}
+type AzureASOMachineTemplateResourceSpec struct {
+	// Resources are embedded ASO resources to be managed by this resource.
+	//
+	// +optional
+	// +kubebuilder:validation:MaxItems:=32
+	Resources []runtime.RawExtension `json:"resources,omitempty"`
+
+	// Patches are applied to Resources before they are created or updated.
+	//
+	// Data passed to JSONPatchValueFrom templates is a map consisting of the following keys:
+	//
+	// - self: this AzureASOMachine
+	// - machine: the owning Machine resource
+	// - cluster: the associated Cluster resource
+	//
+	// e.g. a template could be defined in YAML as
+	//
+	//     template: '{{ .self.metadata.name }}'
+	//
+	// +optional
+	// +kubebuilder:validation:MaxItems:=32
+	Patches []ResourcesPatch `json:"patches,omitempty"`
+}
 
 //+kubebuilder:object:root=true
 

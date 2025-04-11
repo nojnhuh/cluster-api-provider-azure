@@ -388,3 +388,6 @@ spec:
 ```
 
 ## AzureASOMachine
+
+AzureASOMachine defines resources for which there are a fixed number per Machine. This generally includes
+resources like VirtualMachines, NetworkInterfaces, and Disks.
