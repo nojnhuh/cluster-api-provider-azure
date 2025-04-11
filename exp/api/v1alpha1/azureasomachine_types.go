@@ -45,6 +45,12 @@ type AzureASOMachineSpec struct {
 
 // AzureASOMachineStatus defines the observed state of AzureASOMachine.
 type AzureASOMachineStatus struct {
+	// Ready represents whether or not the machine has been provisioned. It fulfills Cluster
+	// API's machine infrastructure provider contract.
+	//
+	// +optional
+	Ready bool `json:"ready"`
+
 	//+optional
 	Resources []infrav1alpha.ResourceStatus `json:"resources,omitempty"`
 }
