@@ -19,23 +19,33 @@ package controllers
 import (
 	"context"
 
+	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 
 	infrav1alphaexp "sigs.k8s.io/cluster-api-provider-azure/exp/api/v1alpha1"
+	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
 )
 
 // AzureASOMachineReconciler reconciles a AzureASOMachine object.
 type AzureASOMachineReconciler struct {
 	client.Client
+	WatchFilterValue string
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *AzureASOMachineReconciler) SetupWithManager(_ context.Context, mgr ctrl.Manager, options controller.Options) error {
+func (r *AzureASOMachineReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, options controller.Options) error {
+	_, log, done := tele.StartSpanWithLogger(ctx,
+		"controllers.AzureASOMachineReconciler.SetupWithManager",
+		tele.KVP("controller", infrav1alphaexp.AzureASOMachineKind),
+	)
+	defer done()
+
 	_, err := ctrl.NewControllerManagedBy(mgr).
 		WithOptions(options).
 		For(&infrav1alphaexp.AzureASOMachine{}).
+		WithEventFilter(predicates.ResourceHasFilterLabel(mgr.GetScheme(), log, r.WatchFilterValue)).
 		Build(r)
 	if err != nil {
 		return err

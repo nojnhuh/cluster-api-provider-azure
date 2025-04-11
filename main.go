@@ -661,7 +661,8 @@ func registerControllers(ctx context.Context, mgr manager.Manager) {
 		}
 
 		if err := (&infrav1controllersexp.AzureASOMachineReconciler{
-			Client: mgr.GetClient(),
+			Client:           mgr.GetClient(),
+			WatchFilterValue: watchFilterValue,
 		}).SetupWithManager(ctx, mgr, controller.Options{MaxConcurrentReconciles: azureMachineConcurrency}); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "AzureASOMachine")
 			os.Exit(1)
