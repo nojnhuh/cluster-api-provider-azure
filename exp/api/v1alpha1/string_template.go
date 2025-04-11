@@ -34,6 +34,21 @@ func AzureASOClusterJSONPatchValueFromTemplateData(self *AzureASOCluster, cluste
 	return buildTemplateData(objs)
 }
 
+// AzureASOMachineJSONPatchValueFromTemplateData returns the data passed to [JSONPatchValueFrom] templates for AzureASOMachines.
+func AzureASOMachineJSONPatchValueFromTemplateData(self *AzureASOMachine, machine *clusterv1.Machine, cluster *clusterv1.Cluster) (any, error) {
+	objs := make(map[string]any)
+	if self != nil {
+		objs["self"] = self
+	}
+	if cluster != nil {
+		objs["cluster"] = cluster
+	}
+	if machine != nil {
+		objs["machine"] = machine
+	}
+	return buildTemplateData(objs)
+}
+
 // StringValueTemplateData returns the data passed to [StringValue] templates.
 func StringValueTemplateData(self client.Object) (any, error) {
 	objs := make(map[string]any)

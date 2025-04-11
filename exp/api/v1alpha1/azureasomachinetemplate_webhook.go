@@ -81,7 +81,8 @@ func validateAzureASOMachineTemplateResource(path *field.Path, template AzureASO
 	return allErrs
 }
 
-func validateAzureASOMachineTemplateResourceSpec(_ *field.Path, _ AzureASOMachineTemplateResourceSpec) field.ErrorList {
+func validateAzureASOMachineTemplateResourceSpec(path *field.Path, spec AzureASOMachineTemplateResourceSpec) field.ErrorList {
 	var allErrs field.ErrorList
+	allErrs = append(allErrs, validateResourcesPatches(path.Child("patches"), spec.Patches)...)
 	return allErrs
 }

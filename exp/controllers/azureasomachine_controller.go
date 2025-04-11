@@ -20,7 +20,9 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	"sigs.k8s.io/cluster-api/controllers/external"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/patch"
@@ -34,6 +36,7 @@ import (
 
 	infracontroller "sigs.k8s.io/cluster-api-provider-azure/controllers"
 	infrav1alphaexp "sigs.k8s.io/cluster-api-provider-azure/exp/api/v1alpha1"
+	"sigs.k8s.io/cluster-api-provider-azure/pkg/mutators"
 	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
 )
 
@@ -41,6 +44,8 @@ import (
 type AzureASOMachineReconciler struct {
 	client.Client
 	WatchFilterValue string
+
+	newResourceReconciler func(*infrav1alphaexp.AzureASOMachine, []*unstructured.Unstructured) resourceReconciler
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -56,7 +61,7 @@ func (r *AzureASOMachineReconciler) SetupWithManager(ctx context.Context, mgr ct
 		return fmt.Errorf("failed to create mapper for Cluster to AzureASOMachines: %w", err)
 	}
 
-	_, err = ctrl.NewControllerManagedBy(mgr).
+	c, err := ctrl.NewControllerManagedBy(mgr).
 		WithOptions(options).
 		For(&infrav1alphaexp.AzureASOMachine{}).
 		WithEventFilter(predicates.ResourceHasFilterLabel(mgr.GetScheme(), log, r.WatchFilterValue)).
@@ -84,12 +89,34 @@ func (r *AzureASOMachineReconciler) SetupWithManager(ctx context.Context, mgr ct
 		return err
 	}
 
+	externalTracker := &external.ObjectTracker{
+		Cache:           mgr.GetCache(),
+		Controller:      c,
+		Scheme:          mgr.GetScheme(),
+		PredicateLogger: &log,
+	}
+
+	r.newResourceReconciler = func(asoMachine *infrav1alphaexp.AzureASOMachine, resources []*unstructured.Unstructured) resourceReconciler {
+		return &infracontroller.ResourceReconciler{
+			Client:    r.Client,
+			Resources: resources,
+			Owner:     asoMachine,
+			Watcher:   externalTracker,
+		}
+	}
+
 	return nil
 }
 
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=azureasomachines,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=azureasomachines/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=azureasomachines/finalizers,verbs=update
+//+kubebuilder:rbac:groups=compute.azure.com,resources=virtualmachines,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=compute.azure.com,resources=virtualmachines/status,verbs=get;list;watch
+//+kubebuilder:rbac:groups=network.azure.com,resources=networkinterfaces,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=network.azure.com,resources=networkinterfaces/status,verbs=get;list;watch
+//+kubebuilder:rbac:groups=authorization.azure.com,resources=roleassignments,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=authorization.azure.com,resources=roleassignments/status,verbs=get;list;watch
 
 // Reconcile reconciles an AzureASOMachine.
 func (r *AzureASOMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, resultErr error) {
@@ -131,25 +158,39 @@ func (r *AzureASOMachineReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	if cluster != nil && cluster.Spec.Paused ||
 		annotations.HasPaused(asoMachine) {
-		return r.reconcilePaused(ctx, asoMachine)
+		return r.reconcilePaused(ctx, asoMachine, machine, cluster)
 	}
 
 	if !asoMachine.GetDeletionTimestamp().IsZero() {
-		return r.reconcileDelete(ctx, asoMachine)
+		return r.reconcileDelete(ctx, asoMachine, machine, cluster)
 	}
 
-	return r.reconcileNormal(ctx, asoMachine, machine)
+	return r.reconcileNormal(ctx, asoMachine, machine, cluster)
 }
 
-func (r *AzureASOMachineReconciler) reconcileNormal(ctx context.Context, asoMachine *infrav1alphaexp.AzureASOMachine, machine *clusterv1.Machine) (ctrl.Result, error) {
+func (r *AzureASOMachineReconciler) resourceReconciler(ctx context.Context, asoMachine *infrav1alphaexp.AzureASOMachine, machine *clusterv1.Machine, cluster *clusterv1.Cluster) (resourceReconciler, error) {
+	templateData, err := infrav1alphaexp.AzureASOMachineJSONPatchValueFromTemplateData(asoMachine, machine, cluster)
+	if err != nil {
+		return nil, err
+	}
+
+	resources, err := applyPatches(ctx, asoMachine.Spec.Resources, asoMachine.Spec.Patches, templateData)
+	if err != nil {
+		return nil, err
+	}
+	us, err := mutators.ToUnstructured(ctx, resources)
+	if err != nil {
+		return nil, err
+	}
+	return r.newResourceReconciler(asoMachine, us), nil
+}
+
+func (r *AzureASOMachineReconciler) reconcileNormal(ctx context.Context, asoMachine *infrav1alphaexp.AzureASOMachine, machine *clusterv1.Machine, cluster *clusterv1.Cluster) (ctrl.Result, error) {
 	ctx, log, done := tele.StartSpanWithLogger(ctx,
 		"controllers.AzureASOMachineReconciler.reconcileNormal",
 	)
 	defer done()
 	log.V(4).Info("reconciling normally")
-
-	// this will be used soon
-	_ = ctx
 
 	if machine == nil {
 		log.V(4).Info("Machine Controller has not yet set OwnerRef")
@@ -157,35 +198,77 @@ func (r *AzureASOMachineReconciler) reconcileNormal(ctx context.Context, asoMach
 	}
 
 	needsPatch := controllerutil.AddFinalizer(asoMachine, infrav1alphaexp.AzureASOMachineFinalizer)
+	needsPatch = infracontroller.AddBlockMoveAnnotation(asoMachine) || needsPatch
 	if needsPatch {
 		return ctrl.Result{Requeue: true}, nil
+	}
+
+	if !cluster.Status.InfrastructureReady {
+		log.V(4).Info("Waiting for cluster infrastructure")
+		return ctrl.Result{}, nil
+	}
+
+	if machine.Spec.Bootstrap.DataSecretName == nil {
+		log.V(4).Info("Waiting for bootstrap data")
+		return ctrl.Result{}, nil
+	}
+
+	resourceReconciler, err := r.resourceReconciler(ctx, asoMachine, machine, cluster)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	err = resourceReconciler.Reconcile(ctx)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to reconcile resources: %w", err)
+	}
+	for _, status := range asoMachine.Status.Resources {
+		if !status.Ready {
+			return ctrl.Result{}, nil
+		}
 	}
 
 	return ctrl.Result{}, nil
 }
 
-func (r *AzureASOMachineReconciler) reconcilePaused(ctx context.Context, _ *infrav1alphaexp.AzureASOMachine) (ctrl.Result, error) {
+func (r *AzureASOMachineReconciler) reconcilePaused(ctx context.Context, asoMachine *infrav1alphaexp.AzureASOMachine, machine *clusterv1.Machine, cluster *clusterv1.Cluster) (ctrl.Result, error) {
 	ctx, log, done := tele.StartSpanWithLogger(ctx,
 		"controllers.AzureASOMachineReconciler.reconcilePaused",
 	)
 	defer done()
 	log.V(4).Info("reconciling pause")
 
-	// this will be used soon
-	_ = ctx
+	resourceReconciler, err := r.resourceReconciler(ctx, asoMachine, machine, cluster)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	err = resourceReconciler.Pause(ctx)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to pause resources: %w", err)
+	}
+
+	infracontroller.RemoveBlockMoveAnnotation(asoMachine)
 
 	return ctrl.Result{}, nil
 }
 
-func (r *AzureASOMachineReconciler) reconcileDelete(ctx context.Context, asoMachine *infrav1alphaexp.AzureASOMachine) (ctrl.Result, error) {
+func (r *AzureASOMachineReconciler) reconcileDelete(ctx context.Context, asoMachine *infrav1alphaexp.AzureASOMachine, machine *clusterv1.Machine, cluster *clusterv1.Cluster) (ctrl.Result, error) {
 	ctx, log, done := tele.StartSpanWithLogger(ctx,
 		"controllers.AzureASOMachineReconciler.reconcileDelete",
 	)
 	defer done()
 	log.V(4).Info("reconciling delete")
 
-	// this will be used soon
-	_ = ctx
+	resourceReconciler, err := r.resourceReconciler(ctx, asoMachine, machine, cluster)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	err = resourceReconciler.Delete(ctx)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to reconcile resources: %w", err)
+	}
+	if len(asoMachine.Status.Resources) > 0 {
+		return ctrl.Result{}, nil
+	}
 
 	controllerutil.RemoveFinalizer(asoMachine, infrav1alphaexp.AzureASOMachineFinalizer)
 

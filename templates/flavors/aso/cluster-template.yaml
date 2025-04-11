@@ -7,6 +7,9 @@ metadata:
 spec:
   clusterNetwork:
     apiServerPort: 6443
+    pods:
+      cidrBlocks:
+      - 192.168.0.0/16
   infrastructureRef:
     apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
     kind: AzureASOCluster
@@ -367,4 +370,121 @@ metadata:
   namespace: default
 spec:
   template:
-    spec: {}
+    spec:
+      patches:
+      - selectors:
+        - kind: VirtualMachine
+        - kind: NetworkInterface
+        - kind: RoleAssignment
+        jsonPatches:
+        - op: add
+          path: /metadata
+          valueFrom:
+            template: |-
+              name: {{ .self.metadata.name }}
+      - selectors:
+        - kind: VirtualMachine
+        jsonPatches:
+        - op: add
+          path: /spec/networkProfile/networkInterfaces/0/reference/name
+          valueFrom:
+            template: |-
+              {{ .self.metadata.name }}
+        - op: add
+          path: /spec/osProfile/computerName
+          valueFrom:
+            template: |-
+              {{ .self.metadata.name }}
+        - op: add
+          path: /spec/operatorSpec/configMapExpressions/0/name
+          valueFrom:
+            template: |-
+              {{ .self.metadata.name }}
+        - op: add
+          path: /spec/storageProfile
+          valueFrom:
+            template: |-
+              imageReference:
+                communityGalleryImageId: /CommunityGalleries/ClusterAPI-f72ceb4f-5159-4c26-a0fe-2ea738f0d019/Images/capi-ubun2-2404/Versions/{{ slice .machine.spec.version 1 }}
+      - selectors:
+        - kind: RoleAssignment
+        jsonPatches:
+        - op: add
+          path: /spec/principalIdFromConfig/name
+          valueFrom:
+            template: |-
+              {{ .self.metadata.name }}
+      - jsonPatches:
+        - op: add
+          path: /metadata/annotations
+          value:
+            serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
+      resources:
+      - apiVersion: compute.azure.com/v1api20220301
+        kind: VirtualMachine
+        spec:
+          diagnosticsProfile:
+            bootDiagnostics:
+              enabled: true
+          hardwareProfile:
+            vmSize: ${AZURE_CONTROL_PLANE_MACHINE_TYPE}
+          location: ${AZURE_LOCATION}
+          networkProfile:
+            networkInterfaces:
+            - reference:
+                group: network.azure.com
+                kind: NetworkInterface
+          osProfile:
+            adminPassword:
+              key: os-password
+              name: ${CLUSTER_NAME}-controlplane
+            adminUsername: capi
+          identity:
+            type: SystemAssigned
+          owner:
+            name: ${CLUSTER_NAME}
+          operatorSpec:
+            configMapExpressions:
+            - key: identity-principal-id
+              value: |
+                self.status.identity.principalId
+      - apiVersion: network.azure.com/v1api20240301
+        kind: NetworkInterface
+        spec:
+          location: ${AZURE_LOCATION}
+          owner:
+            name: ${CLUSTER_NAME}
+          networkSecurityGroup:
+            reference:
+              group: network.azure.com
+              kind: NetworkSecurityGroup
+              name: ${CLUSTER_NAME}-controlplane
+          ipConfigurations:
+          - name: ipconfig
+            loadBalancerBackendAddressPools:
+            - reference:
+                armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CLUSTER_NAME}/providers/Microsoft.Network/loadBalancers/${CLUSTER_NAME}/backendAddressPools/controlplane
+            subnet:
+              reference:
+                group: network.azure.com
+                kind: VirtualNetworksSubnet
+                name: ${CLUSTER_NAME}-controlplane
+      - apiVersion: authorization.azure.com/v1api20220401
+        kind: RoleAssignment
+        spec:
+          owner:
+            armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}
+          principalIdFromConfig:
+            key: identity-principal-id
+          roleDefinitionReference:
+            # This ARM ID represents "Contributor" - you can read about other built in roles here: https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles
+            armId: /subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c
+---
+kind: Secret
+apiVersion: v1
+metadata:
+  name: ${CLUSTER_NAME}-controlplane
+  namespace: default
+stringData:
+  os-password: ${AZURE_NODE_ADMIN_PASSWORD}
+---
