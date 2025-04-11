@@ -406,6 +406,13 @@ metadata:
 spec:
   template:
     spec:
+      providerIDSource:
+        configMap:
+          name:
+            template: |-
+              {{ .self.metadata.name }}
+          key:
+            value: provider-id
       patches:
       - selectors:
         - kind: VirtualMachine
@@ -432,6 +439,11 @@ spec:
               {{ .self.metadata.name }}
         - op: add
           path: /spec/operatorSpec/configMapExpressions/0/name
+          valueFrom:
+            template: |-
+              {{ .self.metadata.name }}
+        - op: add
+          path: /spec/operatorSpec/configMapExpressions/1/name
           valueFrom:
             template: |-
               {{ .self.metadata.name }}
@@ -493,6 +505,37 @@ spec:
             - key: identity-principal-id
               value: |
                 self.status.identity.principalId
+            - key: provider-id
+              # This expression handles cases where the resource group name portion of the
+              # VM's id contains uppercase letters, which cloud-provider-azure converts to
+              # lowercase when calculating the Node's spec.providerID. When it is known that
+              # the resource group name does not contain uppercase letters, this can be
+              # simplified to:
+              #
+              #     "azure://"+self.status.id
+              #
+              value: |
+                "azure://"
+                // The portion before the resource group name
+                + self.status.id.substring(
+                    0,                                                                    // from the beginning of the string
+                    self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()  // to the end of the first occurrence of '/resourceGroups/'
+                  )
+                // The resource group name transformed to lower case
+                + self.status.id.substring(
+                    self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()  // from after the first portion to the end of the string
+                  ).substring(                                                            // isolate the portion until the next '/' (the end of the resource group name)
+                    0,
+                    self.status.id.substring(
+                      self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()
+                    ).indexOf('/')
+                  ).lowerAscii()
+                // The portion after the resource group name
+                + self.status.id.substring(
+                    self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()                                           // the length of the first portion
+                    + self.status.id.substring(self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()).indexOf('/')  // the length of the second portion
+                    // ...to the end of the string
+                  )
       - apiVersion: network.azure.com/v1api20240301
         kind: NetworkInterface
         spec:

@@ -55,6 +55,13 @@ type AzureASOMachineTemplateResourceSpec struct {
 	// +optional
 	// +kubebuilder:validation:MaxItems:=32
 	Patches []ResourcesPatch `json:"patches,omitempty"`
+
+	// ProviderIDSource defines where the Machine's providerID can be found.
+	// When set, CAPZ takes ownership of setting spec.providerID, even if
+	// already set by the user.
+	//
+	// +optional
+	ProviderIDSource *StringSource `json:"providerIDSource,omitempty"`
 }
 
 //+kubebuilder:object:root=true

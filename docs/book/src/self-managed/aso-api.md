@@ -432,3 +432,60 @@ spec:
         spec:
           osProfile: {}
 ```
+
+### Provider ID
+
+AzureASOMachine fulfills the [Cluster API InfraMachine
+contract](https://cluster-api.sigs.k8s.io/developer/providers/contracts/infra-machine). As such, it is
+expected to produce a `spec.providerID`. The AzureASOCluster API makes no assumptions about where the provider
+ID comes from, or even if one can be automatically constructed at all. Therefore, it is up to the user either
+to define `spec.providerID` themself, or specify a `spec.providerIDSource` which describes where the provider
+ID can be found.
+
+One way to define a `spec.providerIDSource` is to reference a specific field in a ConfigMap holding
+the provider ID. Together with [ASO's native ability to produce
+ConfigMaps](https://azure.github.io/azure-service-operator/guide/configmaps/#how-to-export-configmap-data-from-aso)
+with details about the provisioned resources, an AzureASOMachine can define a CEL expression which constructs
+a provider ID based on the properties of any of the resources in `spec.resources`.
+
+The following partial example shows how to populate a `spec.providerID` based on a VirtualMachine:
+
+```yaml
+kind: AzureASOMachineTemplate
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+metadata:
+  name: "${CLUSTER_NAME}-machine"
+spec:
+  template:
+    spec:
+      providerIDSource:
+        configMap:
+          name:
+            template: |-
+              {{ .self.metadata.name }}
+          key:
+            value: provider-id
+      patches:
+      - selectors:
+        - kind: VirtualMachine
+        jsonPatches:
+        - op: add
+          path: /metadata
+          valueFrom:
+            template: |-
+              name: {{ .self.metadata.name }}
+        - op: add
+          path: /spec/operatorSpec/configMapExpressions/0/name
+          valueFrom:
+            template: |-
+              {{ .self.metadata.name }}
+      resources:
+      - apiVersion: compute.azure.com/v1api20220301
+        kind: VirtualMachine
+        spec:
+          operatorSpec:
+            configMapExpressions:
+            - key: provider-id
+              value: |
+                "azure://"+self.status.id
+```

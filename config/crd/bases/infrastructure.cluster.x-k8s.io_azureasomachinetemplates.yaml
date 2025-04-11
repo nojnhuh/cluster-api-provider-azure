@@ -151,6 +151,59 @@ spec:
                           type: object
                         maxItems: 32
                         type: array
+                      providerIDSource:
+                        description: |-
+                          ProviderIDSource defines where the Machine's providerID can be found.
+                          When set, CAPZ takes ownership of setting spec.providerID, even if
+                          already set by the user.
+                        properties:
+                          configMap:
+                            description: ConfigMapReference refers to a particular
+                              value in a ConfigMap.
+                            properties:
+                              key:
+                                description: Key is the key of the ConfigMap's data.
+                                properties:
+                                  template:
+                                    description: |-
+                                      Template is a Go text/template that evaluates to a string.
+
+                                      Data passed to templates is a map consisting of the following keys:
+
+                                      - self: this CAPZ resource
+
+                                      e.g. a template could be defined in YAML as
+
+                                          template: '{{ .self.metadata.name }}'
+                                    type: string
+                                  value:
+                                    description: Value is a literal string.
+                                    type: string
+                                type: object
+                              name:
+                                description: Name is the metadata.name of the ConfigMap.
+                                properties:
+                                  template:
+                                    description: |-
+                                      Template is a Go text/template that evaluates to a string.
+
+                                      Data passed to templates is a map consisting of the following keys:
+
+                                      - self: this CAPZ resource
+
+                                      e.g. a template could be defined in YAML as
+
+                                          template: '{{ .self.metadata.name }}'
+                                    type: string
+                                  value:
+                                    description: Value is a literal string.
+                                    type: string
+                                type: object
+                            required:
+                            - key
+                            - name
+                            type: object
+                        type: object
                       resources:
                         description: Resources are embedded ASO resources to be managed
                           by this resource.

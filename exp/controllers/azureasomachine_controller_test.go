@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	clusterctlv1 "sigs.k8s.io/cluster-api/cmd/clusterctl/api/v1alpha3"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -279,6 +280,16 @@ func TestAzureASOMachineReconcile(t *testing.T) {
 			},
 			Spec: infrav1alphaexp.AzureASOMachineSpec{
 				AzureASOMachineTemplateResourceSpec: infrav1alphaexp.AzureASOMachineTemplateResourceSpec{
+					ProviderIDSource: &infrav1alphaexp.StringSource{
+						ConfigMap: &infrav1alphaexp.ConfigMapReference{
+							Name: infrav1alphaexp.StringValue{
+								Value: ptr.To(configMap.Name),
+							},
+							Key: infrav1alphaexp.StringValue{
+								Template: ptr.To("{{ .self.metadata.name }}"),
+							},
+						},
+					},
 					Resources: []runtime.RawExtension{
 						{Raw: []byte(`{
 							"apiVersion": "v1something",
@@ -295,6 +306,7 @@ func TestAzureASOMachineReconcile(t *testing.T) {
 		expectReconciled := map[string]struct{}{
 			"VirtualMachine/aso-machine": {},
 		}
+		watcher := &fakeWatcher{}
 		r := &AzureASOMachineReconciler{
 			Client: c,
 			newResourceReconciler: func(_ *infrav1alphaexp.AzureASOMachine, us []*unstructured.Unstructured) resourceReconciler {
@@ -309,11 +321,17 @@ func TestAzureASOMachineReconcile(t *testing.T) {
 					},
 				}
 			},
+			watcher: watcher,
 		}
 		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoMachine)})
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(result).To(Equal((ctrl.Result{})))
 		g.Expect(expectReconciled).To(BeEmpty(), "resources should have been reconciled but were not")
+
+		err = c.Get(ctx, client.ObjectKeyFromObject(asoMachine), asoMachine)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(asoMachine.Spec.ProviderID).To(HaveValue(Equal("provider-id")))
+		g.Expect(watcher.watching).To(HaveKey("ConfigMap"))
 	})
 
 	t.Run("successfully reconciles pause", func(t *testing.T) {
