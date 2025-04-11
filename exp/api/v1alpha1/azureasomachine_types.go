@@ -47,8 +47,22 @@ type AzureASOMachineSpec struct {
 
 // AzureASOMachineStatus defines the observed state of AzureASOMachine.
 type AzureASOMachineStatus struct {
+	// Initialization provides observations of the AzureASOMachine initialization process.
+	// NOTE: Fields in this struct are part of the Cluster API contract and are used to orchestrate initial Machine provisioning.
+	// +optional
+	Initialization AzureASOMachineInitializationStatus `json:"initialization,omitempty,omitzero"`
+
 	//+optional
 	Resources []infrav1alpha.ResourceStatus `json:"resources,omitempty"`
+}
+
+// AzureASOMachineInitializationStatus provides observations of the FooMachine initialization process.
+// +kubebuilder:validation:MinProperties=1
+type AzureASOMachineInitializationStatus struct {
+	// Provisioned is true when the infrastructure provider reports that the Machine's infrastructure is fully provisioned.
+	// NOTE: this field is part of the Cluster API contract, and it is used to orchestrate initial Machine provisioning.
+	// +optional
+	Provisioned *bool `json:"provisioned,omitempty"`
 }
 
 // +kubebuilder:object:root=true
