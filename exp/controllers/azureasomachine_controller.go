@@ -47,11 +47,12 @@ type AzureASOMachineReconciler struct {
 	WatchFilterValue string
 
 	newResourceReconciler func(*infrav1alphaexp.AzureASOMachine, []*unstructured.Unstructured) resourceReconciler
+	watcher               watcher
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *AzureASOMachineReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, options controller.Options) error {
-	_, log, done := tele.StartSpanWithLogger(ctx,
+	ctx, log, done := tele.StartSpanWithLogger(ctx,
 		"controllers.AzureASOMachineReconciler.SetupWithManager",
 		tele.KVP("controller", infrav1alphaexp.AzureASOMachineKind),
 	)
@@ -90,7 +91,7 @@ func (r *AzureASOMachineReconciler) SetupWithManager(ctx context.Context, mgr ct
 		return err
 	}
 
-	externalTracker := &external.ObjectTracker{
+	r.watcher = &external.ObjectTracker{
 		Cache:           mgr.GetCache(),
 		Controller:      c,
 		Scheme:          mgr.GetScheme(),
@@ -102,8 +103,31 @@ func (r *AzureASOMachineReconciler) SetupWithManager(ctx context.Context, mgr ct
 			Client:    r.Client,
 			Resources: resources,
 			Owner:     asoMachine,
-			Watcher:   externalTracker,
+			Watcher:   r.watcher,
 		}
+	}
+
+	// Allow for efficient lookups of AzureASOMachines that are informed by a particular ConfigMap.
+	err = mgr.GetCache().IndexField(ctx, &infrav1alphaexp.AzureASOMachine{}, configMapIndexedField, func(o client.Object) (keys []string) {
+		asoMachine, ok := o.(*infrav1alphaexp.AzureASOMachine)
+		if !ok ||
+			asoMachine == nil ||
+			asoMachine.Spec.ProviderIDSource == nil {
+			return
+		}
+		log := log.WithValues("kind", infrav1alphaexp.AzureASOMachineKind, "namespace", asoMachine.Namespace, "name", asoMachine.Name)
+		if ref := asoMachine.Spec.ProviderIDSource.ConfigMap; ref != nil {
+			name, err := evalStringValue(ref.Name, asoMachine)
+			if err != nil {
+				log.Error(err, "failed to evaluate ConfigMap name", "field", "spec.providerIDSource.configMap.name")
+			} else {
+				keys = append(keys, name)
+			}
+		}
+		return
+	})
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -242,6 +266,14 @@ func (r *AzureASOMachineReconciler) reconcileNormal(ctx context.Context, asoMach
 		if !status.Ready {
 			return ctrl.Result{}, nil
 		}
+	}
+
+	if asoMachine.Spec.ProviderIDSource != nil {
+		providerID, err := reconcileStringSource(ctx, r.Client, r.watcher, *asoMachine.Spec.ProviderIDSource, asoMachine, &infrav1alphaexp.AzureASOMachineList{})
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		asoMachine.Spec.ProviderID = &providerID
 	}
 
 	return ctrl.Result{}, nil

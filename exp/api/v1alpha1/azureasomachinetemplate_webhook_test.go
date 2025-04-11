@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/utils/ptr"
 )
 
 func TestAzureASOMachineTemplateWebhookValidateCreate(t *testing.T) {
@@ -57,6 +58,28 @@ func TestAzureASOMachineTemplateWebhookValidateCreate(t *testing.T) {
 			matchErrs: ConsistOf(
 				MatchError(field.Required(field.NewPath("spec", "template", "spec", "patches").Index(0).Child("jsonPatches").Index(1).Child("from"), "required for \"copy\" operations")),
 			),
+		},
+		{
+			name: "valid providerIDSource",
+			asoMachineTemplate: &AzureASOMachineTemplate{
+				Spec: AzureASOMachineTemplateSpec{
+					Template: AzureASOMachineTemplateResource{
+						Spec: AzureASOMachineTemplateResourceSpec{
+							ProviderIDSource: &StringSource{
+								ConfigMap: &ConfigMapReference{
+									Name: StringValue{
+										Value: ptr.To("provider-id-configmap"),
+									},
+									Key: StringValue{
+										Value: ptr.To("provider-id"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			matchErrs: Not(HaveOccurred()),
 		},
 	}
 

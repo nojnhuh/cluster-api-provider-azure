@@ -35,6 +35,12 @@ const (
 // AzureASOMachineSpec defines the desired state of AzureASOMachine.
 type AzureASOMachineSpec struct {
 	AzureASOMachineTemplateResourceSpec `json:",inline"`
+
+	// ProviderID is the unique identifier as specified by the cloud provider.
+	// It fulfills Cluster API's machine infrastructure provider contract.
+	//
+	// +optional
+	ProviderID *string `json:"providerID,omitempty"`
 }
 
 // AzureASOMachineStatus defines the observed state of AzureASOMachine.
