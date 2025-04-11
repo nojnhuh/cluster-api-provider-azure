@@ -219,6 +219,10 @@ func TestAzureASOMachineReconcile(t *testing.T) {
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(result).To(Equal((ctrl.Result{})))
 		g.Expect(reconciled).To(BeTrue())
+
+		err = c.Get(ctx, client.ObjectKeyFromObject(asoMachine), asoMachine)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(asoMachine.Status.Initialization.Provisioned).To(BeNil())
 	})
 
 	t.Run("successfully reconciles normally", func(t *testing.T) {
@@ -334,6 +338,7 @@ func TestAzureASOMachineReconcile(t *testing.T) {
 
 		err = c.Get(ctx, client.ObjectKeyFromObject(asoMachine), asoMachine)
 		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(asoMachine.Status.Initialization.Provisioned).To(HaveValue(BeTrue()))
 		g.Expect(asoMachine.Spec.ProviderID).To(Equal("provider-id"))
 		g.Expect(watcher.watching).To(HaveKey("ConfigMap"))
 	})
