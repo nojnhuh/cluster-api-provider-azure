@@ -20,8 +20,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// AzureASOMachineKind is the kind for AzureASOMachine.
-const AzureASOMachineKind = "AzureASOMachine"
+const (
+	// AzureASOMachineKind is the kind for AzureASOMachine.
+	AzureASOMachineKind = "AzureASOMachine"
+
+	// AzureASOMachineFinalizer allows CAPZ to clean up Azure resources associated with an
+	// AzureASOMachine before removing it from the apiserver.
+	AzureASOMachineFinalizer = "azureasomachine.infrastructure.cluster.x-k8s.io"
+)
 
 // AzureASOMachineSpec defines the desired state of AzureASOMachine.
 type AzureASOMachineSpec struct {
