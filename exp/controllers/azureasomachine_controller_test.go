@@ -21,6 +21,7 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -88,6 +89,51 @@ func TestAzureASOMachineReconcile(t *testing.T) {
 		g.Expect(err).To(HaveOccurred())
 	})
 
+	t.Run("adds a finalizer", func(t *testing.T) {
+		g := NewGomegaWithT(t)
+
+		cluster := &clusterv1.Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "cluster",
+				Namespace: "ns",
+			},
+		}
+		machine := &clusterv1.Machine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "machine",
+				Namespace: cluster.Namespace,
+			},
+		}
+		asoMachine := &infrav1alphaexp.AzureASOMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "aso-machine",
+				Namespace: machine.Namespace,
+				Labels: map[string]string{
+					clusterv1.ClusterNameLabel: cluster.Name,
+				},
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						APIVersion: clusterv1.GroupVersion.Identifier(),
+						Kind:       "Machine",
+						Name:       machine.Name,
+					},
+				},
+			},
+		}
+		c := fakeClientBuilder().
+			WithObjects(cluster, machine, asoMachine).
+			Build()
+		r := &AzureASOMachineReconciler{
+			Client: c,
+		}
+		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoMachine)})
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(result).To(Equal((ctrl.Result{Requeue: true})))
+
+		g.Expect(c.Get(ctx, client.ObjectKeyFromObject(asoMachine), asoMachine)).To(Succeed())
+		g.Expect(asoMachine.GetFinalizers()).To(ContainElement(infrav1alphaexp.AzureASOMachineFinalizer))
+	})
+
 	t.Run("successfully reconciles normally", func(t *testing.T) {
 		g := NewGomegaWithT(t)
 
@@ -116,6 +162,9 @@ func TestAzureASOMachineReconcile(t *testing.T) {
 						Kind:       "Machine",
 						Name:       machine.Name,
 					},
+				},
+				Finalizers: []string{
+					infrav1alphaexp.AzureASOMachineFinalizer,
 				},
 			},
 		}
@@ -215,5 +264,8 @@ func TestAzureASOMachineReconcile(t *testing.T) {
 		result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(asoMachine)})
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(result).To(Equal((ctrl.Result{})))
+
+		err = c.Get(ctx, client.ObjectKeyFromObject(asoMachine), asoMachine)
+		g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
 	})
 }

@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 
 	infrav1alphaexp "sigs.k8s.io/cluster-api-provider-azure/exp/api/v1alpha1"
@@ -140,7 +141,7 @@ func (r *AzureASOMachineReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	return r.reconcileNormal(ctx, asoMachine, machine)
 }
 
-func (r *AzureASOMachineReconciler) reconcileNormal(ctx context.Context, _ *infrav1alphaexp.AzureASOMachine, _ *clusterv1.Machine) (ctrl.Result, error) {
+func (r *AzureASOMachineReconciler) reconcileNormal(ctx context.Context, asoMachine *infrav1alphaexp.AzureASOMachine, machine *clusterv1.Machine) (ctrl.Result, error) {
 	ctx, log, done := tele.StartSpanWithLogger(ctx,
 		"controllers.AzureASOMachineReconciler.reconcileNormal",
 	)
@@ -149,6 +150,16 @@ func (r *AzureASOMachineReconciler) reconcileNormal(ctx context.Context, _ *infr
 
 	// this will be used soon
 	_ = ctx
+
+	if machine == nil {
+		log.V(4).Info("Machine Controller has not yet set OwnerRef")
+		return ctrl.Result{}, nil
+	}
+
+	needsPatch := controllerutil.AddFinalizer(asoMachine, infrav1alphaexp.AzureASOMachineFinalizer)
+	if needsPatch {
+		return ctrl.Result{Requeue: true}, nil
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -166,7 +177,7 @@ func (r *AzureASOMachineReconciler) reconcilePaused(ctx context.Context, _ *infr
 	return ctrl.Result{}, nil
 }
 
-func (r *AzureASOMachineReconciler) reconcileDelete(ctx context.Context, _ *infrav1alphaexp.AzureASOMachine) (ctrl.Result, error) {
+func (r *AzureASOMachineReconciler) reconcileDelete(ctx context.Context, asoMachine *infrav1alphaexp.AzureASOMachine) (ctrl.Result, error) {
 	ctx, log, done := tele.StartSpanWithLogger(ctx,
 		"controllers.AzureASOMachineReconciler.reconcileDelete",
 	)
@@ -175,6 +186,8 @@ func (r *AzureASOMachineReconciler) reconcileDelete(ctx context.Context, _ *infr
 
 	// this will be used soon
 	_ = ctx
+
+	controllerutil.RemoveFinalizer(asoMachine, infrav1alphaexp.AzureASOMachineFinalizer)
 
 	return ctrl.Result{}, nil
 }
