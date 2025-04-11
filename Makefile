@@ -182,7 +182,7 @@ CRD_ROOT ?= $(MANIFEST_ROOT)/crd/bases
 WEBHOOK_ROOT ?= $(MANIFEST_ROOT)/webhook
 RBAC_ROOT ?= $(MANIFEST_ROOT)/rbac
 ASO_VERSION := $(shell go list -m -f '{{ .Version }}' github.com/Azure/azure-service-operator/v2)
-ASO_CRDS := resourcegroups.resources.azure.com natgateways.network.azure.com managedclusters.containerservice.azure.com managedclustersagentpools.containerservice.azure.com bastionhosts.network.azure.com virtualnetworks.network.azure.com virtualnetworkssubnets.network.azure.com privateendpoints.network.azure.com fleetsmembers.containerservice.azure.com extensions.kubernetesconfiguration.azure.com maintenanceconfigurations.containerservice.azure.com publicipaddresses.network.azure.com loadbalancers.network.azure.com loadbalancersinboundnatrules.network.azure.com networksecuritygroups.network.azure.com networksecuritygroupssecurityrules.network.azure.com routetables.network.azure.com
+ASO_CRDS := resourcegroups.resources.azure.com natgateways.network.azure.com managedclusters.containerservice.azure.com managedclustersagentpools.containerservice.azure.com bastionhosts.network.azure.com virtualnetworks.network.azure.com virtualnetworkssubnets.network.azure.com privateendpoints.network.azure.com fleetsmembers.containerservice.azure.com extensions.kubernetesconfiguration.azure.com maintenanceconfigurations.containerservice.azure.com publicipaddresses.network.azure.com loadbalancers.network.azure.com loadbalancersinboundnatrules.network.azure.com networksecuritygroups.network.azure.com networksecuritygroupssecurityrules.network.azure.com routetables.network.azure.com virtualmachines.compute.azure.com networkinterfaces.network.azure.com roleassignments.authorization.azure.com
 
 # Allow overriding the imagePullPolicy
 PULL_POLICY ?= Always

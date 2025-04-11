@@ -57,6 +57,26 @@ rules:
   verbs:
   - create
 - apiGroups:
+  - authorization.azure.com
+  resources:
+  - roleassignments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - authorization.azure.com
+  resources:
+  - roleassignments/status
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - authorization.k8s.io
   resources:
   - subjectaccessreviews
@@ -117,6 +137,26 @@ rules:
   - machines/status
   verbs:
   - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - compute.azure.com
+  resources:
+  - virtualmachines
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - compute.azure.com
+  resources:
+  - virtualmachines/status
+  verbs:
   - get
   - list
   - watch
@@ -245,6 +285,7 @@ rules:
   - loadbalancers
   - loadbalancersinboundnatrules
   - natgateways
+  - networkinterfaces
   - networksecuritygroups
   - networksecuritygroupssecurityrules
   - privateendpoints
@@ -267,6 +308,7 @@ rules:
   - loadbalancers/status
   - loadbalancersinboundnatrules/status
   - natgateways/status
+  - networkinterfaces/status
   - networksecuritygroups/status
   - networksecuritygroupssecurityrules/status
   - privateendpoints/status
