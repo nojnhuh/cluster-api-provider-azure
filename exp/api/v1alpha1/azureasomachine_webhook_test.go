@@ -21,6 +21,7 @@ import (
 
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 func TestAzureASOMachineWebhookValidateCreate(t *testing.T) {
@@ -33,6 +34,26 @@ func TestAzureASOMachineWebhookValidateCreate(t *testing.T) {
 			name:       "empty",
 			asoMachine: &AzureASOMachine{},
 			matchErrs:  Not(HaveOccurred()),
+		},
+		{
+			name: "missing JSON patch fields",
+			asoMachine: &AzureASOMachine{
+				Spec: AzureASOMachineSpec{
+					AzureASOMachineTemplateResourceSpec: AzureASOMachineTemplateResourceSpec{
+						Patches: []ResourcesPatch{
+							{
+								JSONPatches: []JSONPatch{
+									{Op: JSONPatchOpCopy, Path: "/", From: "/"},
+									{Op: JSONPatchOpCopy, Path: "/"},
+								},
+							},
+						},
+					},
+				},
+			},
+			matchErrs: ConsistOf(
+				MatchError(field.Required(field.NewPath("spec", "patches").Index(0).Child("jsonPatches").Index(1).Child("from"), "required for \"copy\" operations")),
+			),
 		},
 	}
 

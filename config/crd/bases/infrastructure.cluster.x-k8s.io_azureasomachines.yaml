@@ -40,9 +40,148 @@ spec:
             type: object
           spec:
             description: AzureASOMachineSpec defines the desired state of AzureASOMachine.
+            properties:
+              patches:
+                description: |-
+                  Patches are applied to Resources before they are created or updated.
+
+                  Data passed to JSONPatchValueFrom templates is a map consisting of the following keys:
+
+                  - selfV1alpha1: this AzureASOMachine
+                  - machineV1beta2: the owning Machine resource
+                  - clusterV1beta2: the associated Cluster resource
+
+                  e.g. a template could be defined in YAML as
+
+                      template: '{{ .selfV1alpha1.metadata.name }}'
+                items:
+                  description: |-
+                    ResourcesPatch defines an ordered list of patches to apply to
+                    resources matching a set of selection criteria.
+                  properties:
+                    jsonPatches:
+                      description: JSONPatches defines the patches to be applied,
+                        in order.
+                      items:
+                        description: |-
+                          JSONPatch represents a JSON Patch defined by [RFC 6902].
+
+                          [RFC 6902]: https://tools.ietf.org/html/rfc6902
+                        properties:
+                          from:
+                            maxLength: 256
+                            type: string
+                          op:
+                            description: |-
+                              JSONPatchOp is the `op` of a [RFC 6902] JSON patch.
+
+                              [RFC 6902]: https://tools.ietf.org/html/rfc6902
+                            enum:
+                            - add
+                            - remove
+                            - replace
+                            - move
+                            - copy
+                            - test
+                            type: string
+                          path:
+                            maxLength: 256
+                            type: string
+                          value:
+                            description: |-
+                              Value is a literal value used per RFC 6902.
+                              Only one of Value and ValueFrom may be set.
+                            x-kubernetes-preserve-unknown-fields: true
+                          valueFrom:
+                            description: |-
+                              ValueFrom defines the value of the patch.
+                              Only one of Value and ValueFrom may be set.
+                            properties:
+                              template:
+                                description: |-
+                                  Template is the Go template to be used to calculate the value.
+                                  The template must evaluate to a valid YAML or JSON value.
+                                maxLength: 1024
+                                minLength: 1
+                                type: string
+                            required:
+                            - template
+                            type: object
+                        required:
+                        - op
+                        - path
+                        type: object
+                      maxItems: 32
+                      type: array
+                    selectors:
+                      description: |-
+                        Selectors declare conditions to match resources.
+                        A resource is matched when at least one selector matches.
+                      items:
+                        description: ResourcesPatchSelector filters Resources to which
+                          patches should apply.
+                        properties:
+                          apiVersion:
+                            description: |-
+                              APIVersion, when defined, matches the apiVersion of the resource exactly.
+                              Otherwise matches all APIVersions.
+                            type: string
+                          kind:
+                            description: |-
+                              Kind, when defined, matches the kind of the resource exactly.
+                              Otherwise matches all kinds.
+                            type: string
+                          name:
+                            description: |-
+                              Name, when defined, matches the metadata.name of the resource exactly.
+                              Otherwise matches all names.
+                            type: string
+                        type: object
+                      maxItems: 32
+                      type: array
+                  type: object
+                maxItems: 32
+                type: array
+              resources:
+                description: Resources are embedded ASO resources to be managed by
+                  this resource.
+                items:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                maxItems: 32
+                type: array
             type: object
           status:
             description: AzureASOMachineStatus defines the observed state of AzureASOMachine.
+            properties:
+              resources:
+                items:
+                  description: ResourceStatus represents the status of a resource.
+                  properties:
+                    ready:
+                      type: boolean
+                    resource:
+                      description: StatusResource is a handle to a resource.
+                      properties:
+                        group:
+                          type: string
+                        kind:
+                          type: string
+                        name:
+                          type: string
+                        version:
+                          type: string
+                      required:
+                      - group
+                      - kind
+                      - name
+                      - version
+                      type: object
+                  required:
+                  - ready
+                  - resource
+                  type: object
+                type: array
             type: object
         type: object
     served: true
