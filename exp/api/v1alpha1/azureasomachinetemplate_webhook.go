@@ -76,5 +76,8 @@ func validateAzureASOMachineTemplateResource(path *field.Path, template AzureASO
 func validateAzureASOMachineTemplateResourceSpec(path *field.Path, spec AzureASOMachineTemplateResourceSpec) field.ErrorList {
 	var allErrs field.ErrorList
 	allErrs = append(allErrs, validateResourcesPatches(path.Child("patches"), spec.Patches)...)
+	if spec.ProviderIDSource != nil {
+		allErrs = append(allErrs, validateStringSource(path.Child("providerIDSource"), *spec.ProviderIDSource)...)
+	}
 	return allErrs
 }
