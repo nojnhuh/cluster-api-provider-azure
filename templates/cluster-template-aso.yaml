@@ -430,6 +430,10 @@ spec:
           valueFrom:
             template: '{{ .selfV1alpha1.metadata.name }}'
         - op: add
+          path: /spec/operatorSpec/configMapExpressions/1/name
+          valueFrom:
+            template: '{{ .selfV1alpha1.metadata.name }}'
+        - op: add
           path: /spec/storageProfile
           valueFrom:
             template: |-
@@ -456,6 +460,12 @@ spec:
           path: /metadata/annotations
           value:
             serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
+      providerIDSource:
+        configMap:
+          key:
+            value: provider-id
+          name:
+            template: '{{ .selfV1alpha1.metadata.name }}'
       resources:
       - apiVersion: compute.azure.com/v1api20220301
         kind: VirtualMachine
@@ -478,6 +488,29 @@ spec:
             - key: identity-principal-id
               value: |
                 self.status.identity.principalId
+            - key: provider-id
+              value: |
+                "azure://"
+                // The portion before the resource group name
+                + self.status.id.substring(
+                    0,                                                                    // from the beginning of the string
+                    self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()  // to the end of the first occurrence of '/resourceGroups/'
+                  )
+                // The resource group name transformed to lower case
+                + self.status.id.substring(
+                    self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()  // from after the first portion to the end of the string
+                  ).substring(                                                            // isolate the portion until the next '/' (the end of the resource group name)
+                    0,
+                    self.status.id.substring(
+                      self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()
+                    ).indexOf('/')
+                  ).lowerAscii()
+                // The portion after the resource group name
+                + self.status.id.substring(
+                    self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()                                           // the length of the first portion
+                    + self.status.id.substring(self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()).indexOf('/')  // the length of the second portion
+                    // ...to the end of the string
+                  )
           osProfile:
             adminUsername: capi
             linuxConfiguration:

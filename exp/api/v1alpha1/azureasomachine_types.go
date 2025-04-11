@@ -35,6 +35,14 @@ const (
 // AzureASOMachineSpec defines the desired state of AzureASOMachine.
 type AzureASOMachineSpec struct {
 	AzureASOMachineTemplateResourceSpec `json:",inline"`
+
+	// ProviderID must match the provider ID as seen on the node object corresponding to this machine. For
+	// Kubernetes Nodes running on Azure, this value is set by the corresponding cloud provider component and
+	// it has the format azure://<azure-id>.
+	// +optional
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=512
+	ProviderID string `json:"providerID,omitempty"`
 }
 
 // AzureASOMachineStatus defines the observed state of AzureASOMachine.
