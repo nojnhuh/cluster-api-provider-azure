@@ -213,6 +213,11 @@ spec:
           status:
             description: AzureASOMachineStatus defines the observed state of AzureASOMachine.
             properties:
+              ready:
+                description: |-
+                  Ready represents whether or not the machine has been provisioned. It fulfills Cluster
+                  API's machine infrastructure provider contract.
+                type: boolean
               resources:
                 items:
                   description: ResourceStatus represents the status of a resource.
