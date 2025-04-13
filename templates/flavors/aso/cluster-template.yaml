@@ -538,3 +538,222 @@ metadata:
 stringData:
   os-password: ${AZURE_NODE_ADMIN_PASSWORD}
 ---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: "${CLUSTER_NAME}-md-0"
+  namespace: default
+spec:
+  clusterName: "${CLUSTER_NAME}"
+  replicas: ${WORKER_MACHINE_COUNT:=2}
+  selector:
+    matchLabels:
+  template:
+    spec:
+      clusterName: "${CLUSTER_NAME}"
+      version: "${KUBERNETES_VERSION}"
+      bootstrap:
+        configRef:
+          name: "${CLUSTER_NAME}-md-0"
+          apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+          kind: KubeadmConfigTemplate
+      infrastructureRef:
+        name: "${CLUSTER_NAME}-md-0"
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+        kind: AzureASOMachineTemplate
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+kind: KubeadmConfigTemplate
+metadata:
+  name: "${CLUSTER_NAME}-md-0"
+  namespace: default
+spec:
+  template:
+    spec:
+      preKubeadmCommands: []
+      joinConfiguration:
+        nodeRegistration:
+          name: '{{ ds.meta_data["local_hostname"] }}'
+          kubeletExtraArgs:
+            cloud-provider: external
+      files:
+      - contentFrom:
+          secret:
+            name: ${CLUSTER_NAME}-azure-json
+            key: worker
+        owner: root:root
+        path: /etc/kubernetes/azure.json
+        permissions: "0644"
+---
+kind: AzureASOMachineTemplate
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+metadata:
+  name: "${CLUSTER_NAME}-md-0"
+  namespace: default
+spec:
+  template:
+    spec:
+      providerIDSource:
+        configMap:
+          name:
+            template: |-
+              {{ .self.metadata.name }}
+          key:
+            value: provider-id
+      patches:
+      - selectors:
+        - kind: VirtualMachine
+        - kind: NetworkInterface
+        - kind: RoleAssignment
+        jsonPatches:
+        - op: add
+          path: /metadata
+          valueFrom:
+            template: |-
+              name: {{ .self.metadata.name }}
+      - selectors:
+        - kind: VirtualMachine
+        jsonPatches:
+        - op: add
+          path: /spec/networkProfile/networkInterfaces/0/reference/name
+          valueFrom:
+            template: |-
+              {{ .self.metadata.name }}
+        - op: add
+          path: /spec/osProfile/computerName
+          valueFrom:
+            template: |-
+              {{ .self.metadata.name }}
+        - op: add
+          path: /spec/operatorSpec/configMapExpressions/0/name
+          valueFrom:
+            template: |-
+              {{ .self.metadata.name }}
+        - op: add
+          path: /spec/operatorSpec/configMapExpressions/1/name
+          valueFrom:
+            template: |-
+              {{ .self.metadata.name }}
+        - op: add
+          path: /spec/storageProfile
+          valueFrom:
+            template: |-
+              imageReference:
+                communityGalleryImageId: /CommunityGalleries/ClusterAPI-f72ceb4f-5159-4c26-a0fe-2ea738f0d019/Images/capi-ubun2-2404/Versions/{{ slice .machine.spec.version 1 }}
+        - op: add
+          path: /spec/osProfile/customData
+          valueFrom:
+            template: |-
+              {{- if .bootstrapSecret }}
+                {{ index .bootstrapSecret.data "value" }}
+              {{- end }}
+      - selectors:
+        - kind: RoleAssignment
+        jsonPatches:
+        - op: add
+          path: /spec/principalIdFromConfig/name
+          valueFrom:
+            template: |-
+              {{ .self.metadata.name }}
+      - jsonPatches:
+        - op: add
+          path: /metadata/annotations
+          value:
+            serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
+      resources:
+      - apiVersion: compute.azure.com/v1api20220301
+        kind: VirtualMachine
+        spec:
+          diagnosticsProfile:
+            bootDiagnostics:
+              enabled: true
+          hardwareProfile:
+            vmSize: ${AZURE_NODE_MACHINE_TYPE}
+          location: ${AZURE_LOCATION}
+          networkProfile:
+            networkInterfaces:
+            - reference:
+                group: network.azure.com
+                kind: NetworkInterface
+          osProfile:
+            adminPassword:
+              key: os-password
+              name: ${CLUSTER_NAME}-md-0
+            adminUsername: capi
+          identity:
+            type: SystemAssigned
+          owner:
+            name: ${CLUSTER_NAME}
+          operatorSpec:
+            configMapExpressions:
+            - key: provider-id
+              # This expression handles cases where the resource group name portion of the
+              # VM's id contains uppercase letters, which cloud-provider-azure converts to
+              # lowercase when calculating the Node's spec.providerID. When it is known that
+              # the resource group name does not contain uppercase letters, this can be
+              # simplified to:
+              #
+              #     "azure://"+self.status.id
+              #
+              value: |
+                "azure://"
+                // The portion before the resource group name
+                + self.status.id.substring(
+                    0,                                                                    // from the beginning of the string
+                    self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()  // to the end of the first occurrence of '/resourceGroups/'
+                  )
+                // The resource group name transformed to lower case
+                + self.status.id.substring(
+                    self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()  // from after the first portion to the end of the string
+                  ).substring(                                                            // isolate the portion until the next '/' (the end of the resource group name)
+                    0,
+                    self.status.id.substring(
+                      self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()
+                    ).indexOf('/')
+                  ).lowerAscii()
+                // The portion after the resource group name
+                + self.status.id.substring(
+                    self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()                                           // the length of the first portion
+                    + self.status.id.substring(self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()).indexOf('/')  // the length of the second portion
+                    // ...to the end of the string
+                  )
+            - key: identity-principal-id
+              value: |
+                self.status.identity.principalId
+      - apiVersion: network.azure.com/v1api20240301
+        kind: NetworkInterface
+        spec:
+          location: ${AZURE_LOCATION}
+          owner:
+            name: ${CLUSTER_NAME}
+          networkSecurityGroup:
+            reference:
+              group: network.azure.com
+              kind: NetworkSecurityGroup
+              name: ${CLUSTER_NAME}-worker
+          ipConfigurations:
+          - name: ipconfig
+            subnet:
+              reference:
+                group: network.azure.com
+                kind: VirtualNetworksSubnet
+                name: ${CLUSTER_NAME}-worker
+      - apiVersion: authorization.azure.com/v1api20220401
+        kind: RoleAssignment
+        spec:
+          owner:
+            armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}
+          principalIdFromConfig:
+            key: identity-principal-id
+          roleDefinitionReference:
+            # This ARM ID represents "Contributor" - you can read about other built in roles here: https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles
+            armId: /subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c
+---
+kind: Secret
+apiVersion: v1
+metadata:
+  name: ${CLUSTER_NAME}-md-0
+  namespace: default
+stringData:
+  os-password: ${AZURE_NODE_ADMIN_PASSWORD}
+---
