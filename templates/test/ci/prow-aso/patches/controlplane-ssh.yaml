@@ -1,0 +1,12 @@
+- op: test
+  path: /spec/resources/6/kind
+  value: LoadBalancersInboundNatRule
+# One contiguous range has to be defined and the e2e framework assumes port 22
+# works, so we limit to that single port. This will probably break if more than
+# one control plane node is created.
+- op: replace
+  path: /spec/resources/6/spec/frontendPortRangeStart
+  value: 22
+- op: replace
+  path: /spec/resources/6/spec/frontendPortRangeEnd
+  value: 22
