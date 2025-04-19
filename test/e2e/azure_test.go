@@ -1303,6 +1303,8 @@ var _ = Describe("Workload cluster creation", func() {
 				withFlavor("aso"),
 				withNamespace(namespace.Name),
 				withClusterName(clusterName),
+				// This template assumes one control plane node. See the
+				// controlplane-ssh.yaml patch for more details.
 				withControlPlaneMachineCount(1),
 				withWorkerMachineCount(2),
 				withControlPlaneWaiters(clusterctl.ControlPlaneWaiters{

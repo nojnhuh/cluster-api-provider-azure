@@ -22,6 +22,17 @@ patches:
         buildProvenance: ${BUILD_PROVENANCE}
   target:
     kind: AzureASOCluster
+- path: patches/controlplane-ssh.yaml
+  target:
+    kind: AzureASOCluster
+- path: patches/machine-ssh.yaml
+  target:
+    kind: AzureASOMachineTemplate
+    name: .*-md-0
+- path: patches/machine-ssh.yaml
+  target:
+    kind: AzureASOMachineTemplate
+    name: .*-controlplane
 
 sortOptions:
   order: fifo

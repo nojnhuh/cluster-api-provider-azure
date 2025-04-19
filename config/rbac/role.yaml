@@ -271,6 +271,7 @@ rules:
   resources:
   - bastionhosts
   - loadbalancers
+  - loadbalancersinboundnatrules
   - natgateways
   - networkinterfaces
   - networksecuritygroups
@@ -293,6 +294,7 @@ rules:
   resources:
   - bastionhosts/status
   - loadbalancers/status
+  - loadbalancersinboundnatrules/status
   - natgateways/status
   - networkinterfaces/status
   - networksecuritygroups/status
