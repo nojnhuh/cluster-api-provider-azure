@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: default
+resources:
+- ../../../flavors/aso
+- ../../../addons/cluster-api-helm/calico.yaml
+- ../../../addons/cluster-api-helm/azuredisk-csi-driver.yaml
+- ../../../addons/cluster-api-helm/cloud-provider-azure.yaml
+
+patches:
+- path: ../patches/cluster-label-calico.yaml
+- path: ../patches/cluster-label-cloud-provider-azure.yaml
+- patch: |-
+    - op: test
+      path: /spec/resources/0/kind
+      value: ResourceGroup
+    - op: replace
+      path: /spec/resources/0/spec/tags
+      value:
+        jobName: ${JOB_NAME}
+        creationTimestamp: ${TIMESTAMP}
+        buildProvenance: ${BUILD_PROVENANCE}
+  target:
+    kind: AzureASOCluster
+
+sortOptions:
+  order: fifo

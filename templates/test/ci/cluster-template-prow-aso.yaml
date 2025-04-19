@@ -1,0 +1,826 @@
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  labels:
+    cloud-provider: ${CLOUD_PROVIDER_AZURE_LABEL:=azure}
+    cni: calico
+  name: ${CLUSTER_NAME}
+  namespace: default
+spec:
+  clusterNetwork:
+    apiServerPort: 6443
+    pods:
+      cidrBlocks:
+      - 192.168.0.0/16
+  controlPlaneRef:
+    apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+    kind: KubeadmControlPlane
+    name: ${CLUSTER_NAME}-controlplane
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: AzureASOCluster
+    name: ${CLUSTER_NAME}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: AzureASOCluster
+metadata:
+  name: ${CLUSTER_NAME}
+  namespace: default
+spec:
+  controlPlaneEndpointSource:
+    host:
+      configMap:
+        key:
+          value: host
+        name:
+          value: ${CLUSTER_NAME}-controlplane-ip
+    port:
+      configMap:
+        key:
+          value: port
+        name:
+          value: ${CLUSTER_NAME}-controlplane-lb
+  patches:
+  - jsonPatches:
+    - op: add
+      path: /metadata/annotations
+      value:
+        serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
+  - jsonPatches:
+    - op: add
+      path: /spec/owner
+      value:
+        name: ${CLUSTER_NAME}
+    selectors:
+    - kind: VirtualNetwork
+    - kind: PublicIPAddress
+    - kind: LoadBalancer
+    - kind: NetworkSecurityGroup
+    - kind: NatGateway
+    - kind: RouteTable
+  - jsonPatches:
+    - op: add
+      path: /spec/owner
+      value:
+        name: ${CLUSTER_NAME}
+    selectors:
+    - kind: VirtualNetworksSubnet
+  - jsonPatches:
+    - op: add
+      path: /spec/location
+      value: ${AZURE_LOCATION}
+    selectors:
+    - kind: ResourceGroup
+    - kind: VirtualNetwork
+    - kind: PublicIPAddress
+    - kind: LoadBalancer
+    - kind: NetworkSecurityGroup
+    - kind: NatGateway
+    - kind: RouteTable
+  - jsonPatches:
+    - op: add
+      path: /spec/loadBalancingRules/0/backendPort
+      valueFrom:
+        template: '{{ .cluster.spec.clusterNetwork.apiServerPort }}'
+    - op: add
+      path: /spec/loadBalancingRules/0/frontendPort
+      valueFrom:
+        template: '{{ .cluster.spec.clusterNetwork.apiServerPort }}'
+    - op: add
+      path: /spec/probes/0/port
+      valueFrom:
+        template: '{{ .cluster.spec.clusterNetwork.apiServerPort }}'
+    selectors:
+    - kind: LoadBalancer
+      name: ${CLUSTER_NAME}
+  - jsonPatches:
+    - op: add
+      path: /spec/destinationPortRange
+      valueFrom:
+        template: '"{{ .cluster.spec.clusterNetwork.apiServerPort }}"'
+    selectors:
+    - kind: NetworkSecurityGroupsSecurityRule
+      name: ${CLUSTER_NAME}-allow-apiserver
+  resources:
+  - apiVersion: resources.azure.com/v1api20200601
+    kind: ResourceGroup
+    metadata:
+      name: ${CLUSTER_NAME}
+    spec:
+      tags:
+        buildProvenance: ${BUILD_PROVENANCE}
+        creationTimestamp: ${TIMESTAMP}
+        jobName: ${JOB_NAME}
+  - apiVersion: network.azure.com/v1api20240301
+    kind: VirtualNetwork
+    metadata:
+      name: ${CLUSTER_NAME}
+    spec:
+      addressSpace:
+        addressPrefixes:
+        - 10.0.0.0/16
+  - apiVersion: network.azure.com/v1api20240301
+    kind: VirtualNetworksSubnet
+    metadata:
+      name: ${CLUSTER_NAME}-controlplane
+    spec:
+      addressPrefix: 10.0.0.0/24
+      natGateway:
+        reference:
+          group: network.azure.com
+          kind: NatGateway
+          name: ${CLUSTER_NAME}
+      networkSecurityGroup:
+        reference:
+          group: network.azure.com
+          kind: NetworkSecurityGroup
+          name: ${CLUSTER_NAME}-controlplane
+  - apiVersion: network.azure.com/v1api20240301
+    kind: VirtualNetworksSubnet
+    metadata:
+      name: ${CLUSTER_NAME}-worker
+    spec:
+      addressPrefix: 10.0.1.0/24
+      natGateway:
+        reference:
+          group: network.azure.com
+          kind: NatGateway
+          name: ${CLUSTER_NAME}
+      networkSecurityGroup:
+        reference:
+          group: network.azure.com
+          kind: NetworkSecurityGroup
+          name: ${CLUSTER_NAME}-worker
+      owner:
+        name: ${CLUSTER_NAME}
+  - apiVersion: network.azure.com/v1api20240301
+    kind: PublicIPAddress
+    metadata:
+      name: ${CLUSTER_NAME}-controlplane
+    spec:
+      operatorSpec:
+        configMapExpressions:
+        - key: host
+          name: ${CLUSTER_NAME}-controlplane-ip
+          value: self.status.ipAddress
+      publicIPAllocationMethod: Static
+      sku:
+        name: Standard
+  - apiVersion: network.azure.com/v1api20240301
+    kind: LoadBalancer
+    metadata:
+      name: ${CLUSTER_NAME}
+    spec:
+      backendAddressPools:
+      - name: controlplane
+      frontendIPConfigurations:
+      - name: controlplane
+        publicIPAddress:
+          reference:
+            group: network.azure.com
+            kind: PublicIPAddress
+            name: ${CLUSTER_NAME}-controlplane
+      loadBalancingRules:
+      - backendAddressPools:
+        - reference:
+            armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CLUSTER_NAME}/providers/Microsoft.Network/loadBalancers/${CLUSTER_NAME}/backendAddressPools/controlplane
+        disableOutboundSnat: true
+        frontendIPConfiguration:
+          reference:
+            armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CLUSTER_NAME}/providers/Microsoft.Network/loadBalancers/${CLUSTER_NAME}/frontendIPConfigurations/controlplane
+        name: controlplane
+        probe:
+          reference:
+            armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CLUSTER_NAME}/providers/Microsoft.Network/loadBalancers/${CLUSTER_NAME}/probes/apiserver
+        protocol: Tcp
+      operatorSpec:
+        configMapExpressions:
+        - key: port
+          name: ${CLUSTER_NAME}-controlplane-lb
+          value: string(self.spec.loadBalancingRules[0].frontendPort)
+      probes:
+      - name: apiserver
+        protocol: Https
+        requestPath: /readyz
+      sku:
+        name: Standard
+  - apiVersion: network.azure.com/v1api20240301
+    kind: NetworkSecurityGroup
+    metadata:
+      name: ${CLUSTER_NAME}-controlplane
+    spec: {}
+  - apiVersion: network.azure.com/v1api20240301
+    kind: NetworkSecurityGroupsSecurityRule
+    metadata:
+      name: ${CLUSTER_NAME}-allow-apiserver
+    spec:
+      access: Allow
+      azureName: AllowApiServer
+      description: Allow access to kube-apiserver
+      destinationAddressPrefix: '*'
+      direction: Inbound
+      owner:
+        name: ${CLUSTER_NAME}-controlplane
+      priority: 2000
+      protocol: Tcp
+      sourceAddressPrefix: '*'
+      sourcePortRange: '*'
+  - apiVersion: network.azure.com/v1api20240301
+    kind: NetworkSecurityGroup
+    metadata:
+      name: ${CLUSTER_NAME}-worker
+    spec: {}
+  - apiVersion: network.azure.com/v1api20240301
+    kind: PublicIPAddress
+    metadata:
+      name: ${CLUSTER_NAME}-nat-gateway
+    spec:
+      publicIPAllocationMethod: Static
+      sku:
+        name: Standard
+  - apiVersion: network.azure.com/v1api20240301
+    kind: NatGateway
+    metadata:
+      name: ${CLUSTER_NAME}
+    spec:
+      publicIpAddresses:
+      - reference:
+          group: network.azure.com
+          kind: PublicIPAddress
+          name: ${CLUSTER_NAME}-nat-gateway
+      sku:
+        name: Standard
+  - apiVersion: network.azure.com/v1api20240301
+    kind: RouteTable
+    metadata:
+      name: ${CLUSTER_NAME}
+    spec: {}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ${CLUSTER_NAME}-azure-json
+  namespace: default
+stringData:
+  controlplane: |
+    {
+      "tenantId": "${AZURE_TENANT_ID}",
+      "subscriptionId": "${AZURE_SUBSCRIPTION_ID}",
+      "resourceGroup": "${CLUSTER_NAME}",
+      "location": "${AZURE_LOCATION}",
+      "subnetName": "${CLUSTER_NAME}-controlplane",
+      "vnetName": "${CLUSTER_NAME}",
+      "vnetResourceGroup": "${CLUSTER_NAME}",
+      "securityGroupName": "${CLUSTER_NAME}-worker",
+      "securityGroupResourceGroup": "${CLUSTER_NAME}",
+      "routeTableName": "${CLUSTER_NAME}",
+      "loadBalancerSku": "standard",
+      "useInstanceMetadata": true,
+      "useManagedIdentityExtension": true
+    }
+  worker: |
+    {
+      "tenantId": "${AZURE_TENANT_ID}",
+      "subscriptionId": "${AZURE_SUBSCRIPTION_ID}",
+      "resourceGroup": "${CLUSTER_NAME}",
+      "location": "${AZURE_LOCATION}",
+      "subnetName": "${CLUSTER_NAME}-worker",
+      "vnetName": "${CLUSTER_NAME}",
+      "vnetResourceGroup": "${CLUSTER_NAME}",
+      "securityGroupName": "${CLUSTER_NAME}-worker",
+      "securityGroupResourceGroup": "${CLUSTER_NAME}",
+      "routeTableName": "${CLUSTER_NAME}",
+      "loadBalancerSku": "standard",
+      "useInstanceMetadata": true,
+      "useManagedIdentityExtension": true
+    }
+---
+apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+kind: KubeadmControlPlane
+metadata:
+  name: ${CLUSTER_NAME}-controlplane
+  namespace: default
+spec:
+  kubeadmConfigSpec:
+    clusterConfiguration:
+      apiServer:
+        extraArgs: {}
+        timeoutForControlPlane: 20m
+      controllerManager:
+        extraArgs:
+          allocate-node-cidrs: "false"
+          cloud-provider: external
+          cluster-name: ${CLUSTER_NAME}
+      etcd:
+        local:
+          dataDir: /var/lib/etcddisk/etcd
+          extraArgs:
+            quota-backend-bytes: "8589934592"
+    diskSetup:
+      filesystems:
+      - device: /dev/disk/azure/scsi1/lun0
+        extraOpts:
+        - -E
+        - lazy_itable_init=1,lazy_journal_init=1
+        filesystem: ext4
+        label: etcd_disk
+      - device: ephemeral0.1
+        filesystem: ext4
+        label: ephemeral0
+        replaceFS: ntfs
+      partitions:
+      - device: /dev/disk/azure/scsi1/lun0
+        layout: true
+        overwrite: false
+        tableType: gpt
+    files:
+    - contentFrom:
+        secret:
+          key: controlplane
+          name: ${CLUSTER_NAME}-azure-json
+      owner: root:root
+      path: /etc/kubernetes/azure.json
+      permissions: "0644"
+    initConfiguration:
+      nodeRegistration:
+        kubeletExtraArgs:
+          cloud-provider: external
+        name: '{{ ds.meta_data["local_hostname"] }}'
+    joinConfiguration:
+      nodeRegistration:
+        kubeletExtraArgs:
+          cloud-provider: external
+        name: '{{ ds.meta_data["local_hostname"] }}'
+    mounts:
+    - - LABEL=etcd_disk
+      - /var/lib/etcddisk
+    postKubeadmCommands: []
+    preKubeadmCommands: []
+    verbosity: 10
+  machineTemplate:
+    infrastructureRef:
+      apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+      kind: AzureASOMachineTemplate
+      name: ${CLUSTER_NAME}-controlplane
+  replicas: ${CONTROL_PLANE_MACHINE_COUNT:=1}
+  version: ${KUBERNETES_VERSION}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: AzureASOMachineTemplate
+metadata:
+  name: ${CLUSTER_NAME}-controlplane
+  namespace: default
+spec:
+  template:
+    spec:
+      patches:
+      - jsonPatches:
+        - op: add
+          path: /metadata
+          valueFrom:
+            template: 'name: {{ .self.metadata.name }}'
+        selectors:
+        - kind: VirtualMachine
+        - kind: NetworkInterface
+        - kind: RoleAssignment
+      - jsonPatches:
+        - op: add
+          path: /spec/networkProfile/networkInterfaces/0/reference/name
+          valueFrom:
+            template: '{{ .self.metadata.name }}'
+        - op: add
+          path: /spec/osProfile/computerName
+          valueFrom:
+            template: '{{ .self.metadata.name }}'
+        - op: add
+          path: /spec/operatorSpec/configMapExpressions/0/name
+          valueFrom:
+            template: '{{ .self.metadata.name }}'
+        - op: add
+          path: /spec/operatorSpec/configMapExpressions/1/name
+          valueFrom:
+            template: '{{ .self.metadata.name }}'
+        - op: add
+          path: /spec/storageProfile
+          valueFrom:
+            template: |-
+              imageReference:
+                communityGalleryImageId: /CommunityGalleries/ClusterAPI-f72ceb4f-5159-4c26-a0fe-2ea738f0d019/Images/capi-ubun2-2404/Versions/{{ slice .machine.spec.version 1 }}
+        - op: add
+          path: /spec/osProfile/customData
+          valueFrom:
+            template: |-
+              {{- if .bootstrapSecret }}
+                {{ index .bootstrapSecret.data "value" }}
+              {{- end }}
+        selectors:
+        - kind: VirtualMachine
+      - jsonPatches:
+        - op: add
+          path: /spec/principalIdFromConfig/name
+          valueFrom:
+            template: '{{ .self.metadata.name }}'
+        selectors:
+        - kind: RoleAssignment
+      - jsonPatches:
+        - op: add
+          path: /metadata/annotations
+          value:
+            serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
+      providerIDSource:
+        configMap:
+          key:
+            value: provider-id
+          name:
+            template: '{{ .self.metadata.name }}'
+      resources:
+      - apiVersion: compute.azure.com/v1api20220301
+        kind: VirtualMachine
+        spec:
+          diagnosticsProfile:
+            bootDiagnostics:
+              enabled: true
+          hardwareProfile:
+            vmSize: ${AZURE_CONTROL_PLANE_MACHINE_TYPE}
+          identity:
+            type: SystemAssigned
+          location: ${AZURE_LOCATION}
+          networkProfile:
+            networkInterfaces:
+            - reference:
+                group: network.azure.com
+                kind: NetworkInterface
+          operatorSpec:
+            configMapExpressions:
+            - key: identity-principal-id
+              value: |
+                self.status.identity.principalId
+            - key: provider-id
+              value: |
+                "azure://"
+                // The portion before the resource group name
+                + self.status.id.substring(
+                    0,                                                                    // from the beginning of the string
+                    self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()  // to the end of the first occurrence of '/resourceGroups/'
+                  )
+                // The resource group name transformed to lower case
+                + self.status.id.substring(
+                    self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()  // from after the first portion to the end of the string
+                  ).substring(                                                            // isolate the portion until the next '/' (the end of the resource group name)
+                    0,
+                    self.status.id.substring(
+                      self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()
+                    ).indexOf('/')
+                  ).lowerAscii()
+                // The portion after the resource group name
+                + self.status.id.substring(
+                    self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()                                           // the length of the first portion
+                    + self.status.id.substring(self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()).indexOf('/')  // the length of the second portion
+                    // ...to the end of the string
+                  )
+          osProfile:
+            adminPassword:
+              key: os-password
+              name: ${CLUSTER_NAME}-controlplane
+            adminUsername: capi
+          owner:
+            name: ${CLUSTER_NAME}
+      - apiVersion: network.azure.com/v1api20240301
+        kind: NetworkInterface
+        spec:
+          ipConfigurations:
+          - loadBalancerBackendAddressPools:
+            - reference:
+                armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CLUSTER_NAME}/providers/Microsoft.Network/loadBalancers/${CLUSTER_NAME}/backendAddressPools/controlplane
+            name: ipconfig
+            subnet:
+              reference:
+                group: network.azure.com
+                kind: VirtualNetworksSubnet
+                name: ${CLUSTER_NAME}-controlplane
+          location: ${AZURE_LOCATION}
+          networkSecurityGroup:
+            reference:
+              group: network.azure.com
+              kind: NetworkSecurityGroup
+              name: ${CLUSTER_NAME}-controlplane
+          owner:
+            name: ${CLUSTER_NAME}
+      - apiVersion: authorization.azure.com/v1api20220401
+        kind: RoleAssignment
+        spec:
+          owner:
+            armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}
+          principalIdFromConfig:
+            key: identity-principal-id
+          roleDefinitionReference:
+            armId: /subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ${CLUSTER_NAME}-controlplane
+  namespace: default
+stringData:
+  os-password: ${AZURE_NODE_ADMIN_PASSWORD}
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: ${CLUSTER_NAME}-md-0
+  namespace: default
+spec:
+  clusterName: ${CLUSTER_NAME}
+  replicas: ${WORKER_MACHINE_COUNT:=2}
+  selector:
+    matchLabels: null
+  template:
+    spec:
+      bootstrap:
+        configRef:
+          apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+          kind: KubeadmConfigTemplate
+          name: ${CLUSTER_NAME}-md-0
+      clusterName: ${CLUSTER_NAME}
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+        kind: AzureASOMachineTemplate
+        name: ${CLUSTER_NAME}-md-0
+      version: ${KUBERNETES_VERSION}
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+kind: KubeadmConfigTemplate
+metadata:
+  name: ${CLUSTER_NAME}-md-0
+  namespace: default
+spec:
+  template:
+    spec:
+      files:
+      - contentFrom:
+          secret:
+            key: worker
+            name: ${CLUSTER_NAME}-azure-json
+        owner: root:root
+        path: /etc/kubernetes/azure.json
+        permissions: "0644"
+      joinConfiguration:
+        nodeRegistration:
+          kubeletExtraArgs:
+            cloud-provider: external
+          name: '{{ ds.meta_data["local_hostname"] }}'
+      preKubeadmCommands: []
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: AzureASOMachineTemplate
+metadata:
+  name: ${CLUSTER_NAME}-md-0
+  namespace: default
+spec:
+  template:
+    spec:
+      patches:
+      - jsonPatches:
+        - op: add
+          path: /metadata
+          valueFrom:
+            template: 'name: {{ .self.metadata.name }}'
+        selectors:
+        - kind: VirtualMachine
+        - kind: NetworkInterface
+        - kind: RoleAssignment
+      - jsonPatches:
+        - op: add
+          path: /spec/networkProfile/networkInterfaces/0/reference/name
+          valueFrom:
+            template: '{{ .self.metadata.name }}'
+        - op: add
+          path: /spec/osProfile/computerName
+          valueFrom:
+            template: '{{ .self.metadata.name }}'
+        - op: add
+          path: /spec/operatorSpec/configMapExpressions/0/name
+          valueFrom:
+            template: '{{ .self.metadata.name }}'
+        - op: add
+          path: /spec/operatorSpec/configMapExpressions/1/name
+          valueFrom:
+            template: '{{ .self.metadata.name }}'
+        - op: add
+          path: /spec/storageProfile
+          valueFrom:
+            template: |-
+              imageReference:
+                communityGalleryImageId: /CommunityGalleries/ClusterAPI-f72ceb4f-5159-4c26-a0fe-2ea738f0d019/Images/capi-ubun2-2404/Versions/{{ slice .machine.spec.version 1 }}
+        - op: add
+          path: /spec/osProfile/customData
+          valueFrom:
+            template: |-
+              {{- if .bootstrapSecret }}
+                {{ index .bootstrapSecret.data "value" }}
+              {{- end }}
+        selectors:
+        - kind: VirtualMachine
+      - jsonPatches:
+        - op: add
+          path: /spec/principalIdFromConfig/name
+          valueFrom:
+            template: '{{ .self.metadata.name }}'
+        selectors:
+        - kind: RoleAssignment
+      - jsonPatches:
+        - op: add
+          path: /metadata/annotations
+          value:
+            serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
+      providerIDSource:
+        configMap:
+          key:
+            value: provider-id
+          name:
+            template: '{{ .self.metadata.name }}'
+      resources:
+      - apiVersion: compute.azure.com/v1api20220301
+        kind: VirtualMachine
+        spec:
+          diagnosticsProfile:
+            bootDiagnostics:
+              enabled: true
+          hardwareProfile:
+            vmSize: ${AZURE_NODE_MACHINE_TYPE}
+          identity:
+            type: SystemAssigned
+          location: ${AZURE_LOCATION}
+          networkProfile:
+            networkInterfaces:
+            - reference:
+                group: network.azure.com
+                kind: NetworkInterface
+          operatorSpec:
+            configMapExpressions:
+            - key: provider-id
+              value: |
+                "azure://"
+                // The portion before the resource group name
+                + self.status.id.substring(
+                    0,                                                                    // from the beginning of the string
+                    self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()  // to the end of the first occurrence of '/resourceGroups/'
+                  )
+                // The resource group name transformed to lower case
+                + self.status.id.substring(
+                    self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()  // from after the first portion to the end of the string
+                  ).substring(                                                            // isolate the portion until the next '/' (the end of the resource group name)
+                    0,
+                    self.status.id.substring(
+                      self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()
+                    ).indexOf('/')
+                  ).lowerAscii()
+                // The portion after the resource group name
+                + self.status.id.substring(
+                    self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()                                           // the length of the first portion
+                    + self.status.id.substring(self.status.id.indexOf('/resourceGroups/')+'/resourceGroups/'.size()).indexOf('/')  // the length of the second portion
+                    // ...to the end of the string
+                  )
+            - key: identity-principal-id
+              value: |
+                self.status.identity.principalId
+          osProfile:
+            adminPassword:
+              key: os-password
+              name: ${CLUSTER_NAME}-md-0
+            adminUsername: capi
+          owner:
+            name: ${CLUSTER_NAME}
+      - apiVersion: network.azure.com/v1api20240301
+        kind: NetworkInterface
+        spec:
+          ipConfigurations:
+          - name: ipconfig
+            subnet:
+              reference:
+                group: network.azure.com
+                kind: VirtualNetworksSubnet
+                name: ${CLUSTER_NAME}-worker
+          location: ${AZURE_LOCATION}
+          networkSecurityGroup:
+            reference:
+              group: network.azure.com
+              kind: NetworkSecurityGroup
+              name: ${CLUSTER_NAME}-worker
+          owner:
+            name: ${CLUSTER_NAME}
+      - apiVersion: authorization.azure.com/v1api20220401
+        kind: RoleAssignment
+        spec:
+          owner:
+            armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}
+          principalIdFromConfig:
+            key: identity-principal-id
+          roleDefinitionReference:
+            armId: /subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ${CLUSTER_NAME}-md-0
+  namespace: default
+stringData:
+  os-password: ${AZURE_NODE_ADMIN_PASSWORD}
+---
+apiVersion: addons.cluster.x-k8s.io/v1alpha1
+kind: HelmChartProxy
+metadata:
+  name: calico
+  namespace: default
+spec:
+  chartName: tigera-operator
+  clusterSelector:
+    matchLabels:
+      cni: calico
+  namespace: tigera-operator
+  releaseName: projectcalico
+  repoURL: https://docs.tigera.io/calico/charts
+  valuesTemplate: |
+    installation:
+      cni:
+        type: Calico
+        ipam:
+          type: Calico
+      calicoNetwork:
+        bgp: Disabled
+        mtu: 1350
+        ipPools:
+        ipPools:{{range $i, $cidr := .Cluster.spec.clusterNetwork.pods.cidrBlocks }}
+        - cidr: {{ $cidr }}
+          encapsulation: VXLAN{{end}}
+      typhaDeployment:
+        spec:
+          template:
+            spec:
+              affinity:
+                nodeAffinity:
+                  preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 50
+                    preference:
+                      matchExpressions:
+                      - key: node-role.kubernetes.io/control-plane
+                        operator: Exists
+      registry: mcr.microsoft.com/oss
+    # Image and registry configuration for the tigera/operator pod.
+    tigeraOperator:
+      image: tigera/operator
+      registry: mcr.microsoft.com/oss
+    calicoctl:
+      image: mcr.microsoft.com/oss/calico/ctl
+    # By default, tigera tolerates all NoSchedule taints. This breaks upgrades
+    # when it continuously gets scheduled onto an out-of-date Node that is being
+    # deleted. Tolerate only the NoSchedule taints that are expected.
+    tolerations:
+      - effect: NoExecute
+        operator: Exists
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/control-plane
+        operator: Exists
+      - effect: NoSchedule
+        key: node.kubernetes.io/not-ready
+        operator: Exists
+  version: ${CALICO_VERSION}
+---
+apiVersion: addons.cluster.x-k8s.io/v1alpha1
+kind: HelmChartProxy
+metadata:
+  name: azuredisk-csi-driver-chart
+  namespace: default
+spec:
+  chartName: azuredisk-csi-driver
+  clusterSelector:
+    matchLabels:
+      azuredisk-csi: "true"
+  namespace: kube-system
+  releaseName: azuredisk-csi-driver-oot
+  repoURL: https://raw.githubusercontent.com/kubernetes-sigs/azuredisk-csi-driver/master/charts
+  valuesTemplate: |-
+    controller:
+      replicas: 1
+      runOnControlPlane: true
+    windows:
+      useHostProcessContainers: {{ hasKey .Cluster.metadata.labels "cni-windows" }}
+---
+apiVersion: addons.cluster.x-k8s.io/v1alpha1
+kind: HelmChartProxy
+metadata:
+  name: cloud-provider-azure-chart
+  namespace: default
+spec:
+  chartName: cloud-provider-azure
+  clusterSelector:
+    matchLabels:
+      cloud-provider: azure
+  releaseName: cloud-provider-azure-oot
+  repoURL: https://raw.githubusercontent.com/kubernetes-sigs/cloud-provider-azure/master/helm/repo
+  valuesTemplate: |
+    infra:
+      clusterName: {{ .Cluster.metadata.name }}
+    cloudControllerManager:
+      clusterCIDR: {{ .Cluster.spec.clusterNetwork.pods.cidrBlocks | join "," }}
+      logVerbosity: 4

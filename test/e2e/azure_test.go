@@ -1293,4 +1293,44 @@ var _ = Describe("Workload cluster creation", func() {
 	})
 
 	// TODO: add a same test as above for a windows cluster
+
+	Context("Creating a self-managed cluster with the ASO API [OPTIONAL]", func() {
+		It("with a single control plane node and 2 nodes", func() {
+			clusterName = getClusterName(clusterNamePrefix, "aso")
+			clusterctl.ApplyClusterTemplateAndWait(ctx, createApplyClusterTemplateInput(
+				specName,
+				withClusterProxy(bootstrapClusterProxy),
+				withFlavor("aso"),
+				withNamespace(namespace.Name),
+				withClusterName(clusterName),
+				withControlPlaneMachineCount(1),
+				withWorkerMachineCount(2),
+				withControlPlaneWaiters(clusterctl.ControlPlaneWaiters{
+					WaitForControlPlaneInitialized: EnsureControlPlaneInitialized,
+				}),
+				withPostMachinesProvisioned(func() {
+					EnsureDaemonsets(ctx, func() DaemonsetsSpecInput {
+						return DaemonsetsSpecInput{
+							BootstrapClusterProxy: bootstrapClusterProxy,
+							Namespace:             namespace,
+							ClusterName:           clusterName,
+						}
+					})
+				}),
+			), result)
+
+			By("Creating an accessible load balancer", func() {
+				AzureLBSpec(ctx, func() AzureLBSpecInput {
+					return AzureLBSpecInput{
+						BootstrapClusterProxy: bootstrapClusterProxy,
+						Namespace:             namespace,
+						ClusterName:           clusterName,
+						SkipCleanup:           skipCleanup,
+					}
+				})
+			})
+
+			By("PASSED!")
+		})
+	})
 })
