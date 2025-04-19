@@ -1436,6 +1436,46 @@ spec:
 					}
 				})
 			})
+		})
+	})
+
+	Context("Creating a self-managed cluster with the ASO API [OPTIONAL]", func() {
+		It("with a single control plane node and 2 nodes", func() {
+			clusterName = getClusterName(clusterNamePrefix, "aso")
+			clusterctl.ApplyClusterTemplateAndWait(ctx, createApplyClusterTemplateInput(
+				specName,
+				withClusterProxy(bootstrapClusterProxy),
+				withFlavor("aso"),
+				withNamespace(namespace.Name),
+				withClusterName(clusterName),
+				// This template assumes one control plane node. See the
+				// controlplane-ssh.yaml patch for more details.
+				withControlPlaneMachineCount(1),
+				withWorkerMachineCount(2),
+				withControlPlaneWaiters(clusterctl.ControlPlaneWaiters{
+					WaitForControlPlaneInitialized: EnsureControlPlaneInitialized,
+				}),
+				withPostMachinesProvisioned(func() {
+					EnsureDaemonsets(ctx, func() DaemonsetsSpecInput {
+						return DaemonsetsSpecInput{
+							BootstrapClusterProxy: bootstrapClusterProxy,
+							Namespace:             namespace,
+							ClusterName:           clusterName,
+						}
+					})
+				}),
+			), result)
+
+			By("Creating an accessible load balancer", func() {
+				AzureLBSpec(ctx, func() AzureLBSpecInput {
+					return AzureLBSpecInput{
+						BootstrapClusterProxy: bootstrapClusterProxy,
+						Namespace:             namespace,
+						ClusterName:           clusterName,
+						SkipCleanup:           skipCleanup,
+					}
+				})
+			})
 
 			By("Verifying AzureMachineTemplate capacity is populated for autoscaling from zero", func() {
 				azureMachineTemplateList := &infrav1.AzureMachineTemplateList{}
