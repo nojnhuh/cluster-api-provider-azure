@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
 // AzureASOClusterTemplateSpec defines the desired state of AzureASOClusterTemplate.
@@ -31,7 +32,13 @@ type AzureASOClusterTemplateResource struct {
 }
 
 // AzureASOClusterTemplateResourceSpec defines the desired state of the templated resource.
-type AzureASOClusterTemplateResourceSpec struct{}
+type AzureASOClusterTemplateResourceSpec struct {
+	// Resources are embedded ASO resources to be managed by this resource.
+	//
+	// +optional
+	// +kubebuilder:validation:MaxItems:=32
+	Resources []runtime.RawExtension `json:"resources,omitempty"`
+}
 
 //+kubebuilder:object:root=true
 
