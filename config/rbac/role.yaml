@@ -219,8 +219,13 @@ rules:
   - network.azure.com
   resources:
   - bastionhosts
+  - loadbalancers
   - natgateways
+  - networksecuritygroups
+  - networksecuritygroupssecurityrules
   - privateendpoints
+  - publicipaddresses
+  - routetables
   - virtualnetworks
   - virtualnetworkssubnets
   verbs:
@@ -235,8 +240,13 @@ rules:
   - network.azure.com
   resources:
   - bastionhosts/status
+  - loadbalancers/status
   - natgateways/status
+  - networksecuritygroups/status
+  - networksecuritygroupssecurityrules/status
   - privateendpoints/status
+  - publicipaddresses/status
+  - routetables/status
   - virtualnetworks/status
   - virtualnetworkssubnets/status
   verbs:

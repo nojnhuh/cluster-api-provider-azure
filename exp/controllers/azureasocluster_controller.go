@@ -20,7 +20,9 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	"sigs.k8s.io/cluster-api/controllers/external"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/patch"
@@ -34,6 +36,7 @@ import (
 
 	infracontroller "sigs.k8s.io/cluster-api-provider-azure/controllers"
 	infrav1alphaexp "sigs.k8s.io/cluster-api-provider-azure/exp/api/v1alpha1"
+	"sigs.k8s.io/cluster-api-provider-azure/pkg/mutators"
 	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
 )
 
@@ -41,6 +44,21 @@ import (
 type AzureASOClusterReconciler struct {
 	client.Client
 	WatchFilterValue string
+
+	newResourceReconciler func(*infrav1alphaexp.AzureASOCluster, []*unstructured.Unstructured) resourceReconciler
+}
+
+type resourceReconciler interface {
+	// Reconcile reconciles resources defined by this object and updates this object's status to reflect the
+	// state of the specified resources.
+	Reconcile(context.Context) error
+
+	// Pause stops ASO from continuously reconciling the specified resources.
+	Pause(context.Context) error
+
+	// Delete begins deleting the specified resources and updates the object's status to reflect the state of
+	// the specified resources.
+	Delete(context.Context) error
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -51,7 +69,7 @@ func (r *AzureASOClusterReconciler) SetupWithManager(ctx context.Context, mgr ct
 	)
 	defer done()
 
-	return ctrl.NewControllerManagedBy(mgr).
+	c, err := ctrl.NewControllerManagedBy(mgr).
 		WithOptions(options).
 		For(&infrav1alphaexp.AzureASOCluster{}).
 		WithEventFilter(predicates.ResourceHasFilterLabel(mgr.GetScheme(), log, r.WatchFilterValue)).
@@ -67,12 +85,35 @@ func (r *AzureASOClusterReconciler) SetupWithManager(ctx context.Context, mgr ct
 				infracontroller.ClusterUpdatePauseChange(log),
 			),
 		).
-		Complete(r)
+		Build(r)
+	if err != nil {
+		return err
+	}
+
+	externalTracker := &external.ObjectTracker{
+		Cache:           mgr.GetCache(),
+		Controller:      c,
+		Scheme:          mgr.GetScheme(),
+		PredicateLogger: &log,
+	}
+
+	r.newResourceReconciler = func(asoCluster *infrav1alphaexp.AzureASOCluster, resources []*unstructured.Unstructured) resourceReconciler {
+		return &infracontroller.ResourceReconciler{
+			Client:    r.Client,
+			Resources: resources,
+			Owner:     asoCluster,
+			Watcher:   externalTracker,
+		}
+	}
+
+	return nil
 }
 
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=azureasoclusters,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=azureasoclusters/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=azureasoclusters/finalizers,verbs=update
+//+kubebuilder:rbac:groups=network.azure.com,resources=publicipaddresses;loadbalancers;networksecuritygroups;networksecuritygroupssecurityrules;routetables,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=network.azure.com,resources=publicipaddresses/status;loadbalancers/status;networksecuritygroups/status;networksecuritygroupssecurityrules/status;routetables/status,verbs=get;list;watch
 
 // Reconcile reconciles an AzureASOCluster.
 func (r *AzureASOClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, resultErr error) {
@@ -126,31 +167,53 @@ func (r *AzureASOClusterReconciler) reconcileNormal(ctx context.Context, asoClus
 	defer done()
 	log.V(4).Info("reconciling normally")
 
-	// this will be used soon
-	_ = ctx
-
 	if cluster == nil {
 		log.V(4).Info("Cluster Controller has not yet set OwnerRef")
 		return ctrl.Result{}, nil
 	}
 
 	needsPatch := controllerutil.AddFinalizer(asoCluster, infrav1alphaexp.AzureASOClusterFinalizer)
+	needsPatch = infracontroller.AddBlockMoveAnnotation(asoCluster) || needsPatch
 	if needsPatch {
 		return ctrl.Result{Requeue: true}, nil
+	}
+
+	us, err := mutators.ToUnstructured(ctx, asoCluster.Spec.Resources)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	resourceReconciler := r.newResourceReconciler(asoCluster, us)
+	err = resourceReconciler.Reconcile(ctx)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to reconcile resources: %w", err)
+	}
+	for _, status := range asoCluster.Status.Resources {
+		if !status.Ready {
+			return ctrl.Result{}, nil
+		}
 	}
 
 	return ctrl.Result{}, nil
 }
 
-func (r *AzureASOClusterReconciler) reconcilePaused(ctx context.Context, _ *infrav1alphaexp.AzureASOCluster) (ctrl.Result, error) {
+func (r *AzureASOClusterReconciler) reconcilePaused(ctx context.Context, asoCluster *infrav1alphaexp.AzureASOCluster) (ctrl.Result, error) {
 	ctx, log, done := tele.StartSpanWithLogger(ctx,
 		"controllers.AzureASOClusterReconciler.reconcilePaused",
 	)
 	defer done()
 	log.V(4).Info("reconciling pause")
 
-	// this will be used soon
-	_ = ctx
+	resources, err := mutators.ToUnstructured(ctx, asoCluster.Spec.Resources)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	resourceReconciler := r.newResourceReconciler(asoCluster, resources)
+	err = resourceReconciler.Pause(ctx)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to pause resources: %w", err)
+	}
+
+	infracontroller.RemoveBlockMoveAnnotation(asoCluster)
 
 	return ctrl.Result{}, nil
 }
@@ -162,8 +225,18 @@ func (r *AzureASOClusterReconciler) reconcileDelete(ctx context.Context, asoClus
 	defer done()
 	log.V(4).Info("reconciling delete")
 
-	// this will be used soon
-	_ = ctx
+	resources, err := mutators.ToUnstructured(ctx, asoCluster.Spec.Resources)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	resourceReconciler := r.newResourceReconciler(asoCluster, resources)
+	err = resourceReconciler.Delete(ctx)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to reconcile resources: %w", err)
+	}
+	if len(asoCluster.Status.Resources) > 0 {
+		return ctrl.Result{}, nil
+	}
 
 	controllerutil.RemoveFinalizer(asoCluster, infrav1alphaexp.AzureASOClusterFinalizer)
 

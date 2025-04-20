@@ -18,6 +18,9 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	infrav1alpha "sigs.k8s.io/cluster-api-provider-azure/api/v1alpha1"
+	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 )
 
 const (
@@ -34,7 +37,10 @@ type AzureASOClusterSpec struct {
 }
 
 // AzureASOClusterStatus defines the observed state of AzureASOCluster.
-type AzureASOClusterStatus struct{}
+type AzureASOClusterStatus struct {
+	//+optional
+	Resources []infrav1alpha.ResourceStatus `json:"resources,omitempty"`
+}
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
@@ -48,6 +54,22 @@ type AzureASOCluster struct {
 
 	Spec   AzureASOClusterSpec   `json:"spec,omitempty"`
 	Status AzureASOClusterStatus `json:"status,omitempty"`
+}
+
+// SetResourceStatuses returns the status of resources.
+func (a *AzureASOCluster) SetResourceStatuses(r []infrav1.ResourceStatus) {
+	a.Status.Resources = make([]infrav1alpha.ResourceStatus, 0, len(r))
+	for _, s := range r {
+		a.Status.Resources = append(a.Status.Resources, infrav1alpha.ResourceStatus{
+			Resource: infrav1alpha.StatusResource{
+				Group:   s.Resource.Group,
+				Version: s.Resource.Version,
+				Kind:    s.Resource.Kind,
+				Name:    s.Resource.Name,
+			},
+			Ready: s.Ready,
+		})
+	}
 }
 
 // +kubebuilder:object:root=true
