@@ -102,9 +102,9 @@ func (r *AzureASOManagedControlPlaneReconciler) SetupWithManager(ctx context.Con
 	r.newResourceReconciler = func(asoManagedCluster *infrav1.AzureASOManagedControlPlane, resources []*unstructured.Unstructured) resourceReconciler {
 		return &ResourceReconciler{
 			Client:    r.Client,
-			resources: resources,
-			owner:     asoManagedCluster,
-			watcher:   externalTracker,
+			Resources: resources,
+			Owner:     asoManagedCluster,
+			Watcher:   externalTracker,
 		}
 	}
 
