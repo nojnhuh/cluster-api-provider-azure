@@ -5,6 +5,8 @@ metadata:
   name: ${CLUSTER_NAME}
   namespace: default
 spec:
+  clusterNetwork:
+    apiServerPort: 6443
   infrastructureRef:
     apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
     kind: AzureASOCluster
@@ -16,4 +18,267 @@ metadata:
   name: ${CLUSTER_NAME}
   namespace: default
 spec:
+  resources:
+  - apiVersion: resources.azure.com/v1api20200601
+    kind: ResourceGroup
+    metadata:
+      name: ${CLUSTER_NAME}
+      annotations:
+        serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
+    spec:
+      location: ${AZURE_LOCATION}
+  - apiVersion: network.azure.com/v1api20240301
+    kind: VirtualNetwork
+    metadata:
+      name: ${CLUSTER_NAME}
+      annotations:
+        serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
+    spec:
+      owner:
+        name: ${CLUSTER_NAME}
+      location: ${AZURE_LOCATION}
+      addressSpace:
+        addressPrefixes:
+        - 10.0.0.0/16
+  - apiVersion: network.azure.com/v1api20240301
+    kind: VirtualNetworksSubnet
+    metadata:
+      name: ${CLUSTER_NAME}-controlplane
+      annotations:
+        serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
+    spec:
+      owner:
+        name: ${CLUSTER_NAME}
+      addressPrefix: 10.0.0.0/24
+      natGateway:
+        reference:
+          group: network.azure.com
+          kind: NatGateway
+          name: ${CLUSTER_NAME}
+      networkSecurityGroup:
+        reference:
+          group: network.azure.com
+          kind: NetworkSecurityGroup
+          name: ${CLUSTER_NAME}-controlplane
+  - apiVersion: network.azure.com/v1api20240301
+    kind: VirtualNetworksSubnet
+    metadata:
+      name: ${CLUSTER_NAME}-worker
+      annotations:
+        serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
+    spec:
+      owner:
+        name: ${CLUSTER_NAME}
+      addressPrefix: 10.0.1.0/24
+      natGateway:
+        reference:
+          group: network.azure.com
+          kind: NatGateway
+          name: ${CLUSTER_NAME}
+      networkSecurityGroup:
+        reference:
+          group: network.azure.com
+          kind: NetworkSecurityGroup
+          name: ${CLUSTER_NAME}-worker
+  - apiVersion: network.azure.com/v1api20240301
+    kind: PublicIPAddress
+    metadata:
+      name: ${CLUSTER_NAME}-controlplane
+      annotations:
+        serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
+    spec:
+      owner:
+        name: ${CLUSTER_NAME}
+      sku:
+        name: Standard
+      location: ${AZURE_LOCATION}
+      publicIPAllocationMethod: Static
+  - apiVersion: network.azure.com/v1api20240301
+    kind: LoadBalancer
+    metadata:
+      name: ${CLUSTER_NAME}
+      annotations:
+        serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
+    spec:
+      owner:
+        name: ${CLUSTER_NAME}
+      location: ${AZURE_LOCATION}
+      sku:
+        name: Standard
+      frontendIPConfigurations:
+      - name: controlplane
+        publicIPAddress:
+          reference:
+            group: network.azure.com
+            kind: PublicIPAddress
+            name: ${CLUSTER_NAME}-controlplane
+      backendAddressPools:
+      - name: controlplane
+      loadBalancingRules:
+      - name: controlplane
+        backendAddressPools:
+        - reference:
+            armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CLUSTER_NAME}/providers/Microsoft.Network/loadBalancers/${CLUSTER_NAME}/backendAddressPools/controlplane
+        backendPort: 6443
+        frontendIPConfiguration:
+          reference:
+            armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CLUSTER_NAME}/providers/Microsoft.Network/loadBalancers/${CLUSTER_NAME}/frontendIPConfigurations/controlplane
+        frontendPort: 6443
+        protocol: Tcp
+        disableOutboundSnat: true
+        probe:
+          reference:
+            armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CLUSTER_NAME}/providers/Microsoft.Network/loadBalancers/${CLUSTER_NAME}/probes/apiserver
+      probes:
+      - name: apiserver
+        protocol: Https
+        requestPath: /readyz
+        port: 6443
+  - apiVersion: network.azure.com/v1api20240301
+    kind: LoadBalancersInboundNatRule
+    metadata:
+      name: ${CLUSTER_NAME}
+    spec:
+      backendAddressPool:
+        reference:
+          armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CLUSTER_NAME}/providers/Microsoft.Network/loadBalancers/${CLUSTER_NAME}/backendAddressPools/controlplane
+      backendPort: 22
+      frontendIPConfiguration:
+        reference:
+          armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CLUSTER_NAME}/providers/Microsoft.Network/loadBalancers/${CLUSTER_NAME}/frontendIPConfigurations/controlplane
+      # We don't generally create more than 5 control plane nodes.
+      frontendPortRangeStart: 2200
+      frontendPortRangeEnd: 2204
+      owner:
+        name: ${CLUSTER_NAME}
+      protocol: Tcp
+  - apiVersion: network.azure.com/v1api20240301
+    kind: NetworkSecurityGroup
+    metadata:
+      name: ${CLUSTER_NAME}-controlplane
+      annotations:
+        serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
+    spec:
+      location: ${AZURE_LOCATION}
+      owner:
+        name: ${CLUSTER_NAME}
+  - apiVersion: network.azure.com/v1api20240301
+    kind: NetworkSecurityGroupsSecurityRule
+    metadata:
+      name: ${CLUSTER_NAME}-allow-apiserver
+      annotations:
+        serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
+    spec:
+      azureName: AllowApiServer
+      owner:
+        name: ${CLUSTER_NAME}-controlplane
+      access: Allow
+      protocol: Tcp
+      sourceAddressPrefix: "*"
+      sourcePortRange: "*"
+      destinationAddressPrefix: "*"
+      destinationPortRange: "6443"
+      priority: 2000
+      direction: Inbound
+      description: Allow access to kube-apiserver
+  - apiVersion: network.azure.com/v1api20240301
+    kind: NetworkSecurityGroupsSecurityRule
+    metadata:
+      name: ${CLUSTER_NAME}-allow-ssh
+    spec:
+      azureName: AllowSSH
+      owner:
+        name: ${CLUSTER_NAME}-controlplane
+      access: Allow
+      protocol: Tcp
+      sourceAddressPrefix: "*"
+      sourcePortRange: "*"
+      destinationAddressPrefix: "*"
+      destinationPortRange: '22'
+      priority: 2200
+      direction: Inbound
+      description: Allow SSH access
+  - apiVersion: network.azure.com/v1api20240301
+    kind: NetworkSecurityGroup
+    metadata:
+      name: ${CLUSTER_NAME}-worker
+      annotations:
+        serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
+    spec:
+      location: ${AZURE_LOCATION}
+      owner:
+        name: ${CLUSTER_NAME}
+  - apiVersion: network.azure.com/v1api20240301
+    kind: PublicIPAddress
+    metadata:
+      name: ${CLUSTER_NAME}-nat-gateway
+    spec:
+      location: ${AZURE_LOCATION}
+      sku:
+        name: Standard
+      publicIPAllocationMethod: Static
+  - apiVersion: network.azure.com/v1api20240301
+    kind: NatGateway
+    metadata:
+      name: ${CLUSTER_NAME}
+      annotations:
+        serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
+    spec:
+      location: ${AZURE_LOCATION}
+      owner:
+        name: ${CLUSTER_NAME}
+      publicIpAddresses:
+      - reference:
+          group: network.azure.com
+          kind: PublicIPAddress
+          name: ${CLUSTER_NAME}-nat-gateway
+      sku:
+        name: Standard
+  - apiVersion: network.azure.com/v1api20240301
+    kind: RouteTable
+    metadata:
+      name: ${CLUSTER_NAME}
+    spec:
+      location: ${AZURE_LOCATION}
+      owner:
+        name: ${CLUSTER_NAME}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ${CLUSTER_NAME}-azure-json
+  namespace: default
+stringData:
+  controlplane: |
+    {
+      "tenantId": "${AZURE_TENANT_ID}",
+      "subscriptionId": "${AZURE_SUBSCRIPTION_ID}",
+      "resourceGroup": "${CLUSTER_NAME}",
+      "location": "${AZURE_LOCATION}",
+      "subnetName": "${CLUSTER_NAME}-controlplane",
+      "vnetName": "${CLUSTER_NAME}",
+      "vnetResourceGroup": "${CLUSTER_NAME}",
+      "securityGroupName": "${CLUSTER_NAME}-worker",
+      "securityGroupResourceGroup": "${CLUSTER_NAME}",
+      "routeTableName": "${CLUSTER_NAME}",
+      "loadBalancerSku": "standard",
+      "useInstanceMetadata": true,
+      "useManagedIdentityExtension": true
+    }
+  worker: |
+    {
+      "tenantId": "${AZURE_TENANT_ID}",
+      "subscriptionId": "${AZURE_SUBSCRIPTION_ID}",
+      "resourceGroup": "${CLUSTER_NAME}",
+      "location": "${AZURE_LOCATION}",
+      "subnetName": "${CLUSTER_NAME}-worker",
+      "vnetName": "${CLUSTER_NAME}",
+      "vnetResourceGroup": "${CLUSTER_NAME}",
+      "securityGroupName": "${CLUSTER_NAME}-worker",
+      "securityGroupResourceGroup": "${CLUSTER_NAME}",
+      "routeTableName": "${CLUSTER_NAME}",
+      "loadBalancerSku": "standard",
+      "useInstanceMetadata": true,
+      "useManagedIdentityExtension": true
+    }
 ---
