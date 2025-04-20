@@ -51,9 +51,9 @@ const (
 // ResourceReconciler reconciles a set of arbitrary ASO resources.
 type ResourceReconciler struct {
 	client.Client
-	resources []*unstructured.Unstructured
-	owner     resourceStatusObject
-	watcher   watcher
+	Resources []*unstructured.Unstructured
+	Owner     resourceStatusObject
+	Watcher   watcher
 }
 
 type watcher interface {
@@ -81,7 +81,7 @@ func (r *ResourceReconciler) Delete(ctx context.Context) error {
 
 	// Delete is a special case of a normal reconciliation which is equivalent to all resources from spec
 	// being deleted.
-	r.resources = nil
+	r.Resources = nil
 	return r.reconcile(ctx)
 }
 
@@ -91,7 +91,7 @@ func (r *ResourceReconciler) Pause(ctx context.Context) error {
 	defer done()
 	log.V(4).Info("pausing resources")
 
-	err := mutators.Pause(ctx, r.resources)
+	err := mutators.Pause(ctx, r.Resources)
 	if err != nil {
 		if errors.As(err, &mutators.Incompatible{}) {
 			err = reconcile.TerminalError(err)
@@ -99,8 +99,8 @@ func (r *ResourceReconciler) Pause(ctx context.Context) error {
 		return err
 	}
 
-	for _, spec := range r.resources {
-		spec.SetNamespace(r.owner.GetNamespace())
+	for _, spec := range r.Resources {
+		spec.SetNamespace(r.Owner.GetNamespace())
 		gvk := spec.GroupVersionKind()
 		log.V(4).Info("pausing resource", "resource", klog.KObj(spec), "resourceVersion", gvk.GroupVersion(), "resourceKind", gvk.Kind)
 		err := r.Apply(ctx, client.ApplyConfigurationFromUnstructured(spec), client.FieldOwner("capz-manager"))
@@ -118,7 +118,7 @@ func (r *ResourceReconciler) reconcile(ctx context.Context) error {
 
 	var newResourceStatuses []infrav1.ResourceStatus
 
-	ownedKindsValue := r.owner.GetAnnotations()[ownedKindsAnnotation]
+	ownedKindsValue := r.Owner.GetAnnotations()[ownedKindsAnnotation]
 	ownedKinds, err := parseOwnedKinds(ownedKindsValue)
 	if err != nil {
 		return fmt.Errorf("failed to parse %s annotation: %s", ownedKindsAnnotation, ownedKindsValue)
@@ -129,7 +129,7 @@ func (r *ResourceReconciler) reconcile(ctx context.Context) error {
 		return fmt.Errorf("failed to get owned objects: %w", err)
 	}
 
-	unrecordedTypeResources, recordedTypeResources, toBeDeletedResources := partitionResources(ownedKinds, r.resources, ownedObjs)
+	unrecordedTypeResources, recordedTypeResources, toBeDeletedResources := partitionResources(ownedKinds, r.Resources, ownedObjs)
 
 	// Newly-defined types in the CAPZ spec are first recorded in the annotation without performing a
 	// patch that would create resources of that type. CAPZ only patches resources whose kinds have
@@ -142,16 +142,16 @@ func (r *ResourceReconciler) reconcile(ctx context.Context) error {
 	}
 
 	for _, spec := range recordedTypeResources {
-		spec.SetNamespace(r.owner.GetNamespace())
+		spec.SetNamespace(r.Owner.GetNamespace())
 
-		if err := controllerutil.SetControllerReference(r.owner, spec, r.Scheme()); err != nil {
+		if err := controllerutil.SetControllerReference(r.Owner, spec, r.Scheme()); err != nil {
 			return fmt.Errorf("failed to set owner reference: %w", err)
 		}
 
 		toWatch := meta.AsPartialObjectMetadata(spec)
 		toWatch.APIVersion = spec.GetAPIVersion()
 		toWatch.Kind = spec.GetKind()
-		if err := r.watcher.Watch(log, toWatch, handler.EnqueueRequestForOwner(r.Client.Scheme(), r.Client.RESTMapper(), r.owner)); err != nil {
+		if err := r.Watcher.Watch(log, toWatch, handler.EnqueueRequestForOwner(r.Client.Scheme(), r.Client.RESTMapper(), r.Owner)); err != nil {
 			return fmt.Errorf("failed to watch resource: %w", err)
 		}
 
@@ -193,7 +193,7 @@ func (r *ResourceReconciler) reconcile(ctx context.Context) error {
 			newOwnedKinds = append(newOwnedKinds, gvk)
 		}
 	}
-	annotations := r.owner.GetAnnotations()
+	annotations := r.Owner.GetAnnotations()
 	if annotations == nil {
 		annotations = make(map[string]string)
 	}
@@ -201,9 +201,9 @@ func (r *ResourceReconciler) reconcile(ctx context.Context) error {
 	if annotations[ownedKindsAnnotation] == "" {
 		delete(annotations, ownedKindsAnnotation)
 	}
-	r.owner.SetAnnotations(annotations)
+	r.Owner.SetAnnotations(annotations)
 
-	r.owner.SetResourceStatuses(newResourceStatuses)
+	r.Owner.SetResourceStatuses(newResourceStatuses)
 
 	return nil
 }
@@ -250,14 +250,14 @@ func (r *ResourceReconciler) ownedObjs(ctx context.Context, ownedTypes sets.Set[
 
 	for typeMeta := range ownedTypes {
 		objs := &metav1.PartialObjectMetadataList{TypeMeta: typeMeta}
-		err := r.List(ctx, objs, client.InNamespace(r.owner.GetNamespace()))
+		err := r.List(ctx, objs, client.InNamespace(r.Owner.GetNamespace()))
 		if err != nil {
 			return nil, fmt.Errorf("failed to list %s %s: %w", typeMeta.APIVersion, typeMeta.Kind, err)
 		}
 
 		for _, obj := range objs.Items {
 			controller := metav1.GetControllerOfNoCopy(&obj)
-			if controller != nil && controller.UID == r.owner.GetUID() {
+			if controller != nil && controller.UID == r.Owner.GetUID() {
 				ownedObjs = append(ownedObjs, &obj)
 			}
 		}

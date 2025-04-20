@@ -72,8 +72,8 @@ func TestResourceReconcilerReconcile(t *testing.T) {
 		g := NewGomegaWithT(t)
 
 		r := &ResourceReconciler{
-			resources: []*unstructured.Unstructured{},
-			owner:     &infrav1.AzureASOManagedCluster{},
+			Resources: []*unstructured.Unstructured{},
+			Owner:     &infrav1.AzureASOManagedCluster{},
 		}
 		err := r.Reconcile(ctx)
 		g.Expect(err).NotTo(HaveOccurred())
@@ -88,7 +88,7 @@ func TestResourceReconcilerReconcile(t *testing.T) {
 
 		r := &ResourceReconciler{
 			Client: fakeClientBuilder().Build(),
-			resources: []*unstructured.Unstructured{
+			Resources: []*unstructured.Unstructured{
 				rgJSON(g, s, &asoresourcesv1.ResourceGroup{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "rg1",
@@ -100,8 +100,8 @@ func TestResourceReconcilerReconcile(t *testing.T) {
 					},
 				}),
 			},
-			owner:   asoManagedCluster,
-			watcher: w,
+			Owner:   asoManagedCluster,
+			Watcher: w,
 		}
 
 		err := r.Reconcile(ctx)
@@ -136,7 +136,7 @@ func TestResourceReconcilerReconcile(t *testing.T) {
 
 		r := &ResourceReconciler{
 			Client: fakeClientBuilder().Build(),
-			resources: []*unstructured.Unstructured{
+			Resources: []*unstructured.Unstructured{
 				rgJSON(g, s, &asoresourcesv1.ResourceGroup{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "rg1",
@@ -165,8 +165,8 @@ func TestResourceReconcilerReconcile(t *testing.T) {
 					},
 				}),
 			},
-			owner:   asoManagedCluster,
-			watcher: w,
+			Owner:   asoManagedCluster,
+			Watcher: w,
 		}
 
 		err := r.Reconcile(ctx)
@@ -246,7 +246,7 @@ func TestResourceReconcilerReconcile(t *testing.T) {
 			Client: fakeClientBuilder().
 				WithObjects(objs...).
 				Build(),
-			resources: []*unstructured.Unstructured{
+			Resources: []*unstructured.Unstructured{
 				rgJSON(g, s, &asoresourcesv1.ResourceGroup{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "rg1",
@@ -258,8 +258,8 @@ func TestResourceReconcilerReconcile(t *testing.T) {
 					},
 				}),
 			},
-			owner:   owner,
-			watcher: &FakeWatcher{},
+			Owner:   owner,
+			Watcher: &FakeWatcher{},
 		}
 
 		err = r.Reconcile(ctx)
@@ -309,8 +309,8 @@ func TestResourceReconcilerPause(t *testing.T) {
 		g := NewGomegaWithT(t)
 
 		r := &ResourceReconciler{
-			resources: []*unstructured.Unstructured{},
-			owner:     &infrav1.AzureASOManagedCluster{},
+			Resources: []*unstructured.Unstructured{},
+			Owner:     &infrav1.AzureASOManagedCluster{},
 		}
 
 		g.Expect(r.Pause(ctx)).To(Succeed())
@@ -360,7 +360,7 @@ func TestResourceReconcilerPause(t *testing.T) {
 			Client: fakeClientBuilder().
 				WithObjects(objs...).
 				Build(),
-			resources: []*unstructured.Unstructured{
+			Resources: []*unstructured.Unstructured{
 				rgJSON(g, s, &asoresourcesv1.ResourceGroup{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "rg1",
@@ -377,7 +377,7 @@ func TestResourceReconcilerPause(t *testing.T) {
 					},
 				}),
 			},
-			owner: owner,
+			Owner: owner,
 		}
 
 		g.Expect(r.Pause(ctx)).To(Succeed())
@@ -422,8 +422,8 @@ func TestResourceReconcilerDelete(t *testing.T) {
 		g := NewGomegaWithT(t)
 
 		r := &ResourceReconciler{
-			resources: []*unstructured.Unstructured{},
-			owner:     &infrav1.AzureASOManagedCluster{},
+			Resources: []*unstructured.Unstructured{},
+			Owner:     &infrav1.AzureASOManagedCluster{},
 		}
 
 		g.Expect(r.Delete(ctx)).To(Succeed())
@@ -467,7 +467,7 @@ func TestResourceReconcilerDelete(t *testing.T) {
 			Client: fakeClientBuilder().
 				WithObjects(objs...).
 				Build(),
-			owner: owner,
+			Owner: owner,
 		}
 
 		g.Expect(r.Delete(ctx)).To(Succeed())
@@ -496,7 +496,7 @@ func TestResourceReconcilerDelete(t *testing.T) {
 
 		r := &ResourceReconciler{
 			Client: fakeClientBuilder().Build(),
-			owner:  owner,
+			Owner:  owner,
 		}
 
 		g.Expect(r.Delete(ctx)).To(Succeed())

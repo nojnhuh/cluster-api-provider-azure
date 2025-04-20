@@ -112,9 +112,9 @@ func (r *AzureASOManagedMachinePoolReconciler) SetupWithManager(ctx context.Cont
 	r.newResourceReconciler = func(asoManagedCluster *infrav1.AzureASOManagedMachinePool, resources []*unstructured.Unstructured) resourceReconciler {
 		return &ResourceReconciler{
 			Client:    r.Client,
-			resources: resources,
-			owner:     asoManagedCluster,
-			watcher:   externalTracker,
+			Resources: resources,
+			Owner:     asoManagedCluster,
+			Watcher:   externalTracker,
 		}
 	}
 
