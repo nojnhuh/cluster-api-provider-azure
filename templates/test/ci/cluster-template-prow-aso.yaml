@@ -4,6 +4,9 @@ metadata:
   labels:
     cloud-provider: ${CLOUD_PROVIDER_AZURE_LABEL:=azure}
     cni: calico
+    kueue: "true"
+    nvidia-dra-driver: "true"
+    nvidia-gpu-operator: "true"
   name: ${CLUSTER_NAME}
   namespace: default
 spec:
@@ -341,6 +344,12 @@ metadata:
 spec:
   kubeadmConfigSpec:
     clusterConfiguration:
+      apiServer:
+        extraArgs:
+        - name: feature-gates
+          value: DynamicResourceAllocation=true
+        - name: runtime-config
+          value: resource.k8s.io/v1beta1=true,resource.k8s.io/v1beta2=true
       controllerManager:
         extraArgs:
         - name: allocate-node-cidrs
@@ -349,12 +358,18 @@ spec:
           value: ${CLUSTER_NAME}
         - name: cloud-provider
           value: external
+        - name: feature-gates
+          value: DynamicResourceAllocation=true
       etcd:
         local:
           dataDir: /var/lib/etcddisk/etcd
           extraArgs:
           - name: quota-backend-bytes
             value: "8589934592"
+      scheduler:
+        extraArgs:
+        - name: feature-gates
+          value: DynamicResourceAllocation=true
     diskSetup:
       filesystems:
       - device: /dev/disk/azure/scsi1/lun0
@@ -385,6 +400,8 @@ spec:
         kubeletExtraArgs:
         - name: cloud-provider
           value: external
+        - name: feature-gates
+          value: DynamicResourceAllocation=true
         name: '{{ ds.meta_data["local_hostname"] }}'
       timeouts:
         controlPlaneComponentHealthCheckSeconds: 1200
@@ -393,6 +410,8 @@ spec:
         kubeletExtraArgs:
         - name: cloud-provider
           value: external
+        - name: feature-gates
+          value: DynamicResourceAllocation=true
         name: '{{ ds.meta_data["local_hostname"] }}'
       timeouts:
         controlPlaneComponentHealthCheckSeconds: 1200
@@ -449,7 +468,8 @@ spec:
           valueFrom:
             template: |-
               imageReference:
-                communityGalleryImageId: /CommunityGalleries/ClusterAPI-f72ceb4f-5159-4c26-a0fe-2ea738f0d019/Images/capi-ubun2-2404/Versions/{{ slice .machineV1beta2.spec.version 1 }}
+                reference:
+                  armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/cluster-api-gallery/providers/Microsoft.Compute/galleries/ClusterAPI/Images/capi-ubuntu-2404-gen2/versions/{{ slice .machineV1beta2.spec.version 1 }}
         - op: add
           path: /spec/osProfile/customData
           valueFrom:
@@ -603,12 +623,25 @@ spec:
         owner: root:root
         path: /etc/kubernetes/azure.json
         permissions: "0644"
+      - content: |
+          #!/bin/bash
+
+          echo "enabling containerd CDI plugin"
+          sed -i '/\[plugins."io.containerd.grpc.v1.cri"\]/a\    enable_cdi = true' /etc/containerd/config.toml
+          systemctl restart containerd
+        owner: root:root
+        path: /tmp/containerd-config.sh
+        permissions: "0744"
       joinConfiguration:
         nodeRegistration:
           kubeletExtraArgs:
           - name: cloud-provider
             value: external
+          - name: feature-gates
+            value: DynamicResourceAllocation=true
           name: '{{ ds.meta_data["local_hostname"] }}'
+      preKubeadmCommands:
+      - bash -c /tmp/containerd-config.sh
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: AzureASOMachineTemplate
@@ -646,11 +679,11 @@ spec:
           valueFrom:
             template: '{{ .selfV1alpha1.metadata.name }}'
         - op: add
-          path: /spec/storageProfile
+          path: /spec/storageProfile/imageReference
           valueFrom:
             template: |-
-              imageReference:
-                communityGalleryImageId: /CommunityGalleries/ClusterAPI-f72ceb4f-5159-4c26-a0fe-2ea738f0d019/Images/capi-ubun2-2404/Versions/{{ slice .machineV1beta2.spec.version 1 }}
+              reference:
+                armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/cluster-api-gallery/providers/Microsoft.Compute/galleries/ClusterAPI/Images/capi-ubuntu-2404-gen2/versions/{{ slice .machineV1beta2.spec.version 1 }}
         - op: add
           path: /spec/osProfile/customData
           valueFrom:
@@ -733,6 +766,10 @@ spec:
                   path: /home/capi/.ssh/authorized_keys
           owner:
             name: ${CLUSTER_NAME}
+          storageProfile:
+            osDisk:
+              createOption: FromImage
+              diskSizeGB: 512
       - apiVersion: network.azure.com/v1api20240301
         kind: NetworkInterface
         spec:
@@ -760,6 +797,68 @@ spec:
             key: identity-principal-id
           roleDefinitionReference:
             armId: /subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c
+---
+apiVersion: addons.cluster.x-k8s.io/v1alpha1
+kind: HelmChartProxy
+metadata:
+  name: gpu-operator
+  namespace: default
+spec:
+  chartName: gpu-operator
+  clusterSelector:
+    matchLabels:
+      nvidia-gpu-operator: "true"
+  namespace: gpu-operator
+  releaseName: gpu-operator
+  repoURL: https://helm.ngc.nvidia.com/nvidia
+  valuesTemplate: |-
+    migManager:
+      env:
+        - name: WITH_REBOOT
+          value: "true"
+  version: v25.3.0
+---
+apiVersion: addons.cluster.x-k8s.io/v1alpha1
+kind: HelmChartProxy
+metadata:
+  name: nvidia-dra-driver-gpu
+  namespace: default
+spec:
+  chartName: nvidia-dra-driver-gpu
+  clusterSelector:
+    matchLabels:
+      nvidia-dra-driver: "true"
+  namespace: nvidia-dra-driver-gpu
+  releaseName: nvidia-dra-driver-gpu
+  repoURL: https://raw.githubusercontent.com/nojnhuh/k8s-dra-driver/refs/heads/helm-repo/deployments/helm/repo
+  valuesTemplate: |-
+    gpuResourcesEnabledOverride: true
+    nvidiaDriverRoot: /run/nvidia/driver
+    nvidiaCtkPath: /usr/local/nvidia/toolkit/nvidia-ctk
+    image:
+      repository: ghcr.io/nvidia/k8s-dra-driver-gpu
+      tag: 8d5cacc8-ubi9
+  version: ^0.2
+---
+apiVersion: addons.cluster.x-k8s.io/v1alpha1
+kind: HelmChartProxy
+metadata:
+  name: kueue
+  namespace: default
+spec:
+  chartName: kueue
+  clusterSelector:
+    matchLabels:
+      kueue: "true"
+  namespace: kueue-system
+  releaseName: kueue
+  repoURL: oci://jondev.azurecr.io/kueue/charts
+  valuesTemplate: |-
+    controllerManager:
+      featureGates:
+        - name: DynamicResourceStructuredParameters
+          enabled: true
+  version: 0.12.0-devel-206-gf386e703e
 ---
 apiVersion: addons.cluster.x-k8s.io/v1alpha1
 kind: HelmChartProxy
