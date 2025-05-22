@@ -1,0 +1,70 @@
+- op: test
+  path: /spec/template/spec/patches/1/jsonPatches/4/path
+  value: /spec/storageProfile
+- op: replace
+  path: /spec/template/spec/patches/1/jsonPatches/4
+  value:
+    op: add
+    path: /spec/storageProfile
+    valueFrom:
+      template: |-
+        imageReference:
+          publisher: cncf-upstream
+          offer: capi
+          sku: ubuntu-2204-gen1
+          version: latest
+
+- op: test
+  path: /spec/template/spec/patches/0/selectors/2/kind
+  value: RoleAssignment
+- op: remove
+  path: /spec/template/spec/patches/0/selectors/2
+
+- op: add
+  path: /spec/template/spec/patches/-
+  value:
+    selectors:
+    - kind: RoleAssignment
+      name: contributor
+    jsonPatches:
+    - op: replace
+      path: /metadata/name
+      valueFrom:
+        template: |-
+          {{ .self.metadata.name }}-contributor
+
+- op: add
+  path: /spec/template/spec/patches/-
+  value:
+    selectors:
+    - kind: RoleAssignment
+      name: blob-reader
+    jsonPatches:
+    - op: replace
+      path: /metadata/name
+      valueFrom:
+        template: |-
+          {{ .self.metadata.name }}-blob-reader
+
+- op: test
+  path: /spec/template/spec/resources/2/kind
+  value: RoleAssignment
+- op: add
+  path: /spec/template/spec/resources/2/metadata
+  value:
+    name: contributor
+- op: add
+  path: /spec/template/spec/resources/-
+  value:
+    apiVersion: authorization.azure.com/v1api20220401
+    kind: RoleAssignment
+    metadata:
+      name: blob-reader
+    spec:
+      owner:
+        armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}
+      principalIdFromConfig:
+        key: identity-principal-id
+      roleDefinitionReference:
+        # This ARM ID represents "Storage Blob Data Reader" - you can read about other built in roles here: https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles
+        armId: /subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.Authorization/roleDefinitions/2a2b9908-6ea1-4ae2-8e65-a410df84e7d1

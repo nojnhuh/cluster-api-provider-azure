@@ -1,0 +1,70 @@
+- op: add
+  path: /spec/resources/-
+  value:
+    apiVersion: network.azure.com/v1api20240601
+    kind: PrivateDnsZone
+    metadata:
+      name: ${CLUSTER_NAME}-storage
+    spec:
+      azureName: privatelink.blob.core.windows.net
+      owner:
+        name: ${CLUSTER_NAME}
+      location: global
+
+- op: add
+  path: /spec/resources/-
+  value:
+    apiVersion: network.azure.com/v1api20240301
+    kind: PrivateEndpoint
+    metadata:
+      name: ${CLUSTER_NAME}-storage
+    spec:
+      owner:
+        name: ${CLUSTER_NAME}
+      location: ${AZURE_LOCATION}
+      privateLinkServiceConnections:
+      - groupIds:
+        - blob
+        name: custom-builds
+        privateLinkServiceReference:
+          armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CI_RG}/providers/Microsoft.Storage/storageAccounts/${AZURE_STORAGE_ACCOUNT}
+      subnet:
+        reference:
+          group: network.azure.com
+          kind: VirtualNetworksSubnet
+          name: ${CLUSTER_NAME}-controlplane
+
+- op: add
+  path: /spec/resources/-
+  value:
+    apiVersion: network.azure.com/v1api20240601
+    kind: PrivateDnsZonesVirtualNetworkLink
+    metadata:
+      name: ${CLUSTER_NAME}-storage
+    spec:
+      location: global
+      owner:
+        name: ${CLUSTER_NAME}-storage
+      registrationEnabled: false
+      virtualNetwork:
+        reference:
+          group: network.azure.com
+          kind: VirtualNetwork
+          name: ${CLUSTER_NAME}
+
+- op: add
+  path: /spec/resources/-
+  value:
+    apiVersion: network.azure.com/v1api20240301
+    kind: PrivateEndpointsPrivateDnsZoneGroup
+    metadata:
+      name: ${CLUSTER_NAME}-storage
+    spec:
+      owner:
+        name: ${CLUSTER_NAME}-storage
+      privateDnsZoneConfigs:
+      - name: config
+        privateDnsZoneReference:
+          group: network.azure.com
+          kind: PrivateDnsZone
+          name: ${CLUSTER_NAME}-storage

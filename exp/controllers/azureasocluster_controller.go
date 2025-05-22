@@ -167,8 +167,8 @@ func (r *AzureASOClusterReconciler) SetupWithManager(ctx context.Context, mgr ct
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=azureasoclusters/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=azureasoclusters/finalizers,verbs=update
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch
-//+kubebuilder:rbac:groups=network.azure.com,resources=publicipaddresses;loadbalancers;loadbalancersinboundnatrules;networksecuritygroups;networksecuritygroupssecurityrules;routetables,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=network.azure.com,resources=publicipaddresses/status;loadbalancers/status;loadbalancersinboundnatrules/status;networksecuritygroups/status;networksecuritygroupssecurityrules/status;routetables/status,verbs=get;list;watch
+//+kubebuilder:rbac:groups=network.azure.com,resources=publicipaddresses;loadbalancers;loadbalancersinboundnatrules;networksecuritygroups;networksecuritygroupssecurityrules;routetables;privatednszones;privatednszonesvirtualnetworklinks;privateendpoints;privateendpointsprivatednszonegroups,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=network.azure.com,resources=publicipaddresses/status;loadbalancers/status;loadbalancersinboundnatrules/status;networksecuritygroups/status;networksecuritygroupssecurityrules/status;routetables/status;privatednszones/status;privatednszonesvirtualnetworklinks/status;privateendpoints/status;privateendpointsprivatednszonegroups/status,verbs=get;list;watch
 
 // Reconcile reconciles an AzureASOCluster.
 func (r *AzureASOClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, resultErr error) {
