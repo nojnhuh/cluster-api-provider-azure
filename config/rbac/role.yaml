@@ -277,7 +277,10 @@ rules:
   - networkinterfaces
   - networksecuritygroups
   - networksecuritygroupssecurityrules
+  - privatednszones
+  - privatednszonesvirtualnetworklinks
   - privateendpoints
+  - privateendpointsprivatednszonegroups
   - publicipaddresses
   - routetables
   - virtualnetworks
@@ -300,7 +303,10 @@ rules:
   - networkinterfaces/status
   - networksecuritygroups/status
   - networksecuritygroupssecurityrules/status
+  - privatednszones/status
+  - privatednszonesvirtualnetworklinks/status
   - privateendpoints/status
+  - privateendpointsprivatednszonegroups/status
   - publicipaddresses/status
   - routetables/status
   - virtualnetworks/status
