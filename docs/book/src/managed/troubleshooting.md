@@ -1,5 +1,7 @@
 # Troubleshooting Managed Clusters (AKS)
 
+## MachinePool is stuck deleting
+
 If a user tries to delete the MachinePool which refers to the last system node pool AzureManagedMachinePool webhook will reject deletion, so time stamp never gets set on the AzureManagedMachinePool. However the timestamp would be set on the MachinePool and would be in deletion state. To recover from this state create a new MachinePool manually referencing the AzureManagedMachinePool, edit the required references and finalizers to link the MachinePool to the AzureManagedMachinePool. In the AzureManagedMachinePool remove the owner reference to the old MachinePool, and set it to the new MachinePool. Once the new MachinePool is pointing to the AzureManagedMachinePool you can delete the old MachinePool. To delete the old MachinePool remove the finalizers in that object.
 
 Here is an Example:
@@ -77,3 +79,11 @@ spec:
         namespace: default
       version: v1.21.2
 ```
+
+## Resources cannot be created outside of AzurePublicCloud
+
+
+
+  CAPZ is still limited by ASO to improve things here. For now, the suggested workaround is to set the `AZURE_AUTHORITY_HOST`, `AZURE_RESOURCE_MANAGER_ENDPOINT`, and `AZURE_RESOURCE_MANAGER_AUDIENCE` environment variables during `clusterctl init`. These settings apply to every 
+
+assumes that a particular CAPZ instance manages clusters \*only\* in AzureUSGovernment.
