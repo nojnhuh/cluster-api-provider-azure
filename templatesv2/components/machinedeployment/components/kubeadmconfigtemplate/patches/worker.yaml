@@ -1,0 +1,16 @@
+- op: test
+  path: /spec/template/spec/resources/0/kind
+  value: VirtualMachine
+- op: add
+  path: /spec/template/spec/resources/0/spec/hardwareProfile
+  value:
+    vmSize: ${AZURE_NODE_MACHINE_TYPE}
+- op: test
+  path: /spec/template/spec/resources/1/kind
+  value: NetworkInterface
+- op: add
+  path: /spec/template/spec/resources/1/spec/networkSecurityGroup/reference/name
+  value: ${CLUSTER_NAME}-worker
+- op: add
+  path: /spec/template/spec/resources/1/spec/ipConfigurations/0/subnet/reference/name
+  value: ${CLUSTER_NAME}-worker

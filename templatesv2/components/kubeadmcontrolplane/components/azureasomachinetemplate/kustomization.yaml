@@ -1,0 +1,68 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - ../../../azureasomachinetemplate/base/default
+
+components:
+  - ../../../azureasomachinetemplate/components/controlplane
+
+configurations:
+  - configurations/name.yaml
+
+replacements:
+  - source:
+      kind: AzureASOMachineTemplate
+      name: ${CLUSTER_NAME}
+      fieldPath: metadata.name
+    targets:
+      - select:
+          group: controlplane.cluster.x-k8s.io
+          version: v1beta1
+          kind: KubeadmControlPlane
+          name: ${CLUSTER_NAME}
+        fieldPaths:
+          - spec.machineTemplate.infrastructureRef.name
+        options:
+          create: true
+  - source:
+      kind: AzureASOMachineTemplate
+      name: ${CLUSTER_NAME}
+      fieldPath: apiVersion
+    targets:
+      - select:
+          group: controlplane.cluster.x-k8s.io
+          version: v1beta1
+          kind: KubeadmControlPlane
+          name: ${CLUSTER_NAME}
+        fieldPaths:
+          - spec.machineTemplate.infrastructureRef.apiVersion
+        options:
+          create: true
+  - source:
+      kind: AzureASOMachineTemplate
+      name: ${CLUSTER_NAME}
+      fieldPath: kind
+    targets:
+      - select:
+          group: controlplane.cluster.x-k8s.io
+          version: v1beta1
+          kind: KubeadmControlPlane
+          name: ${CLUSTER_NAME}
+        fieldPaths:
+          - spec.machineTemplate.infrastructureRef.kind
+        options:
+          create: true
+  - source:
+      kind: AzureASOMachineTemplate
+      name: ${CLUSTER_NAME}
+    targets:
+      - select:
+          group: infrastructure.cluster.x-k8s.io
+          version: v1alpha1
+          kind: AzureASOMachineTemplate
+          name: ${CLUSTER_NAME}
+        fieldPaths:
+          - spec.template.spec.resources.0.spec.osProfile.adminPassword.name
+        options:
+          create: true

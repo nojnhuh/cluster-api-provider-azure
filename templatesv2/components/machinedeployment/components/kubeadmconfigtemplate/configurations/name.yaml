@@ -1,0 +1,5 @@
+nameReference:
+  - kind: KubeadmConfigTemplate
+    fieldSpecs:
+      - kind: MachineDeployment
+        path: spec/template/spec/bootstrap/configRef/name

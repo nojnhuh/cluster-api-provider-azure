@@ -1,0 +1,72 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - ../../../azureasomachinetemplate/base/default
+
+components:
+  - ../../../azureasomachinetemplate/components/worker
+
+configurations:
+  - configurations/name.yaml
+
+replacements:
+  - source:
+      kind: MachineDeployment
+      name: ${CLUSTER_NAME}
+    targets:
+      - select:
+          group: infrastructure.cluster.x-k8s.io
+          version: v1alpha1
+          kind: AzureASOMachineTemplate
+          name: ${CLUSTER_NAME}
+      - select:
+          group: cluster.x-k8s.io
+          version: v1beta1
+          kind: MachineDeployment
+          name: ${CLUSTER_NAME}
+        fieldPaths:
+          - spec.template.spec.infrastructureRef.name
+        options:
+          create: true
+  - source:
+      kind: AzureASOMachineTemplate
+      name: ${CLUSTER_NAME}
+      fieldPath: apiVersion
+    targets:
+      - select:
+          group: cluster.x-k8s.io
+          version: v1beta1
+          kind: MachineDeployment
+          name: ${CLUSTER_NAME}
+        fieldPaths:
+          - spec.template.spec.infrastructureRef.apiVersion
+        options:
+          create: true
+  - source:
+      kind: AzureASOMachineTemplate
+      name: ${CLUSTER_NAME}
+      fieldPath: kind
+    targets:
+      - select:
+          group: cluster.x-k8s.io
+          version: v1beta1
+          kind: MachineDeployment
+          name: ${CLUSTER_NAME}
+        fieldPaths:
+          - spec.template.spec.infrastructureRef.kind
+        options:
+          create: true
+  - source:
+      kind: AzureASOMachineTemplate
+      name: ${CLUSTER_NAME}
+    targets:
+      - select:
+          group: infrastructure.cluster.x-k8s.io
+          version: v1alpha1
+          kind: AzureASOMachineTemplate
+          name: ${CLUSTER_NAME}
+        fieldPaths:
+          - spec.template.spec.resources.0.spec.osProfile.adminPassword.name
+        options:
+          create: true

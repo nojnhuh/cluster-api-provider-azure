@@ -1,0 +1,43 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+replacements:
+  - source:
+      kind: AzureASOCluster
+      fieldPath: apiVersion
+    targets:
+      - select:
+          group: cluster.x-k8s.io
+          version: v1beta1
+          kind: Cluster
+          name: ${CLUSTER_NAME}
+        fieldPaths:
+          - spec.infrastructureRef.apiVersion
+        options:
+          create: true
+  - source:
+      kind: AzureASOCluster
+      fieldPath: kind
+    targets:
+      - select:
+          group: cluster.x-k8s.io
+          version: v1beta1
+          kind: Cluster
+          name: ${CLUSTER_NAME}
+        fieldPaths:
+          - spec.infrastructureRef.kind
+        options:
+          create: true
+  - source:
+      kind: AzureASOCluster
+      fieldPath: metadata.name
+    targets:
+      - select:
+          group: cluster.x-k8s.io
+          version: v1beta1
+          kind: Cluster
+          name: ${CLUSTER_NAME}
+        fieldPaths:
+          - spec.infrastructureRef.name
+        options:
+          create: true

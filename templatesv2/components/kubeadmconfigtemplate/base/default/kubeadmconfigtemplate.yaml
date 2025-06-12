@@ -1,0 +1,21 @@
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+kind: KubeadmConfigTemplate
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  template:
+    spec:
+      joinConfiguration:
+        nodeRegistration:
+          kubeletExtraArgs:
+            cloud-provider: external
+          name: '{{ ds.meta_data["local_hostname"] }}'
+      files:
+      - contentFrom:
+          secret:
+            key: azure.json
+            name: ${CLUSTER_NAME}
+        owner: root:root
+        path: /etc/kubernetes/azure.json
+        permissions: "0644"
+      preKubeadmCommands: []

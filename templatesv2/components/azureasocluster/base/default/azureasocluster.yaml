@@ -1,0 +1,233 @@
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: AzureASOCluster
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  controlPlaneEndpointSource:
+    host:
+      configMap:
+        name:
+          value: ${CLUSTER_NAME}-controlplane-ip
+        key:
+          value: host
+    port:
+      configMap:
+        name:
+          value: ${CLUSTER_NAME}-controlplane-lb
+        key:
+          value: port
+  patches:
+  - jsonPatches:
+    - op: add
+      path: /metadata/annotations
+      value:
+        serviceoperator.azure.com/credential-from: ${ASO_CREDENTIAL_SECRET_NAME}
+  - selectors: # kinds owned by ResourceGroup
+    - kind: VirtualNetwork
+    - kind: PublicIPAddress
+    - kind: LoadBalancer
+    - kind: NetworkSecurityGroup
+    - kind: NatGateway
+    - kind: RouteTable
+    jsonPatches:
+    - op: add
+      path: /spec/owner
+      value:
+        name: ${CLUSTER_NAME}
+  - selectors: # kinds owned by VirtualNetwork
+    - kind: VirtualNetworksSubnet
+    jsonPatches:
+    - op: add
+      path: /spec/owner
+      value:
+        name: ${CLUSTER_NAME}
+  - selectors: # kinds requiring location
+    - kind: ResourceGroup
+    - kind: VirtualNetwork
+    - kind: PublicIPAddress
+    - kind: LoadBalancer
+    - kind: NetworkSecurityGroup
+    - kind: NatGateway
+    - kind: RouteTable
+    jsonPatches:
+    - op: add
+      path: /spec/location
+      value: ${AZURE_LOCATION}
+  - selectors:
+    - kind: LoadBalancer
+      name: ${CLUSTER_NAME}
+    jsonPatches:
+    - op: add
+      path: /spec/loadBalancingRules/0/backendPort
+      valueFrom:
+        template: |-
+          {{ .cluster.spec.clusterNetwork.apiServerPort }}
+    - op: add
+      path: /spec/loadBalancingRules/0/frontendPort
+      valueFrom:
+        template: |-
+          {{ .cluster.spec.clusterNetwork.apiServerPort }}
+    - op: add
+      path: /spec/probes/0/port
+      valueFrom:
+        template: |-
+          {{ .cluster.spec.clusterNetwork.apiServerPort }}
+  - selectors:
+    - kind: NetworkSecurityGroupsSecurityRule
+      name: ${CLUSTER_NAME}-allow-apiserver
+    jsonPatches:
+    - op: add
+      path: /spec/destinationPortRange
+      valueFrom:
+        template: |-
+          "{{ .cluster.spec.clusterNetwork.apiServerPort }}"
+  resources:
+  - apiVersion: resources.azure.com/v1api20200601
+    kind: ResourceGroup
+    metadata:
+      name: ${CLUSTER_NAME}
+    spec: {}
+  - apiVersion: network.azure.com/v1api20240301
+    kind: VirtualNetwork
+    metadata:
+      name: ${CLUSTER_NAME}
+    spec:
+      addressSpace:
+        addressPrefixes:
+        - 10.0.0.0/16
+  - apiVersion: network.azure.com/v1api20240301
+    kind: VirtualNetworksSubnet
+    metadata:
+      name: ${CLUSTER_NAME}-controlplane
+    spec:
+      addressPrefix: 10.0.0.0/24
+      natGateway:
+        reference:
+          group: network.azure.com
+          kind: NatGateway
+          name: ${CLUSTER_NAME}
+      networkSecurityGroup:
+        reference:
+          group: network.azure.com
+          kind: NetworkSecurityGroup
+          name: ${CLUSTER_NAME}-controlplane
+  - apiVersion: network.azure.com/v1api20240301
+    kind: VirtualNetworksSubnet
+    metadata:
+      name: ${CLUSTER_NAME}-worker
+    spec:
+      owner:
+        name: ${CLUSTER_NAME}
+      addressPrefix: 10.0.1.0/24
+      natGateway:
+        reference:
+          group: network.azure.com
+          kind: NatGateway
+          name: ${CLUSTER_NAME}
+      networkSecurityGroup:
+        reference:
+          group: network.azure.com
+          kind: NetworkSecurityGroup
+          name: ${CLUSTER_NAME}-worker
+  - apiVersion: network.azure.com/v1api20240301
+    kind: PublicIPAddress
+    metadata:
+      name: ${CLUSTER_NAME}-controlplane
+    spec:
+      sku:
+        name: Standard
+      publicIPAllocationMethod: Static
+      operatorSpec:
+        configMapExpressions:
+        - name: ${CLUSTER_NAME}-controlplane-ip
+          key: host
+          value: self.status.ipAddress
+  - apiVersion: network.azure.com/v1api20240301
+    kind: LoadBalancer
+    metadata:
+      name: ${CLUSTER_NAME}
+    spec:
+      sku:
+        name: Standard
+      frontendIPConfigurations:
+      - name: controlplane
+        publicIPAddress:
+          reference:
+            group: network.azure.com
+            kind: PublicIPAddress
+            name: ${CLUSTER_NAME}-controlplane
+      backendAddressPools:
+      - name: controlplane
+      loadBalancingRules:
+      - name: controlplane
+        backendAddressPools:
+        - reference:
+            armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CLUSTER_NAME}/providers/Microsoft.Network/loadBalancers/${CLUSTER_NAME}/backendAddressPools/controlplane
+        frontendIPConfiguration:
+          reference:
+            armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CLUSTER_NAME}/providers/Microsoft.Network/loadBalancers/${CLUSTER_NAME}/frontendIPConfigurations/controlplane
+        protocol: Tcp
+        disableOutboundSnat: true
+        probe:
+          reference:
+            armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CLUSTER_NAME}/providers/Microsoft.Network/loadBalancers/${CLUSTER_NAME}/probes/apiserver
+      probes:
+      - name: apiserver
+        protocol: Https
+        requestPath: /readyz
+      operatorSpec:
+        configMapExpressions:
+        - name: ${CLUSTER_NAME}-controlplane-lb
+          key: port
+          value: string(self.spec.loadBalancingRules[0].frontendPort)
+  - apiVersion: network.azure.com/v1api20240301
+    kind: NetworkSecurityGroup
+    metadata:
+      name: ${CLUSTER_NAME}-controlplane
+    spec: {}
+  - apiVersion: network.azure.com/v1api20240301
+    kind: NetworkSecurityGroupsSecurityRule
+    metadata:
+      name: ${CLUSTER_NAME}-allow-apiserver
+    spec:
+      azureName: AllowApiServer
+      owner:
+        name: ${CLUSTER_NAME}-controlplane
+      access: Allow
+      protocol: Tcp
+      sourceAddressPrefix: "*"
+      sourcePortRange: "*"
+      destinationAddressPrefix: "*"
+      priority: 2000
+      direction: Inbound
+      description: Allow access to kube-apiserver
+  - apiVersion: network.azure.com/v1api20240301
+    kind: NetworkSecurityGroup
+    metadata:
+      name: ${CLUSTER_NAME}-worker
+    spec: {}
+  - apiVersion: network.azure.com/v1api20240301
+    kind: PublicIPAddress
+    metadata:
+      name: ${CLUSTER_NAME}-nat-gateway
+    spec:
+      sku:
+        name: Standard
+      publicIPAllocationMethod: Static
+  - apiVersion: network.azure.com/v1api20240301
+    kind: NatGateway
+    metadata:
+      name: ${CLUSTER_NAME}
+    spec:
+      publicIpAddresses:
+      - reference:
+          group: network.azure.com
+          kind: PublicIPAddress
+          name: ${CLUSTER_NAME}-nat-gateway
+      sku:
+        name: Standard
+  - apiVersion: network.azure.com/v1api20240301
+    kind: RouteTable
+    metadata:
+      name: ${CLUSTER_NAME}
+    spec: {}

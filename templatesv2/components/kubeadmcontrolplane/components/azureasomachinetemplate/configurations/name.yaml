@@ -1,0 +1,5 @@
+nameReference:
+  - kind: AzureASOMachineTemplate
+    fieldSpecs:
+      - kind: KubeadmControlPlane
+        path: spec/machineTemplate/infrastructureRef/name
