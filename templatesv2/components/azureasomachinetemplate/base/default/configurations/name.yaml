@@ -3,7 +3,3 @@ nameReference:
     fieldSpecs:
       - kind: AzureASOMachineTemplate
         path: spec/template/spec/resources/spec/osProfile/adminPassword/name
-      - kind: KubeadmControlPlane
-        path: spec/kubeadmConfigSpec/files/contentFrom/secret/name
-      - kind: KubeadmConfigTemplate
-        path: spec/template/spec/files/contentFrom/secret/name

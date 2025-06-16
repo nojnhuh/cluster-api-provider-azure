@@ -3,3 +3,4 @@ kind: Kustomization
 
 resources:
   - azureasocluster.yaml
+  - azure-json.yaml

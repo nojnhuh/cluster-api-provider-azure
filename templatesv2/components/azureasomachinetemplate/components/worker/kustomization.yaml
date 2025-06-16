@@ -6,4 +6,3 @@ patches:
     target:
       kind: AzureASOMachineTemplate
       name: \$\{CLUSTER_NAME\}
-  - path: patches/secret.yaml
