@@ -1,3 +1,7 @@
+# This is a separate base and not an overlay in order to set a context for the
+# `nameSuffix` transformer and separate that from the context of the Component
+# which will plug the KubeadmControlPlane into the Cluster.
+
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 

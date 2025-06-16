@@ -1,3 +1,7 @@
+# This contains configuration for a default AzureASOCluster. This is a
+# Kustomization and not a Component in order to set a boundary for the context
+# of transformers like `nameSuffix`.
+
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 

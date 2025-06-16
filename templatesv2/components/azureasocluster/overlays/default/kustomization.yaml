@@ -1,3 +1,8 @@
+# This contains a fully-defined AzureASOCluster to be included by a top-level overlay.
+# This is a Component and not a Kustomization because the Components included
+# here are designed to operate against the higher-level context which includes
+# the Cluster.
+
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 
