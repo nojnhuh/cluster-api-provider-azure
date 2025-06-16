@@ -1,0 +1,12 @@
+- op: test
+  path: /spec/resources/0/kind
+  value: ResourceGroup
+- op: add
+  path: /spec/resources/0/spec/tags/jobName
+  value: ${JOB_NAME}
+- op: add
+  path: /spec/resources/0/spec/tags/creationTimestamp
+  value: ${TIMESTAMP}
+- op: add
+  path: /spec/resources/0/spec/tags/buildProvenance
+  value: ${BUILD_PROVENANCE}

@@ -1,0 +1,10 @@
+# This contains configuration for an AzureASOCluster in Prow.
+
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+patches:
+  - path: patches/tags.yaml
+    target:
+      kind: AzureASOCluster
+      name: \$\{CLUSTER_NAME\}

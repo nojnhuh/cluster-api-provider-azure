@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../aso
+
+components:
+  - ../../components/azureasocluster/components/prow
+  - ../../components/azureasocluster/components/ssh
+  - ../../components/azureasomachinetemplate/components/ssh-linux
+  - ../../components/addons/cloud-provider-azure
+  - ../../components/addons/azuredisk-csi-driver
+  - ../../components/addons/calico
+
+sortOptions:
+  order: fifo

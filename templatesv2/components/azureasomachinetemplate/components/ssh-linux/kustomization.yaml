@@ -1,0 +1,11 @@
+# Changes to a default AzureASOMachineTemplate for use as a worker
+# machine go here.
+
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+patches:
+  - path: patches/virtualmachine.yaml
+    target:
+      kind: AzureASOMachineTemplate
+      name: \$\{CLUSTER_NAME\}

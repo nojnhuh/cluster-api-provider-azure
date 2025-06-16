@@ -1,0 +1,10 @@
+- op: test
+  path: /spec/template/spec/resources/0/kind
+  value: VirtualMachine
+- op: add
+  path: /spec/template/spec/resources/0/spec/osProfile/linuxConfiguration
+  value:
+    ssh:
+      publicKeys:
+      - keyData: ${AZURE_SSH_PUBLIC_KEY}
+        path: /home/capi/.ssh/authorized_keys

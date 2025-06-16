@@ -86,7 +86,8 @@ spec:
     kind: ResourceGroup
     metadata:
       name: ${CLUSTER_NAME}
-    spec: {}
+    spec:
+      tags: {}
   - apiVersion: network.azure.com/v1api20240301
     kind: VirtualNetwork
     metadata:
