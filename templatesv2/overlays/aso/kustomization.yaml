@@ -12,6 +12,7 @@ components:
   - ../../components/azureasocluster/overlays/apiserver-port-6443
   - ../../components/kubeadmcontrolplane/overlays/azureasomachinetemplate
   - ../../components/machinedeployment/overlays/azureasomachinetemplate-kubeadmconfigtemplate
+  - ../../components/machinedeployment/overlays/azureasomachinetemplate-kubeadmconfigtemplate-windows
 
 sortOptions:
   order: fifo

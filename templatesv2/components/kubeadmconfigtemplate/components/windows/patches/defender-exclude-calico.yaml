@@ -1,0 +1,11 @@
+- op: add
+  path: /spec/template/spec/files/-
+  value:
+    content: |-
+      Add-MpPreference -ExclusionProcess C:/opt/cni/bin/calico.exe
+      Add-MpPreference -ExclusionProcess C:/opt/cni/bin/calico-ipam.exe
+    path: C:/defender-exclude-calico.ps1
+    permissions: "0744"
+- op: add
+  path: /spec/template/spec/postKubeadmCommands/-
+  value: powershell C:/defender-exclude-calico.ps1

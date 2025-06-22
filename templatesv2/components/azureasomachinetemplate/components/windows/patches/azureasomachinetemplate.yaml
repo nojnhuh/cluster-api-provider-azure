@@ -1,0 +1,23 @@
+- op: test
+  path: /spec/template/spec/patches/1/jsonPatches/1/path
+  value: /spec/osProfile/computerName
+- op: replace
+  path: /spec/template/spec/patches/1/jsonPatches/1/valueFrom/template
+  # TODO: figure out something better here
+  value: |-
+    {{ slice .self.metadata.name 0 3 }}-{{ slice .self.metadata.name 20 }}
+- op: test
+  path: /spec/template/spec/patches/1/jsonPatches/4/path
+  value: /spec/storageProfile/imageReference
+- op: replace
+  path: /spec/template/spec/patches/1/jsonPatches/4/valueFrom/template
+  value: |-
+    communityGalleryImageId: /CommunityGalleries/ClusterAPI-f72ceb4f-5159-4c26-a0fe-2ea738f0d019/Images/capi-win-2022-containerd/Versions/{{ slice .machine.spec.version 1 }}
+- op: test
+  path: /spec/template/spec/resources/0/kind
+  value: VirtualMachine
+- op: add
+  path: /spec/template/spec/resources/0/spec/storageProfile/osDisk
+  value:
+    osType: Windows
+    createOption: FromImage

@@ -47,11 +47,10 @@ spec:
             template: |-
               {{ .self.metadata.name }}
         - op: add
-          path: /spec/storageProfile
+          path: /spec/storageProfile/imageReference
           valueFrom:
             template: |-
-              imageReference:
-                communityGalleryImageId: /CommunityGalleries/ClusterAPI-f72ceb4f-5159-4c26-a0fe-2ea738f0d019/Images/capi-ubun2-2404/Versions/{{ slice .machine.spec.version 1 }}
+              communityGalleryImageId: /CommunityGalleries/ClusterAPI-f72ceb4f-5159-4c26-a0fe-2ea738f0d019/Images/capi-ubun2-2404/Versions/{{ slice .machine.spec.version 1 }}
         - op: add
           path: /spec/osProfile/customData
           valueFrom:
@@ -80,6 +79,7 @@ spec:
             bootDiagnostics:
               enabled: true
           location: ${AZURE_LOCATION}
+          storageProfile: {}
           networkProfile:
             networkInterfaces:
             - reference:

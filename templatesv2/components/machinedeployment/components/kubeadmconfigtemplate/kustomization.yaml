@@ -4,12 +4,6 @@ kind: Component
 resources:
   - ../../../kubeadmconfigtemplate/base/default
 
-# patches:
-#   - path: patches/worker.yaml
-#     target:
-#       kind: AzureASOMachineTemplate
-#       name: \$\{CLUSTER_NAME\}
-
 configurations:
   - configurations/name.yaml
 

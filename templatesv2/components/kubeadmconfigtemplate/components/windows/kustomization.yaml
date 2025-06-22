@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+patches:
+  - path: patches/windows.yaml
+  # TODO: move this to the calico addon?
+  - path: patches/defender-exclude-calico.yaml
+    target:
+      kind: KubeadmConfigTemplate
+      name: \$\{CLUSTER_NAME\}
