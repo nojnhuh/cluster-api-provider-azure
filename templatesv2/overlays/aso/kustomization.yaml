@@ -13,6 +13,8 @@ components:
   - ../../components/kubeadmcontrolplane/overlays/azureasomachinetemplate
   - ../../components/machinedeployment/overlays/azureasomachinetemplate-kubeadmconfigtemplate
   - ../../components/machinedeployment/overlays/azureasomachinetemplate-kubeadmconfigtemplate-windows
+  - ../../components/azureasocluster/components/ssh
+  - ../../components/azureasomachinetemplate/components/ssh-linux
 
 sortOptions:
   order: fifo

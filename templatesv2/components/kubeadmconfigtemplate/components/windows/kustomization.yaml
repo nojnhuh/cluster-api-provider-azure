@@ -3,6 +3,10 @@ kind: Component
 
 patches:
   - path: patches/windows.yaml
+  - path: patches/cloud-config.yaml
+    target:
+      kind: KubeadmConfigTemplate
+      name: \$\{CLUSTER_NAME\}
   # TODO: move this to the calico addon?
   - path: patches/defender-exclude-calico.yaml
     target:

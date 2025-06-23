@@ -1,0 +1,6 @@
+- op: test
+  path: /spec/template/spec/files/0/path
+  value: /etc/kubernetes/azure.json
+- op: replace
+  path: /spec/template/spec/files/0/path
+  value: 'c:/k/azure.json'
