@@ -391,3 +391,44 @@ spec:
 
 AzureASOMachine defines resources for which there are a fixed number per Machine. This generally includes
 resources like VirtualMachines, NetworkInterfaces, and Disks.
+
+### Bootstrap Data
+
+The AzureASOMachine API makes no assumptions about how data from bootstrap providers should be incorporated
+into the underlying ASO resources, or even if it should be at all. It is the responsibility of AzureASOMachine
+definition authors to handle that data. The Secret referred to by a Machine's `spec.bootstrap.dataSecretName`
+is made available in the template data passed to [patch value templates](#value-templates) under the
+`bootstrapData` key.
+
+The following example shows the relevant config to pass the bootstrap data to a VirtualMachine:
+
+```yaml
+kind: AzureASOMachineTemplate
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+metadata:
+  name: "${CLUSTER_NAME}-machine"
+spec:
+  template:
+    spec:
+      patches:
+      - selectors:
+        - kind: VirtualMachine
+        jsonPatches:
+        - op: add
+          path: /metadata
+          valueFrom:
+            template: |-
+              name: {{ .self.metadata.name }}
+        - op: add
+          path: /spec/osProfile/customData
+          valueFrom:
+            template: |- # prevent a nil dereference if the bootstrap secret isn't available yet
+              {{- if .bootstrapSecret }}
+                {{ index .bootstrapSecret.data "value" }}
+              {{- end }}
+      resources:
+      - apiVersion: compute.azure.com/v1api20220301
+        kind: VirtualMachine
+        spec:
+          osProfile: {}
+```

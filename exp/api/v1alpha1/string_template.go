@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -35,7 +36,7 @@ func AzureASOClusterJSONPatchValueFromTemplateData(self *AzureASOCluster, cluste
 }
 
 // AzureASOMachineJSONPatchValueFromTemplateData returns the data passed to [JSONPatchValueFrom] templates for AzureASOMachines.
-func AzureASOMachineJSONPatchValueFromTemplateData(self *AzureASOMachine, machine *clusterv1.Machine, cluster *clusterv1.Cluster) (any, error) {
+func AzureASOMachineJSONPatchValueFromTemplateData(self *AzureASOMachine, machine *clusterv1.Machine, cluster *clusterv1.Cluster, bootstrapSecret *corev1.Secret) (any, error) {
 	objs := make(map[string]any)
 	if self != nil {
 		objs["self"] = self
@@ -45,6 +46,9 @@ func AzureASOMachineJSONPatchValueFromTemplateData(self *AzureASOMachine, machin
 	}
 	if machine != nil {
 		objs["machine"] = machine
+	}
+	if bootstrapSecret != nil {
+		objs["bootstrapSecret"] = bootstrapSecret
 	}
 	return buildTemplateData(objs)
 }
