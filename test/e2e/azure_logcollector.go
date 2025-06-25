@@ -28,9 +28,12 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
+	asocomputev1 "github.com/Azure/azure-service-operator/v2/api/compute/v1api20220301"
 	"github.com/pkg/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/test/framework"
@@ -41,6 +44,7 @@ import (
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/scope"
+	infrav1expalpha "sigs.k8s.io/cluster-api-provider-azure/exp/api/v1alpha1"
 	infrav1exp "sigs.k8s.io/cluster-api-provider-azure/exp/api/v1beta1"
 )
 
@@ -63,6 +67,8 @@ func (k AzureLogCollector) CollectMachineLog(ctx context.Context, managementClus
 		return collectAzureMachineLog(ctx, managementClusterClient, m, outputPath)
 	case infrav1exp.GroupVersion.WithKind(infrav1exp.AzureMachinePoolMachineKind).GroupKind():
 		// Logs collected for AzureMachinePool
+	case infrav1expalpha.GroupVersion.WithKind(infrav1expalpha.AzureASOMachineKind).GroupKind():
+		return collectAzureASOMachineLog(ctx, managementClusterClient, m, outputPath)
 	default:
 		Logf("Unknown machine infra kind: %s", infraGK)
 	}
@@ -116,6 +122,56 @@ func collectAzureMachineLog(ctx context.Context, managementClusterClient client.
 	name := (&scope.MachineScope{AzureMachine: am}).Name()
 
 	return collectVMLog(ctx, cluster, subscriptionID, resourceGroup, name, outputPath)
+}
+
+func collectAzureASOMachineLog(ctx context.Context, managementClusterClient client.Client, m *clusterv1.Machine, outputPath string) error {
+	am, err := getAzureASOMachine(ctx, managementClusterClient, m)
+	if err != nil {
+		return fmt.Errorf("get AzureASOMachine %s/%s: %w", m.Namespace, m.Spec.InfrastructureRef.Name, err)
+	}
+
+	cluster, err := util.GetClusterFromMetadata(ctx, managementClusterClient, m.ObjectMeta)
+	if err != nil {
+		return err
+	}
+
+	vms := &asocomputev1.VirtualMachineList{}
+	err = managementClusterClient.List(ctx, vms, client.InNamespace(am.Namespace))
+	if err != nil {
+		return fmt.Errorf("error listing ASO VMs in namespace %s: %w", am.Namespace, err)
+	}
+
+	var errs []error
+	var ids []*arm.ResourceID
+
+	for _, vm := range vms.Items {
+		controller := metav1.GetControllerOf(&vm)
+		if controller != nil &&
+			controller.Kind == infrav1expalpha.AzureASOMachineKind &&
+			controller.Name == am.Name &&
+			vm.Status.Id != nil {
+			id, err := arm.ParseResourceID(*vm.Status.Id)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("invalid status.id from VirtualMachine %s/%s: %w", vm.Namespace, vm.Name, err))
+				continue
+			}
+			ids = append(ids, id)
+		}
+	}
+
+	for _, id := range ids {
+		outputPath := outputPath
+		if len(ids) > 1 {
+			outputPath = filepath.Join(outputPath, id.Name)
+		}
+		err = collectVMLog(ctx, cluster, id.SubscriptionID, id.ResourceGroupName, id.Name, outputPath)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+	}
+
+	return kinderrors.NewAggregate(errs)
 }
 
 func collectAzureMachinePoolLog(ctx context.Context, managementClusterClient client.Client, mp *clusterv1.MachinePool, outputPath string) error {
@@ -382,6 +438,17 @@ func getAzureMachine(ctx context.Context, managementClusterClient client.Client,
 	}
 
 	azMachine := &infrav1.AzureMachine{}
+	err := managementClusterClient.Get(ctx, key, azMachine)
+	return azMachine, err
+}
+
+func getAzureASOMachine(ctx context.Context, managementClusterClient client.Client, m *clusterv1.Machine) (*infrav1expalpha.AzureASOMachine, error) {
+	key := client.ObjectKey{
+		Namespace: m.Namespace,
+		Name:      m.Spec.InfrastructureRef.Name,
+	}
+
+	azMachine := &infrav1expalpha.AzureASOMachine{}
 	err := managementClusterClient.Get(ctx, key, azMachine)
 	return azMachine, err
 }
