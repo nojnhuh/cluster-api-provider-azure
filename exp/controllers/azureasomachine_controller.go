@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
@@ -170,7 +171,17 @@ func (r *AzureASOMachineReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 }
 
 func (r *AzureASOMachineReconciler) resourceReconciler(ctx context.Context, asoMachine *infrav1alphaexp.AzureASOMachine, machine *clusterv1.Machine, cluster *clusterv1.Cluster) (resourceReconciler, error) {
-	templateData, err := infrav1alphaexp.AzureASOMachineJSONPatchValueFromTemplateData(asoMachine, machine, cluster)
+	var bootstrapSecret *corev1.Secret
+	if machine != nil && machine.Spec.Bootstrap.DataSecretName != nil {
+		secret := &corev1.Secret{}
+		err := r.Get(ctx, client.ObjectKey{Namespace: asoMachine.Namespace, Name: *machine.Spec.Bootstrap.DataSecretName}, secret)
+		if err != nil {
+			return nil, err
+		}
+		bootstrapSecret = secret
+	}
+
+	templateData, err := infrav1alphaexp.AzureASOMachineJSONPatchValueFromTemplateData(asoMachine, machine, cluster, bootstrapSecret)
 	if err != nil {
 		return nil, err
 	}
@@ -212,6 +223,12 @@ func (r *AzureASOMachineReconciler) reconcileNormal(ctx context.Context, asoMach
 	if machine.Spec.Bootstrap.DataSecretName == nil {
 		log.V(4).Info("Waiting for bootstrap data")
 		return ctrl.Result{}, nil
+	}
+
+	bootstrapSecret := &corev1.Secret{}
+	err := r.Get(ctx, client.ObjectKey{Namespace: asoMachine.Namespace, Name: *machine.Spec.Bootstrap.DataSecretName}, bootstrapSecret)
+	if err != nil {
+		return ctrl.Result{}, err
 	}
 
 	resourceReconciler, err := r.resourceReconciler(ctx, asoMachine, machine, cluster)
