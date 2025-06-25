@@ -34,12 +34,14 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
+	asocomputev1 "github.com/Azure/azure-service-operator/v2/api/compute/v1api20220301"
 	asocontainerservicev1 "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20231001"
 	asocontainerservicev1preview "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20231102preview"
 	asoresourcesv1 "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -50,6 +52,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
+	infrav1expalpha "sigs.k8s.io/cluster-api-provider-azure/exp/api/v1alpha1"
 	infrav1exp "sigs.k8s.io/cluster-api-provider-azure/exp/api/v1beta1"
 )
 
@@ -74,10 +77,12 @@ func initScheme() *runtime.Scheme {
 	framework.TryAddDefaultSchemes(scheme)
 	Expect(infrav1.AddToScheme(scheme)).To(Succeed())
 	Expect(infrav1exp.AddToScheme(scheme)).To(Succeed())
+	Expect(infrav1expalpha.AddToScheme(scheme)).To(Succeed())
 	Expect(expv1.AddToScheme(scheme)).To(Succeed())
 	Expect(asoresourcesv1.AddToScheme(scheme)).To(Succeed())
 	Expect(asocontainerservicev1.AddToScheme(scheme)).To(Succeed())
 	Expect(asocontainerservicev1preview.AddToScheme(scheme)).To(Succeed())
+	Expect(asocomputev1.AddToScheme(scheme)).To(Succeed())
 	return scheme
 }
 
@@ -274,6 +279,25 @@ func (acp *AzureClusterProxy) collectActivityLogs(ctx context.Context, namespace
 			groupName = rg.AzureName()
 			break
 		}
+	case infrav1expalpha.AzureASOClusterKind:
+		rgs := &asoresourcesv1.ResourceGroupList{}
+		err = clusterClient.List(ctx, rgs, client.InNamespace(cluster.Spec.InfrastructureRef.Namespace))
+		if err != nil {
+			Logf("Error fetching activity logs for cluster %s in namespace %s.  Failed to list ASO ResourceGroups in namespace %s: %v", name, namespace, cluster.Spec.InfrastructureRef.Namespace, err)
+			return
+		}
+		for _, rg := range rgs.Items {
+			controller := metav1.GetControllerOf(&rg)
+			if controller != nil &&
+				controller.Kind == infrav1expalpha.AzureASOClusterKind &&
+				controller.Name == cluster.Spec.InfrastructureRef.Name &&
+				rg.Status.Name != nil {
+				groupName = *rg.Status.Name
+				break
+			}
+		}
+	default:
+		Logf("unknown cluster infra kind %q", cluster.Spec.InfrastructureRef.Kind)
 	}
 
 	start := time.Now().Add(-2 * time.Hour).UTC().Format(time.RFC3339)
