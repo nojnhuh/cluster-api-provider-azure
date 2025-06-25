@@ -46,6 +46,7 @@ type AzureASOMachineTemplateResourceSpec struct {
 	// - selfV1alpha1: this AzureASOMachine
 	// - machineV1beta2: the owning Machine resource
 	// - clusterV1beta2: the associated Cluster resource
+	// - bootstrapSecret: the Secret referred to by the owning Machine's spec.bootstrap.dataSecretName
 	//
 	// e.g. a template could be defined in YAML as
 	//
