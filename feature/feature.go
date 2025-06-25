@@ -48,7 +48,7 @@ const (
 	// alpha: v1.8
 	EdgeZone featuregate.Feature = "EdgeZone"
 
-	// ASOAPI is the feature gate for enabling the AzureASO... APIs.
+	// ASOAPI is the feature gate for enabling the AzureASOManaged... APIs.
 	// owner: @nojnhuh
 	// alpha: v1.15
 	ASOAPI featuregate.Feature = "ASOAPI"
@@ -69,6 +69,11 @@ const (
 	// owner: @jackfrancis
 	// alpha: v1.24
 	SkipMachinePoolModelReconciliation featuregate.Feature = "SkipMachinePoolModelReconciliation"
+
+	// ASOSelfManaged is the feature gate for enabling the AzureASOCluster and AzureASOMachine APIs.
+	// owner: @nojnhuh
+	// alpha: v1.21
+	ASOSelfManaged featuregate.Feature = "ASOSelfManaged"
 )
 
 func init() {
@@ -85,4 +90,5 @@ var defaultCAPZFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	ASOAPI:                             {Default: true, PreRelease: featuregate.GA},
 	APIServerILB:                       {Default: false, PreRelease: featuregate.Alpha},
 	SkipMachinePoolModelReconciliation: {Default: false, PreRelease: featuregate.Alpha},
+	ASOSelfManaged:                     {Default: false, PreRelease: featuregate.Alpha},
 }
