@@ -278,6 +278,7 @@ variables:
   CI_RG: "${CI_RG:-capz-ci}"
   USER_IDENTITY: "${USER_IDENTITY:-cloud-provider-user-identity}"
   EXP_APISERVER_ILB: "true"
+  EXP_ASO_SELF_MANAGED: "true"
 
 intervals:
   default/wait-controllers: ["3m", "10s"]
