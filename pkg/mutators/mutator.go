@@ -27,6 +27,7 @@ import (
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
@@ -85,12 +86,20 @@ func ToUnstructured(ctx context.Context, resources []runtime.RawExtension) ([]*u
 	return ApplyMutators(ctx, resources)
 }
 
-// Pause sets the "skip" reconcile policy on all resources to facilitate a CAPI pause.
+// Pause sets the "skip" reconcile policy on all ASO resources to facilitate a CAPI pause.
 func Pause(ctx context.Context, resources []*unstructured.Unstructured) error {
 	_, log, done := tele.StartSpanWithLogger(ctx, "mutators.Pause")
 	defer done()
 
 	for i, resource := range resources {
+		gv, err := schema.ParseGroupVersion(resource.GetAPIVersion())
+		if err != nil {
+			return fmt.Errorf("invalid apiVersion %q: %w", resource.GetAPIVersion(), err)
+		}
+		if !strings.HasSuffix(gv.Group, ".azure.com") {
+			return nil
+		}
+
 		resourcePath := "spec.resources[" + strconv.Itoa(i) + "]"
 		policyPath := []string{"metadata", "annotations", annotations.ReconcilePolicy}
 		capiPolicy := string(annotations.ReconcilePolicySkip)

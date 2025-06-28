@@ -150,17 +150,21 @@ func TestPause(t *testing.T) {
 			g := NewGomegaWithT(t)
 
 			u := &unstructured.Unstructured{}
+			u.SetAPIVersion("something.azure.com/v1")
 			if test.policy != "" {
 				u.SetAnnotations(map[string]string{
 					annotations.ReconcilePolicy: test.policy,
 				})
 			}
-			err := Pause(ctx, []*unstructured.Unstructured{u})
+			nonASO := &unstructured.Unstructured{}
+			nonASO.SetAPIVersion("something.not-azure.com/v1")
+			err := Pause(ctx, []*unstructured.Unstructured{u, nonASO})
 			if test.isIncompatible {
 				g.Expect(errors.As(err, &Incompatible{})).To(BeTrue())
 			} else {
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(u.GetAnnotations()).To(HaveKeyWithValue(annotations.ReconcilePolicy, string(annotations.ReconcilePolicySkip)))
+				g.Expect(nonASO.GetAnnotations()).NotTo(HaveKey(annotations.ReconcilePolicy))
 			}
 		})
 	}
