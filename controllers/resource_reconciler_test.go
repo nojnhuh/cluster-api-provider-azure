@@ -26,6 +26,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gstruct"
 	"github.com/onsi/gomega/types"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -59,6 +60,7 @@ func TestResourceReconcilerReconcile(t *testing.T) {
 	sb := runtime.NewSchemeBuilder(
 		infrav1.AddToScheme,
 		asoresourcesv1.AddToScheme,
+		corev1.AddToScheme,
 	)
 	NewGomegaWithT(t).Expect(sb.AddToScheme(s)).To(Succeed())
 
@@ -99,6 +101,11 @@ func TestResourceReconcilerReconcile(t *testing.T) {
 						Name: "rg2",
 					},
 				}),
+				secretJSON(g, s, &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "secret",
+					},
+				}),
 			},
 			Owner:   asoManagedCluster,
 			Watcher: w,
@@ -107,14 +114,35 @@ func TestResourceReconcilerReconcile(t *testing.T) {
 		err := r.Reconcile(ctx)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(w.watching).To(BeEmpty())
-		g.Expect(asoManagedCluster.Annotations).To(HaveKeyWithValue(ownedKindsAnnotation, getOwnedKindsValue([]schema.GroupVersionKind{asoresourcesv1.GroupVersion.WithKind("ResourceGroup")})))
+		g.Expect(asoManagedCluster.Annotations).
+			To(HaveKeyWithValue(
+				ownedKindsAnnotation,
+				getOwnedKindsValue([]schema.GroupVersionKind{
+					asoresourcesv1.GroupVersion.WithKind("ResourceGroup"),
+					corev1.SchemeGroupVersion.WithKind("Secret"),
+				}),
+			))
 
-		resourcesStatuses := asoManagedCluster.Status.Resources
-		g.Expect(resourcesStatuses).To(HaveLen(2))
-		g.Expect(resourcesStatuses[0].Resource.Name).To(Equal("rg1"))
-		g.Expect(resourcesStatuses[0].Ready).To(BeFalse())
-		g.Expect(resourcesStatuses[1].Resource.Name).To(Equal("rg2"))
-		g.Expect(resourcesStatuses[1].Ready).To(BeFalse())
+		g.Expect(asoManagedCluster.Status.Resources).To(ConsistOf(
+			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Resource": gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+					"Name": Equal("rg1"),
+				}),
+				"Ready": BeFalse(),
+			}),
+			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Resource": gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+					"Name": Equal("rg2"),
+				}),
+				"Ready": BeFalse(),
+			}),
+			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Resource": gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+					"Name": Equal("secret"),
+				}),
+				"Ready": BeFalse(),
+			}),
+		))
 
 		resourceGroups := new(asoresourcesv1.ResourceGroupList)
 		g.Expect(r.List(ctx, resourceGroups)).To(Succeed())
@@ -127,7 +155,10 @@ func TestResourceReconcilerReconcile(t *testing.T) {
 		asoManagedCluster := &infrav1.AzureASOManagedCluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
-					ownedKindsAnnotation: getOwnedKindsValue([]schema.GroupVersionKind{asoresourcesv1.GroupVersion.WithKind("ResourceGroup")}),
+					ownedKindsAnnotation: getOwnedKindsValue([]schema.GroupVersionKind{
+						asoresourcesv1.GroupVersion.WithKind("ResourceGroup"),
+						corev1.SchemeGroupVersion.WithKind("Secret"),
+					}),
 				},
 			},
 		}
@@ -164,6 +195,11 @@ func TestResourceReconcilerReconcile(t *testing.T) {
 						},
 					},
 				}),
+				secretJSON(g, s, &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "secret",
+					},
+				}),
 			},
 			Owner:   asoManagedCluster,
 			Watcher: w,
@@ -172,14 +208,35 @@ func TestResourceReconcilerReconcile(t *testing.T) {
 		err := r.Reconcile(ctx)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(w.watching).To(HaveKey("ResourceGroup.resources.azure.com"))
-		g.Expect(asoManagedCluster.Annotations).To(HaveKeyWithValue(ownedKindsAnnotation, getOwnedKindsValue([]schema.GroupVersionKind{asoresourcesv1.GroupVersion.WithKind("ResourceGroup")})))
+		g.Expect(asoManagedCluster.Annotations).
+			To(HaveKeyWithValue(
+				ownedKindsAnnotation,
+				getOwnedKindsValue([]schema.GroupVersionKind{
+					asoresourcesv1.GroupVersion.WithKind("ResourceGroup"),
+					corev1.SchemeGroupVersion.WithKind("Secret"),
+				}),
+			))
 
-		resourcesStatuses := asoManagedCluster.Status.Resources
-		g.Expect(resourcesStatuses).To(HaveLen(2))
-		g.Expect(resourcesStatuses[0].Resource.Name).To(Equal("rg1"))
-		g.Expect(resourcesStatuses[0].Ready).To(BeTrue())
-		g.Expect(resourcesStatuses[1].Resource.Name).To(Equal("rg2"))
-		g.Expect(resourcesStatuses[1].Ready).To(BeFalse())
+		g.Expect(asoManagedCluster.Status.Resources).To(ConsistOf(
+			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Resource": gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+					"Name": Equal("rg1"),
+				}),
+				"Ready": BeTrue(),
+			}),
+			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Resource": gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+					"Name": Equal("rg2"),
+				}),
+				"Ready": BeFalse(),
+			}),
+			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Resource": gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+					"Name": Equal("secret"),
+				}),
+				"Ready": BeTrue(), // New non-ASO types are marked ready immediately
+			}),
+		))
 
 		resourceGroups := new(asoresourcesv1.ResourceGroupList)
 		g.Expect(r.List(ctx, resourceGroups)).To(Succeed())
@@ -187,6 +244,12 @@ func TestResourceReconcilerReconcile(t *testing.T) {
 			HaveField("Name", "rg1"),
 			HaveField("Name", "rg2"),
 		), "Expected ResourceGroups should have been created")
+
+		secrets := new(corev1.SecretList)
+		g.Expect(r.List(ctx, secrets)).To(Succeed())
+		g.Expect(secrets.Items).To(ConsistOf(
+			HaveField("Name", "secret"),
+		), "Expected Secrets should have been created")
 	})
 
 	t.Run("delete stale resources", func(t *testing.T) {
@@ -200,11 +263,7 @@ func TestResourceReconcilerReconcile(t *testing.T) {
 				},
 			},
 		}
-		ownerGVK, err := apiutil.GVKForObject(owner, s)
-		g.Expect(err).NotTo(HaveOccurred())
-		controlledByOwner := []metav1.OwnerReference{
-			*metav1.NewControllerRef(owner, ownerGVK),
-		}
+		controlledByOwner := controlledBy(g, s, owner)
 
 		objs := []client.Object{
 			&asoresourcesv1.ResourceGroup{
@@ -212,7 +271,7 @@ func TestResourceReconcilerReconcile(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            "rg0",
 					Namespace:       owner.Namespace,
-					OwnerReferences: controlledBy(g, s, owner),
+					OwnerReferences: controlledByOwner,
 				},
 			},
 			&asoresourcesv1.ResourceGroup{
@@ -220,7 +279,7 @@ func TestResourceReconcilerReconcile(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            "rg1",
 					Namespace:       owner.Namespace,
-					OwnerReferences: controlledBy(g, s, owner),
+					OwnerReferences: controlledByOwner,
 				},
 			},
 			&asoresourcesv1.ResourceGroup{
@@ -228,7 +287,7 @@ func TestResourceReconcilerReconcile(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            "rg2",
 					Namespace:       owner.Namespace,
-					OwnerReferences: controlledBy(g, s, owner),
+					OwnerReferences: controlledByOwner,
 				},
 			},
 			&asoresourcesv1.ResourceGroup{
@@ -262,16 +321,28 @@ func TestResourceReconcilerReconcile(t *testing.T) {
 			Watcher: &FakeWatcher{},
 		}
 
-		err = r.Reconcile(ctx)
+		err := r.Reconcile(ctx)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(owner.Annotations).To(HaveKeyWithValue(ownedKindsAnnotation, getOwnedKindsValue([]schema.GroupVersionKind{asoresourcesv1.GroupVersion.WithKind("ResourceGroup")})))
 
-		resourcesStatuses := owner.Status.Resources
-		g.Expect(resourcesStatuses).To(HaveLen(3))
-		// rg0 should be deleted and gone
-		g.Expect(resourcesStatuses[0].Resource.Name).To(Equal("rg1"))
-		g.Expect(resourcesStatuses[1].Resource.Name).To(Equal("rg2"))
-		g.Expect(resourcesStatuses[2].Resource.Name).To(Equal("rg3"))
+		g.Expect(owner.Status.Resources).To(ConsistOf(
+			// rg0 should be deleted and gone
+			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Resource": gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+					"Name": Equal("rg1"),
+				}),
+			}),
+			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Resource": gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+					"Name": Equal("rg2"),
+				}),
+			}),
+			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Resource": gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+					"Name": Equal("rg3"),
+				}),
+			}),
+		))
 
 		err = r.Get(ctx, client.ObjectKey{Namespace: namespace, Name: "rg0"}, &asoresourcesv1.ResourceGroup{})
 		g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "err is not a NotFound error")
@@ -296,6 +367,7 @@ func TestResourceReconcilerPause(t *testing.T) {
 	sb := runtime.NewSchemeBuilder(
 		infrav1.AddToScheme,
 		asoresourcesv1.AddToScheme,
+		corev1.AddToScheme,
 	)
 	NewGomegaWithT(t).Expect(sb.AddToScheme(s)).To(Succeed())
 
@@ -327,31 +399,36 @@ func TestResourceReconcilerPause(t *testing.T) {
 				},
 			},
 		}
+		controlledByOwner := controlledBy(g, s, owner)
 
 		objs := []client.Object{
 			&asoresourcesv1.ResourceGroup{
-				TypeMeta: rgTypeMeta,
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            "rg1",
 					Namespace:       owner.Namespace,
-					OwnerReferences: controlledBy(g, s, owner),
+					OwnerReferences: controlledByOwner,
 				},
 			},
 			&asoresourcesv1.ResourceGroup{
-				TypeMeta: rgTypeMeta,
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            "rg2",
 					Namespace:       owner.Namespace,
-					OwnerReferences: controlledBy(g, s, owner),
+					OwnerReferences: controlledByOwner,
 				},
 			},
 			&asoresourcesv1.ResourceGroup{
-				TypeMeta: rgTypeMeta,
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            "deleted from spec",
 					Namespace:       owner.Namespace,
-					OwnerReferences: controlledBy(g, s, owner),
+					OwnerReferences: controlledByOwner,
 					Finalizers:      []string{"still deleting"},
+				},
+			},
+			&corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "secret",
+					Namespace:       owner.Namespace,
+					OwnerReferences: controlledByOwner,
 				},
 			},
 		}
@@ -374,6 +451,11 @@ func TestResourceReconcilerPause(t *testing.T) {
 				rgJSON(g, s, &asoresourcesv1.ResourceGroup{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "not-yet-created",
+					},
+				}),
+				secretJSON(g, s, &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "secret",
 					},
 				}),
 			},
@@ -477,9 +559,13 @@ func TestResourceReconcilerDelete(t *testing.T) {
 		g.Expect(r.Client.Get(ctx, client.ObjectKey{Namespace: owner.Namespace, Name: "still-deleting"}, stillDeleting)).To(Succeed())
 		g.Expect(stillDeleting.GetDeletionTimestamp().IsZero()).To(BeFalse())
 
-		g.Expect(owner.Status.Resources).To(HaveLen(1))
-		g.Expect(owner.Status.Resources[0].Resource.Name).To(Equal("still-deleting"))
-		g.Expect(owner.Status.Resources[0].Ready).To(BeFalse())
+		g.Expect(owner.Status.Resources).To(ConsistOf(
+			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Resource": gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+					"Name": Equal("still-deleting"),
+				}),
+			}),
+		))
 	})
 
 	t.Run("done deleting", func(t *testing.T) {
@@ -510,6 +596,7 @@ func TestReadyStatus(t *testing.T) {
 	ctx := t.Context()
 
 	t.Run("unstructured", func(t *testing.T) {
+		asoAPIVersion := "something.azure.com/v1"
 		tests := []struct {
 			name          string
 			object        *unstructured.Unstructured
@@ -518,11 +605,19 @@ func TestReadyStatus(t *testing.T) {
 			{
 				name:          "empty object",
 				object:        &unstructured.Unstructured{Object: make(map[string]any)},
+				expectedReady: true,
+			},
+			{
+				name: "empty ASO object",
+				object: &unstructured.Unstructured{Object: map[string]any{
+					"apiVersion": asoAPIVersion,
+				}},
 				expectedReady: false,
 			},
 			{
 				name: "empty status.conditions",
 				object: &unstructured.Unstructured{Object: map[string]any{
+					"apiVersion": asoAPIVersion,
 					"status": map[string]any{
 						"conditions": []any{},
 					},
@@ -532,6 +627,7 @@ func TestReadyStatus(t *testing.T) {
 			{
 				name: "status.conditions wrong type",
 				object: &unstructured.Unstructured{Object: map[string]any{
+					"apiVersion": asoAPIVersion,
 					"status": map[string]any{
 						"conditions": []any{
 							int64(0),
@@ -543,6 +639,7 @@ func TestReadyStatus(t *testing.T) {
 			{
 				name: "non-Ready type status.conditions",
 				object: &unstructured.Unstructured{Object: map[string]any{
+					"apiVersion": asoAPIVersion,
 					"status": map[string]any{
 						"conditions": []any{
 							map[string]any{
@@ -556,6 +653,7 @@ func TestReadyStatus(t *testing.T) {
 			{
 				name: "observedGeneration not up to date",
 				object: &unstructured.Unstructured{Object: map[string]any{
+					"apiVersion": asoAPIVersion,
 					"metadata": map[string]any{
 						"generation": int64(1),
 					},
@@ -573,6 +671,7 @@ func TestReadyStatus(t *testing.T) {
 			{
 				name: "status is not defined",
 				object: &unstructured.Unstructured{Object: map[string]any{
+					"apiVersion": asoAPIVersion,
 					"status": map[string]any{
 						"conditions": []any{
 							map[string]any{
@@ -587,6 +686,7 @@ func TestReadyStatus(t *testing.T) {
 			{
 				name: "status is not True",
 				object: &unstructured.Unstructured{Object: map[string]any{
+					"apiVersion": asoAPIVersion,
 					"status": map[string]any{
 						"conditions": []any{
 							map[string]any{
@@ -602,6 +702,7 @@ func TestReadyStatus(t *testing.T) {
 			{
 				name: "status is True",
 				object: &unstructured.Unstructured{Object: map[string]any{
+					"apiVersion": asoAPIVersion,
 					"status": map[string]any{
 						"conditions": []any{
 							map[string]any{
@@ -726,5 +827,12 @@ func rgJSON(g Gomega, scheme *runtime.Scheme, rg *asoresourcesv1.ResourceGroup) 
 	rg.SetGroupVersionKind(asoresourcesv1.GroupVersion.WithKind("ResourceGroup"))
 	u := &unstructured.Unstructured{}
 	g.Expect(scheme.Convert(rg, u, nil)).To(Succeed())
+	return u
+}
+
+func secretJSON(g Gomega, scheme *runtime.Scheme, secret *corev1.Secret) *unstructured.Unstructured {
+	secret.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("Secret"))
+	u := &unstructured.Unstructured{}
+	g.Expect(scheme.Convert(secret, u, nil)).To(Succeed())
 	return u
 }

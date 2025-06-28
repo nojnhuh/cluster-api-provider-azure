@@ -289,6 +289,10 @@ spec:
     metadata:
       name: ${CLUSTER_NAME}
     spec: {}
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: ${CLUSTER_NAME}-azure-json
 ---
 apiVersion: v1
 kind: Secret

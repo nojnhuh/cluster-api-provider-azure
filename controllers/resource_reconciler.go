@@ -270,6 +270,14 @@ func readyStatus(ctx context.Context, u *unstructured.Unstructured) (bool, error
 	_, log, done := tele.StartSpanWithLogger(ctx, "controllers.ResourceReconciler.readyStatus")
 	defer done()
 
+	gv, err := schema.ParseGroupVersion(u.GetAPIVersion())
+	if err != nil {
+		return false, fmt.Errorf("invalid apiVersion %q: %w", u.GetAPIVersion(), err)
+	}
+	if !strings.HasSuffix(gv.Group, ".azure.com") {
+		return true, nil
+	}
+
 	statusConditions, found, err := unstructured.NestedSlice(u.Object, "status", "conditions")
 	if err != nil {
 		return false, err
