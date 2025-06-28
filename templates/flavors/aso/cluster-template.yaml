@@ -288,6 +288,12 @@ spec:
     metadata:
       name: ${CLUSTER_NAME}
     spec: {}
+  # This Secret is included so it's deleted with the rest of the Cluster but its
+  # data is emitted to avoid persisting sensitive info outside the Secret.
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: ${CLUSTER_NAME}-azure-json
 ---
 apiVersion: v1
 kind: Secret
