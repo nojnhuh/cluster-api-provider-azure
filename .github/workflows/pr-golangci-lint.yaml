@@ -35,3 +35,5 @@ jobs:
           # update the version when updating golangci-lint
           version: v2.3.0
           working-directory: ${{matrix.working-directory}}
+      - name: Lint API
+        run: make lint-api
