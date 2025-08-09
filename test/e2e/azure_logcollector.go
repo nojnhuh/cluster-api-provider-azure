@@ -186,7 +186,7 @@ func collectVMLog(ctx context.Context, cluster *clusterv1.Cluster, subscriptionI
 		errs = append(errs, fmt.Errorf("virtual machine %s in resource group %s has no computer name, can't collect logs via SSH", name, resourceGroup))
 	} else {
 		hostname := *vm.Properties.OSProfile.ComputerName
-		if err := collectLogsFromNode(cluster, hostname, isWindows, outputPath); err != nil {
+		if err := collectLogsFromNode(ctx, cluster, hostname, isWindows, outputPath); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -251,7 +251,7 @@ func collectVMSSLog(ctx context.Context, cluster *clusterv1.Cluster, subscriptio
 					errs = append(errs, fmt.Errorf("instance of VMSS %s in resource group %s has no computer name, can't collect logs via SSH", name, resourceGroup))
 				} else {
 					hostname = *instance.Properties.OSProfile.ComputerName
-					if err := collectLogsFromNode(cluster, hostname, isWindows, filepath.Join(outputPath, hostname)); err != nil {
+					if err := collectLogsFromNode(ctx, cluster, hostname, isWindows, filepath.Join(outputPath, hostname)); err != nil {
 						errs = append(errs, err)
 					}
 				}
@@ -323,7 +323,7 @@ func collectVMSSLog(ctx context.Context, cluster *clusterv1.Cluster, subscriptio
 }
 
 // collectLogsFromNode collects logs from various sources by ssh'ing into the node
-func collectLogsFromNode(cluster *clusterv1.Cluster, hostname string, isWindows bool, outputPath string) error {
+func collectLogsFromNode(ctx context.Context, cluster *clusterv1.Cluster, hostname string, isWindows bool, outputPath string) error {
 	nodeOSType := azure.LinuxOS
 	if isWindows {
 		nodeOSType = azure.WindowsOS
@@ -340,7 +340,7 @@ func collectLogsFromNode(cluster *clusterv1.Cluster, hostname string, isWindows 
 					return err
 				}
 				defer f.Close()
-				return execOnHost(controlPlaneEndpoint, hostname, sshPort, collectLogTimeout, f, command, args...)
+				return execOnHost(ctx, controlPlaneEndpoint, hostname, sshPort, collectLogTimeout, f, command, args...)
 			})
 		}
 	}
@@ -352,7 +352,7 @@ func collectLogsFromNode(cluster *clusterv1.Cluster, hostname string, isWindows 
 		errors = append(errors, kinderrors.AggregateConcurrent(windowsK8sLogs(execToPathFn)))
 		errors = append(errors, kinderrors.AggregateConcurrent(windowsNetworkLogs(execToPathFn)))
 		errors = append(errors, kinderrors.AggregateConcurrent(windowsCrashDumpLogs(execToPathFn)))
-		errors = append(errors, sftpCopyFile(controlPlaneEndpoint, hostname, sshPort, collectLogTimeout, "/c:/crashdumps.tar", filepath.Join(outputPath, "crashdumps.tar")))
+		errors = append(errors, sftpCopyFile(ctx, controlPlaneEndpoint, hostname, sshPort, collectLogTimeout, "/c:/crashdumps.tar", filepath.Join(outputPath, "crashdumps.tar")))
 
 		return kinderrors.NewAggregate(errors)
 	}

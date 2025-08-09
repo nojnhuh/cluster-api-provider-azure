@@ -450,14 +450,17 @@ func getClusterName(prefix, specName string) string {
 
 // getProxiedSSHClient creates a SSH client object that connects to a target node
 // proxied through a control plane node.
-func getProxiedSSHClient(controlPlaneEndpoint, hostname, port string, ioTimeout time.Duration) (*ssh.Client, error) {
+func getProxiedSSHClient(ctx context.Context, controlPlaneEndpoint, hostname, port string, ioTimeout time.Duration) (*ssh.Client, error) {
 	config, err := newSSHConfig()
 	if err != nil {
 		return nil, err
 	}
 
 	// Init a client connection to a control plane node via the public load balancer
-	c, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%s", controlPlaneEndpoint, port), config.Timeout)
+	dialer := net.Dialer{
+		Timeout: config.Timeout,
+	}
+	c, err := dialer.DialContext(ctx, "tcp", fmt.Sprintf("%s:%s", controlPlaneEndpoint, port))
 	if err != nil {
 		return nil, errors.Wrapf(err, "dialing public load balancer at %s", controlPlaneEndpoint)
 	}
@@ -488,9 +491,9 @@ func getProxiedSSHClient(controlPlaneEndpoint, hostname, port string, ioTimeout 
 
 // execOnHost runs the specified command directly on a node's host, using a SSH connection
 // proxied through a control plane host and copies the output to a file.
-func execOnHost(controlPlaneEndpoint, hostname, port string, ioTimeout time.Duration, f io.StringWriter, command string,
+func execOnHost(ctx context.Context, controlPlaneEndpoint, hostname, port string, ioTimeout time.Duration, f io.StringWriter, command string,
 	args ...string) error {
-	client, err := getProxiedSSHClient(controlPlaneEndpoint, hostname, port, ioTimeout)
+	client, err := getProxiedSSHClient(ctx, controlPlaneEndpoint, hostname, port, ioTimeout)
 	if err != nil {
 		return err
 	}
@@ -519,10 +522,10 @@ func execOnHost(controlPlaneEndpoint, hostname, port string, ioTimeout time.Dura
 
 // sftpCopyFile copies a file from a node to the specified destination, using a SSH connection
 // proxied through a control plane node.
-func sftpCopyFile(controlPlaneEndpoint, hostname, port string, ioTimeout time.Duration, sourcePath, destPath string) error {
+func sftpCopyFile(ctx context.Context, controlPlaneEndpoint, hostname, port string, ioTimeout time.Duration, sourcePath, destPath string) error {
 	Logf("Attempting to copy file %s on node %s to %s", sourcePath, hostname, destPath)
 
-	client, err := getProxiedSSHClient(controlPlaneEndpoint, hostname, port, ioTimeout)
+	client, err := getProxiedSSHClient(ctx, controlPlaneEndpoint, hostname, port, ioTimeout)
 	if err != nil {
 		return err
 	}
