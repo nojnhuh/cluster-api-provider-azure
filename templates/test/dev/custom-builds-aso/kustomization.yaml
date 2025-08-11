@@ -5,8 +5,31 @@ resources:
 - ../../ci/prow-aso
 - ../../../asoapi-creds/credentials.yaml
 - ../../../addons/cluster-api-helm/cloud-provider-azure-ci.yaml
+- kueue.yaml
+- dra-example-driver.yaml
 
 patches:
+- patch: |-
+    kind: Cluster
+    apiVersion: cluster.x-k8s.io/v1beta1
+    metadata:
+      name: ${CLUSTER_NAME}
+      labels:
+        kueue: "true"
+        dra-example-driver: "true"
+- patch: |-
+    - op: add
+      path: /spec/kubeadmConfigSpec/clusterConfiguration/scheduler
+      value:
+        extraArgs: {}
+  target:
+    kind: KubeadmControlPlane
+- path: ../../ci/patches/dra-kubeadmcontrolplane.yaml
+  target:
+    kind: KubeadmControlPlane
+- path: ../../ci/patches/dra-kubeadmconfig.yaml
+  target:
+    kind: KubeadmConfig
 - path: patches/privatedns.yaml
   target:
     kind: AzureASOCluster

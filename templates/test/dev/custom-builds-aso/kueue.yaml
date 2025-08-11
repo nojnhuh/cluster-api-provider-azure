@@ -1,0 +1,20 @@
+apiVersion: addons.cluster.x-k8s.io/v1alpha1
+kind: HelmChartProxy
+metadata:
+  name: kueue
+  namespace: default
+spec:
+  chartName: kueue
+  clusterSelector:
+    matchLabels:
+      kueue: "true"
+  namespace: kueue-system
+  releaseName: kueue
+  repoURL: oci://jondev.azurecr.io/kueue/charts
+  valuesTemplate: |-
+    controllerManager:
+      featureGates:
+        - name: DynamicResourceAllocation
+          enabled: true
+  version: 0.13.0-devel-452-g560e28bc1
+# make image-push helm-chart-push PLATFORMS=linux/amd64 STAGING_IMAGE_REGISTRY=jondev.azurecr.io

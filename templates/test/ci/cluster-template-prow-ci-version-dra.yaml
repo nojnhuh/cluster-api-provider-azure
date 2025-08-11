@@ -56,7 +56,6 @@ spec:
     clusterConfiguration:
       apiServer:
         extraArgs:
-          feature-gates: ${K8S_FEATURE_GATES:-"DynamicResourceAllocation=true"}
           runtime-config: resource.k8s.io/v1beta1=true,resource.k8s.io/v1beta2=true
         timeoutForControlPlane: 20m
       controllerManager:
@@ -64,7 +63,6 @@ spec:
           allocate-node-cidrs: "false"
           cloud-provider: external
           cluster-name: ${CLUSTER_NAME}
-          feature-gates: DynamicResourceAllocation=true
           v: "4"
       etcd:
         local:
@@ -73,8 +71,7 @@ spec:
             quota-backend-bytes: "8589934592"
       kubernetesVersion: ci/${CI_VERSION}
       scheduler:
-        extraArgs:
-          feature-gates: DynamicResourceAllocation=true
+        extraArgs: {}
     diskSetup:
       filesystems:
       - device: /dev/disk/azure/scsi1/lun0
@@ -198,7 +195,6 @@ spec:
       nodeRegistration:
         kubeletExtraArgs:
           cloud-provider: external
-          feature-gates: DynamicResourceAllocation=true
           image-credential-provider-bin-dir: /var/lib/kubelet/credential-provider
           image-credential-provider-config: /var/lib/kubelet/credential-provider-config.yaml
         name: '{{ ds.meta_data["local_hostname"] }}'
@@ -206,7 +202,6 @@ spec:
       nodeRegistration:
         kubeletExtraArgs:
           cloud-provider: external
-          feature-gates: DynamicResourceAllocation=true
           image-credential-provider-bin-dir: /var/lib/kubelet/credential-provider
           image-credential-provider-config: /var/lib/kubelet/credential-provider-config.yaml
         name: '{{ ds.meta_data["local_hostname"] }}'

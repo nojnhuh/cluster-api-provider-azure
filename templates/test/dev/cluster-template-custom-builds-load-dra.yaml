@@ -61,7 +61,6 @@ spec:
     clusterConfiguration:
       apiServer:
         extraArgs:
-          feature-gates: ${K8S_FEATURE_GATES:-"DynamicResourceAllocation=true"}
           runtime-config: resource.k8s.io/v1beta1=true,resource.k8s.io/v1beta2=true
         timeoutForControlPlane: 20m
       controllerManager:
@@ -69,7 +68,6 @@ spec:
           allocate-node-cidrs: "false"
           cloud-provider: external
           cluster-name: ${CLUSTER_NAME}
-          feature-gates: DynamicResourceAllocation=true
           kube-api-burst: "150"
           kube-api-qps: "75"
           v: "4"
@@ -83,7 +81,6 @@ spec:
         extraArgs:
           authorization-always-allow-paths: /healthz,/readyz,/livez,/metrics
           bind-address: 0.0.0.0
-          feature-gates: DynamicResourceAllocation=true
     diskSetup:
       filesystems:
       - device: /dev/disk/azure/scsi1/lun0
@@ -196,7 +193,6 @@ spec:
       nodeRegistration:
         kubeletExtraArgs:
           cloud-provider: external
-          feature-gates: DynamicResourceAllocation=true
           image-credential-provider-bin-dir: /var/lib/kubelet/credential-provider
           image-credential-provider-config: /var/lib/kubelet/credential-provider-config.yaml
         name: '{{ ds.meta_data["local_hostname"] }}'
@@ -204,7 +200,6 @@ spec:
       nodeRegistration:
         kubeletExtraArgs:
           cloud-provider: external
-          feature-gates: DynamicResourceAllocation=true
           image-credential-provider-bin-dir: /var/lib/kubelet/credential-provider
           image-credential-provider-config: /var/lib/kubelet/credential-provider-config.yaml
         name: '{{ ds.meta_data["local_hostname"] }}'

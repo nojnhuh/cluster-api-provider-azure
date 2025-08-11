@@ -1,0 +1,19 @@
+apiVersion: addons.cluster.x-k8s.io/v1alpha1
+kind: HelmChartProxy
+metadata:
+  name: dra-example-driver
+  namespace: default
+spec:
+  chartName: dra-example-driver
+  clusterSelector:
+    matchLabels:
+      dra-example-driver: "true"
+  namespace: dra-example-driver
+  releaseName: dra-example-driver
+  repoURL: oci://jondev.azurecr.io/dra-example-driver/charts
+  valuesTemplate: |-
+    image:
+      repository: jondev.azurecr.io/dra-example-driver/dra-example-driver
+      tag: v0.3.0-1
+  version: 0.3.0-1
+# make push-release-artifacts IMAGE_GIT_TAG=v0.3.0-1 CHART_GIT_TAG=chart/0.3.0-1 DRIVER_IMAGE_REGISTRY=jondev.azurecr.io/dra-example-driver DRIVER_CHART_REGISTRY=jondev.azurecr.io/dra-example-driver/charts
