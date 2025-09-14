@@ -2,6 +2,7 @@ apiVersion: cluster.x-k8s.io/v1beta2
 kind: Cluster
 metadata:
   labels:
+    kuberay: "true"
     kueue: "true"
     nvidia-dra-driver: "true"
     nvidia-gpu-operator: "true"
@@ -338,12 +339,6 @@ metadata:
 spec:
   kubeadmConfigSpec:
     clusterConfiguration:
-      apiServer:
-        extraArgs:
-        - name: feature-gates
-          value: DynamicResourceAllocation=true
-        - name: runtime-config
-          value: resource.k8s.io/v1beta1=true,resource.k8s.io/v1beta2=true
       controllerManager:
         extraArgs:
         - name: allocate-node-cidrs
@@ -352,18 +347,12 @@ spec:
           value: ${CLUSTER_NAME}
         - name: cloud-provider
           value: external
-        - name: feature-gates
-          value: DynamicResourceAllocation=true
       etcd:
         local:
           dataDir: /var/lib/etcddisk/etcd
           extraArgs:
           - name: quota-backend-bytes
             value: "8589934592"
-      scheduler:
-        extraArgs:
-        - name: feature-gates
-          value: DynamicResourceAllocation=true
     diskSetup:
       filesystems:
       - device: /dev/disk/azure/scsi1/lun0
@@ -394,8 +383,6 @@ spec:
         kubeletExtraArgs:
         - name: cloud-provider
           value: external
-        - name: feature-gates
-          value: DynamicResourceAllocation=true
         name: '{{ ds.meta_data["local_hostname"] }}'
       timeouts:
         controlPlaneComponentHealthCheckSeconds: 1200
@@ -404,8 +391,6 @@ spec:
         kubeletExtraArgs:
         - name: cloud-provider
           value: external
-        - name: feature-gates
-          value: DynamicResourceAllocation=true
         name: '{{ ds.meta_data["local_hostname"] }}'
       timeouts:
         controlPlaneComponentHealthCheckSeconds: 1200
@@ -617,25 +602,12 @@ spec:
         owner: root:root
         path: /etc/kubernetes/azure.json
         permissions: "0644"
-      - content: |
-          #!/bin/bash
-
-          echo "enabling containerd CDI plugin"
-          sed -i '/\[plugins."io.containerd.grpc.v1.cri"\]/a\    enable_cdi = true' /etc/containerd/config.toml
-          systemctl restart containerd
-        owner: root:root
-        path: /tmp/containerd-config.sh
-        permissions: "0744"
       joinConfiguration:
         nodeRegistration:
           kubeletExtraArgs:
           - name: cloud-provider
             value: external
-          - name: feature-gates
-            value: DynamicResourceAllocation=true
           name: '{{ ds.meta_data["local_hostname"] }}'
-      preKubeadmCommands:
-      - bash -c /tmp/containerd-config.sh
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: AzureASOMachineTemplate
@@ -806,50 +778,68 @@ spec:
   releaseName: gpu-operator
   repoURL: https://helm.ngc.nvidia.com/nvidia
   valuesTemplate: |-
+    devicePlugin:
+      enabled: false
     migManager:
       env:
         - name: WITH_REBOOT
           value: "true"
-  version: v25.3.0
+  version: v25.3.3
 ---
 apiVersion: addons.cluster.x-k8s.io/v1alpha1
 kind: HelmChartProxy
 metadata:
-  name: nvidia-dra-driver-gpu
+  name: k8s-dra-driver-gpu
   namespace: default
 spec:
-  chartName: nvidia-dra-driver-gpu
+  chartName: k8s-dra-driver-gpu
   clusterSelector:
     matchLabels:
       nvidia-dra-driver: "true"
-  namespace: nvidia-dra-driver-gpu
+  namespace: k8s-dra-driver-gpu
   releaseName: nvidia-dra-driver-gpu
-  repoURL: https://raw.githubusercontent.com/nojnhuh/k8s-dra-driver/refs/heads/helm-repo/deployments/helm/repo
+  repoURL: oci://jondev.azurecr.io
   valuesTemplate: |-
     gpuResourcesEnabledOverride: true
     nvidiaDriverRoot: /run/nvidia/driver
-    nvidiaCtkPath: /usr/local/nvidia/toolkit/nvidia-ctk
-    image:
-      repository: ghcr.io/nvidia/k8s-dra-driver-gpu
-      tag: 8d5cacc8-ubi9
-  version: ^0.2
+    # nvidiaCtkPath: /usr/local/nvidia/toolkit/nvidia-ctk
+  version: 25.8.0-dev-f2eaddd6-chart
 ---
 apiVersion: addons.cluster.x-k8s.io/v1alpha1
 kind: HelmChartProxy
 metadata:
-  name: kueue
+  name: kuberay-operator
   namespace: default
 spec:
-  chartName: kueue
+  chartName: kuberay-operator
   clusterSelector:
     matchLabels:
-      kueue: "true"
-  namespace: kueue-system
-  releaseName: kueue
-  repoURL: oci://jondev.azurecr.io/kueue/charts
+      kuberay: "true"
+  namespace: kuberay
+  releaseName: kuberay-operator
+  repoURL: https://ray-project.github.io/kuberay-helm
+  valuesTemplate: ""
+  version: 1.4.2
+---
+apiVersion: addons.cluster.x-k8s.io/v1alpha1
+kind: HelmChartProxy
+metadata:
+  name: ray-cluster
+  namespace: default
+spec:
+  chartName: ray-cluster
+  clusterSelector:
+    matchLabels:
+      kuberay: "true"
+  namespace: kuberay
+  releaseName: raycluster
+  repoURL: https://ray-project.github.io/kuberay-helm
   valuesTemplate: |-
-    controllerManager:
-      featureGates:
-        - name: DynamicResourceStructuredParameters
-          enabled: true
-  version: 0.12.0-devel-206-gf386e703e
+    # head and worker pods getting OOMKilled
+    head:
+      resources:
+        limits: null
+    worker:
+      resources:
+        limits: null
+  version: 1.4.2
