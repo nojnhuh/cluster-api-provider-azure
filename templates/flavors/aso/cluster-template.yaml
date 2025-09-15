@@ -835,18 +835,23 @@ spec:
   clusterSelector:
     matchLabels:
       nvidia-dra-driver: "true"
-  chartName: k8s-dra-driver-gpu
+  chartName: k8s-dra-driver-gpu # For builds from upstream repo (replaced in github actions)
+  # chartName: nvidia-dra-driver-gpu # For custom builds
   namespace: k8s-dra-driver-gpu
   releaseName: nvidia-dra-driver-gpu
   # GHCR throws auth errors.
-  # oras cp ghcr.io/nvidia/k8s-dra-driver-gpu:25.8.0-dev-f2eaddd6-chart jondev.azurecr.io/k8s-dra-driver-gpu:25.8.0-dev-f2eaddd6-chart
-  repoURL: oci://jondev.azurecr.io
+  # oras cp ghcr.io/nvidia/k8s-dra-driver-gpu:25.8.0-dev-f2eaddd6-chart jondev.azurecr.io/nvidia/k8s-dra-driver-gpu:25.8.0-dev-f2eaddd6-chart
+  repoURL: oci://jondev.azurecr.io/nvidia
   valuesTemplate: |-
     gpuResourcesEnabledOverride: true
     nvidiaDriverRoot: /run/nvidia/driver
-    # nvidiaCtkPath: /usr/local/nvidia/toolkit/nvidia-ctk
-  version: 25.8.0-dev-f2eaddd6-chart
----
+
+    # Custom builds
+    image:
+      repository: jondev.azurecr.io/nvidia/k8s-dra-driver-gpu
+      pullPolicy: Always
+  version: 25.8.0-dev
+# ---
 # apiVersion: addons.cluster.x-k8s.io/v1alpha1
 # kind: HelmChartProxy
 # metadata:
@@ -866,42 +871,43 @@ spec:
 #       featureGates:
 #         - name: DynamicResourceStructuredParameters
 #           enabled: true
----
-apiVersion: addons.cluster.x-k8s.io/v1alpha1
-kind: HelmChartProxy
-metadata:
-  name: kuberay-operator
-  namespace: default
-spec:
-  clusterSelector:
-    matchLabels:
-      kuberay: "true"
-  chartName: kuberay-operator
-  namespace: kuberay
-  releaseName: kuberay-operator
-  repoURL: https://ray-project.github.io/kuberay-helm
-  valuesTemplate: ""
-  version: 1.4.2
----
-apiVersion: addons.cluster.x-k8s.io/v1alpha1
-kind: HelmChartProxy
-metadata:
-  name: ray-cluster
-  namespace: default
-spec:
-  clusterSelector:
-    matchLabels:
-      kuberay: "true"
-  chartName: ray-cluster
-  namespace: kuberay
-  releaseName: raycluster
-  repoURL: https://ray-project.github.io/kuberay-helm
-  valuesTemplate: |-
-    # head and worker pods getting OOMKilled
-    head:
-      resources:
-        limits: null
-    worker:
-      resources:
-        limits: null
-  version: 1.4.2
+# ---
+# apiVersion: addons.cluster.x-k8s.io/v1alpha1
+# kind: HelmChartProxy
+# metadata:
+#   name: kuberay-operator
+#   namespace: default
+# spec:
+#   clusterSelector:
+#     matchLabels:
+#       kuberay: "true"
+#   chartName: kuberay-operator
+#   namespace: kuberay
+#   releaseName: kuberay-operator
+#   repoURL: https://ray-project.github.io/kuberay-helm
+#   valuesTemplate: ""
+#   version: 1.4.2
+# ---
+# apiVersion: addons.cluster.x-k8s.io/v1alpha1
+# kind: HelmChartProxy
+# metadata:
+#   name: ray-cluster
+#   namespace: default
+# spec:
+#   clusterSelector:
+#     matchLabels:
+#       kuberay: "true"
+#   chartName: ray-cluster
+#   namespace: default
+#   releaseName: raycluster
+#   repoURL: https://ray-project.github.io/kuberay-helm
+#   valuesTemplate: |-
+#     # head and worker pods getting OOMKilled
+#     head:
+#       resources:
+#         limits: null
+#         claims:
+#         - name: gpu
+#     worker:
+#       disabled: true
+#   version: 1.4.2
