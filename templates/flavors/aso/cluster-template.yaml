@@ -839,38 +839,82 @@ spec:
   # chartName: nvidia-dra-driver-gpu # For custom builds
   namespace: k8s-dra-driver-gpu
   releaseName: nvidia-dra-driver-gpu
-  # GHCR throws auth errors.
-  # oras cp ghcr.io/nvidia/k8s-dra-driver-gpu:25.8.0-dev-f2eaddd6-chart jondev.azurecr.io/nvidia/k8s-dra-driver-gpu:25.8.0-dev-f2eaddd6-chart
-  repoURL: oci://jondev.azurecr.io/nvidia
+  repoURL: oci://ghcr.io/nvidia # upstream builds
+  # repoURL: oci://jondev.azurecr.io/nvidia # custom builds
   valuesTemplate: |-
     gpuResourcesEnabledOverride: true
     nvidiaDriverRoot: /run/nvidia/driver
 
     # Custom builds
-    image:
-      repository: jondev.azurecr.io/nvidia/k8s-dra-driver-gpu
-      pullPolicy: Always
-  version: 25.8.0-dev
-# ---
-# apiVersion: addons.cluster.x-k8s.io/v1alpha1
-# kind: HelmChartProxy
-# metadata:
-#   name: kueue
-#   namespace: default
-# spec:
-#   clusterSelector:
-#     matchLabels:
-#       kueue: "true"
-#   chartName: kueue
-#   namespace: kueue-system
-#   releaseName: kueue
-#   repoURL: oci://jondev.azurecr.io/kueue/charts
-#   version: 0.12.0-devel-206-gf386e703e
-#   valuesTemplate: |-
-#     controllerManager:
-#       featureGates:
-#         - name: DynamicResourceStructuredParameters
-#           enabled: true
+    # image:
+    #   repository: jondev.azurecr.io/nvidia/k8s-dra-driver-gpu
+    #   pullPolicy: Always
+  version: 25.8.0-dev-13a73595-chart
+---
+apiVersion: addons.cluster.x-k8s.io/v1alpha1
+kind: HelmChartProxy
+metadata:
+  name: kueue
+  namespace: default
+spec:
+  clusterSelector:
+    matchLabels:
+      kueue: "true"
+  chartName: kueue
+  namespace: kueue-system
+  releaseName: kueue
+  repoURL: oci://registry.k8s.io/kueue/charts
+  version: 0.15.1
+  valuesTemplate: |-
+    # These are the defaults, except for the DRA feature gate and
+    # deviceClassMappings
+    controllerManager:
+      featureGates:
+        - name: DynamicResourceAllocation
+          enabled: true
+    managerConfig:
+      controllerManagerConfigYaml: |-
+        apiVersion: config.kueue.x-k8s.io/v1beta1
+        kind: Configuration
+        health:
+          healthProbeBindAddress: :8081
+        metrics:
+          bindAddress: :8443
+        webhook:
+          port: 9443
+        leaderElection:
+          leaderElect: true
+          resourceName: c1f6bfd2.kueue.x-k8s.io
+        controller:
+          groupKindConcurrency:
+            Job.batch: 5
+            Pod: 5
+            Workload.kueue.x-k8s.io: 5
+            LocalQueue.kueue.x-k8s.io: 1
+            ClusterQueue.kueue.x-k8s.io: 1
+            ResourceFlavor.kueue.x-k8s.io: 1
+        clientConnection:
+          qps: 50
+          burst: 100
+        integrations:
+          frameworks:
+          - "batch/job"
+          - "kubeflow.org/mpijob"
+          - "ray.io/rayjob"
+          - "ray.io/raycluster"
+          - "jobset.x-k8s.io/jobset"
+          - "trainer.kubeflow.org/trainjob"
+          - "kubeflow.org/paddlejob"
+          - "kubeflow.org/pytorchjob"
+          - "kubeflow.org/tfjob"
+          - "kubeflow.org/xgboostjob"
+          - "kubeflow.org/jaxjob"
+          - "workload.codeflare.dev/appwrapper"
+        resources:
+          deviceClassMappings:
+            - name: gpu
+              deviceClassNames:
+                - gpu.nvidia.com
 # ---
 # apiVersion: addons.cluster.x-k8s.io/v1alpha1
 # kind: HelmChartProxy
