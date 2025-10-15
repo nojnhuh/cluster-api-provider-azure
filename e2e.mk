@@ -13,7 +13,11 @@ test-e2e-run: generate-e2e-templates install-tools create-bootstrap ## Run e2e t
 	if [ -z "${AZURE_CLIENT_ID_USER_ASSIGNED_IDENTITY}" ]; then \
 		export AZURE_CLIENT_ID_USER_ASSIGNED_IDENTITY=$(shell cat $(AZURE_IDENTITY_ID_FILEPATH)); \
 	fi; \
-	$(GINKGO) -v --trace --timeout=4h --tags=e2e --focus="$(GINKGO_FOCUS)" --skip="$(GINKGO_SKIP)" --nodes=$(GINKGO_NODES) --no-color=$(GINKGO_NOCOLOR) --output-dir="$(ARTIFACTS)" --junit-report="junit.e2e_suite.1.xml" $(GINKGO_ARGS) ./test/e2e -- \
+	GINKGO_LABEL_FILTER_FLAG=""; \
+	if [ -n "$(GINKGO_LABEL_FILTER)" ]; then \
+		GINKGO_LABEL_FILTER_FLAG="--label-filter=$(GINKGO_LABEL_FILTER)"; \
+	fi; \
+	$(GINKGO) -v --trace --timeout=4h --tags=e2e $${GINKGO_LABEL_FILTER_FLAG} --focus="$(GINKGO_FOCUS)" --skip="$(GINKGO_SKIP)" --nodes=$(GINKGO_NODES) --no-color=$(GINKGO_NOCOLOR) --output-dir="$(ARTIFACTS)" --junit-report="junit.e2e_suite.1.xml" $(GINKGO_ARGS) ./test/e2e -- \
 		-e2e.artifacts-folder="$(ARTIFACTS)" \
 		-e2e.config="$(E2E_CONF_FILE_ENVSUBST)" \
 		-e2e.skip-log-collection="$(SKIP_LOG_COLLECTION)" \

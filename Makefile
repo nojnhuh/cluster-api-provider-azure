@@ -182,6 +182,9 @@ ASO_CRDS := resourcegroups.resources.azure.com natgateways.network.azure.com man
 PULL_POLICY ?= Always
 
 # Allow overriding the e2e configurations
+# GINKGO_LABEL_FILTER: Use Ginkgo's native label filtering (optional, takes precedence if set)
+# GINKGO_FOCUS: Legacy regex-based filtering (default: \[REQUIRED\])
+GINKGO_LABEL_FILTER ?=
 GINKGO_FOCUS ?= \[REQUIRED\]
 GINKGO_SKIP ?=
 GINKGO_NODES ?= 3

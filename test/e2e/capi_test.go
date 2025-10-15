@@ -335,7 +335,7 @@ var _ = Describe("Running the Cluster API E2E tests", func() {
 		})
 	}
 
-	Context("Running the workload cluster upgrade spec [K8s-Upgrade]", func() {
+	Context("Running the workload cluster upgrade spec [K8s-Upgrade]", Label("k8s-upgrade"), func() {
 		capi_e2e.ClusterUpgradeConformanceSpec(ctx, func() capi_e2e.ClusterUpgradeConformanceSpecInput {
 			return capi_e2e.ClusterUpgradeConformanceSpecInput{
 				E2EConfig:             e2eConfig,
@@ -351,7 +351,7 @@ var _ = Describe("Running the Cluster API E2E tests", func() {
 		})
 	})
 
-	Context("Running KCP upgrade in a HA cluster [K8s-Upgrade]", func() {
+	Context("Running KCP upgrade in a HA cluster [K8s-Upgrade]", Label("k8s-upgrade"), func() {
 		capi_e2e.ClusterUpgradeConformanceSpec(context.TODO(), func() capi_e2e.ClusterUpgradeConformanceSpecInput {
 			return capi_e2e.ClusterUpgradeConformanceSpecInput{
 				E2EConfig:                e2eConfig,
@@ -369,7 +369,7 @@ var _ = Describe("Running the Cluster API E2E tests", func() {
 		})
 	})
 
-	Context("Running KCP upgrade in a HA cluster using scale in rollout [K8s-Upgrade]", func() {
+	Context("Running KCP upgrade in a HA cluster using scale in rollout [K8s-Upgrade]", Label("k8s-upgrade"), func() {
 		capi_e2e.ClusterUpgradeConformanceSpec(context.TODO(), func() capi_e2e.ClusterUpgradeConformanceSpecInput {
 			return capi_e2e.ClusterUpgradeConformanceSpecInput{
 				E2EConfig:                e2eConfig,

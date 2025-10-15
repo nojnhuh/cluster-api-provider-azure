@@ -139,7 +139,7 @@ var _ = Describe("Workload cluster creation", func() {
 	if os.Getenv("USE_LOCAL_KIND_REGISTRY") != "true" {
 		// This spec expects a user-assigned identity with Contributor role assignment named "cloud-provider-user-identity" in a "capz-ci"
 		// resource group. Override these defaults by setting the USER_IDENTITY and CI_RG environment variables.
-		Context("Creating a private cluster [OPTIONAL]", func() {
+		Context("Creating a private cluster [OPTIONAL]", Label("optional"), func() {
 			It("Creates a public management cluster in a custom vnet", func() {
 				clusterName = getClusterName(clusterNamePrefix, "public-custom-vnet")
 				By("Creating a custom virtual network", func() {
@@ -197,8 +197,8 @@ var _ = Describe("Workload cluster creation", func() {
 		fmt.Fprintf(GinkgoWriter, "INFO: skipping test requires pushing container images to external repository")
 	}
 
-	Context("Creating a highly available cluster [REQUIRED]", func() {
-		It("With 3 control-plane nodes and 2 Linux and 2 Windows worker nodes", func() {
+	Context("Creating a highly available cluster [REQUIRED]", Label("required"), func() {
+		It("With 3 control-plane nodes and 2 Linux and 2 Windows worker nodes", Label("windows"), func() {
 			clusterName = getClusterName(clusterNamePrefix, "ha")
 
 			clusterctl.ApplyClusterTemplateAndWait(ctx, createApplyClusterTemplateInput(
@@ -281,7 +281,7 @@ var _ = Describe("Workload cluster creation", func() {
 		})
 	})
 
-	When("Creating a highly available cluster with Azure CNI v1 [REQUIRED]", Label("Azure CNI v1"), func() {
+	When("Creating a highly available cluster with Azure CNI v1 [REQUIRED]", Label("required", "azure-cni-v1"), func() {
 		It("can create 3 control-plane nodes and 2 Linux worker nodes", func() {
 			clusterName = getClusterName(clusterNamePrefix, "azcni-v1")
 
@@ -342,7 +342,7 @@ var _ = Describe("Workload cluster creation", func() {
 		})
 	})
 
-	Context("Creating a Flatcar cluster [OPTIONAL]", func() {
+	Context("Creating a Flatcar cluster [OPTIONAL]", Label("optional"), func() {
 		It("With Flatcar control-plane and worker nodes", func() {
 			clusterName = getClusterName(clusterNamePrefix, "flatcar")
 			clusterctl.ApplyClusterTemplateAndWait(ctx, createApplyClusterTemplateInput(
@@ -380,7 +380,7 @@ var _ = Describe("Workload cluster creation", func() {
 		})
 	})
 
-	Context("Creating a Flatcar sysext cluster [OPTIONAL]", func() {
+	Context("Creating a Flatcar sysext cluster [OPTIONAL]", Label("optional"), func() {
 		It("With Flatcar control-plane and worker nodes", func() {
 			clusterName = getClusterName(clusterNamePrefix, "flatcar-sysext")
 			clusterctl.ApplyClusterTemplateAndWait(ctx, createApplyClusterTemplateInput(
@@ -418,7 +418,7 @@ var _ = Describe("Workload cluster creation", func() {
 		})
 	})
 
-	Context("Creating a cluster with spot vms [OPTIONAL]", func() {
+	Context("Creating a cluster with spot vms [OPTIONAL]", Label("optional"), func() {
 		It("With spot vm machine deployments", func() {
 			clusterName = getClusterName(clusterNamePrefix, "spot")
 			clusterctl.ApplyClusterTemplateAndWait(ctx, createApplyClusterTemplateInput(
@@ -455,7 +455,7 @@ var _ = Describe("Workload cluster creation", func() {
 		})
 	})
 
-	Context("Creating a ipv6 control-plane cluster [REQUIRED]", func() {
+	Context("Creating a ipv6 control-plane cluster [REQUIRED]", Label("required"), func() {
 		It("With ipv6 worker node", func() {
 			clusterName = getClusterName(clusterNamePrefix, "ipv6")
 			clusterctl.ApplyClusterTemplateAndWait(ctx, createApplyClusterTemplateInput(
@@ -509,8 +509,8 @@ var _ = Describe("Workload cluster creation", func() {
 		})
 	})
 
-	Context("Creating a VMSS cluster [REQUIRED]", func() {
-		It("with a single control plane node and an AzureMachinePool with 2 Linux and 2 Windows worker nodes", func() {
+	Context("Creating a VMSS cluster [REQUIRED]", Label("required"), func() {
+		It("with a single control plane node and an AzureMachinePool with 2 Linux and 2 Windows worker nodes", Label("windows"), func() {
 			clusterName = getClusterName(clusterNamePrefix, "vmss")
 
 			// Opt into using windows with prow template
@@ -583,7 +583,7 @@ var _ = Describe("Workload cluster creation", func() {
 	// You can override the default SKU `Standard_NV12s_v3` and `Premium_LRS` storage by setting
 	// the `AZURE_GPU_NODE_MACHINE_TYPE` and `AZURE_GPU_NODE_STORAGE_TYPE` environment variables.
 	// See https://azure.microsoft.com/en-us/pricing/details/virtual-machines/linux/ for pricing.
-	Context("Creating a GPU-enabled cluster [OPTIONAL]", func() {
+	Context("Creating a GPU-enabled cluster [OPTIONAL]", Label("optional"), func() {
 		It("with a single control plane node and 1 node", func() {
 			Skip("Skipping since the e2e subscription has no quota for GPU SKUs")
 			clusterName = getClusterName(clusterNamePrefix, "gpu")
@@ -642,7 +642,7 @@ var _ = Describe("Workload cluster creation", func() {
 	})
 
 	// ci-e2e.sh and Prow CI skip this test by default. To include this test, set `GINKGO_SKIP=""`.
-	Context("Creating a cluster with VMSS flex machinepools [OPTIONAL]", func() {
+	Context("Creating a cluster with VMSS flex machinepools [OPTIONAL]", Label("optional"), func() {
 		It("with 1 control plane node and 1 machinepool", func() {
 			clusterName = getClusterName(clusterNamePrefix, "flex")
 			clusterctl.ApplyClusterTemplateAndWait(ctx, createApplyClusterTemplateInput(
@@ -699,7 +699,7 @@ var _ = Describe("Workload cluster creation", func() {
 
 	// You can override the default SKU `Standard_D2s_v3` by setting the
 	// `AZURE_AKS_NODE_MACHINE_TYPE` environment variable.
-	Context("Creating an AKS cluster for control plane tests [Managed Kubernetes]", func() {
+	Context("Creating an AKS cluster for control plane tests [Managed Kubernetes]", Label("aks"), func() {
 		It("with a single control plane node and 1 node", func() {
 			clusterName = getClusterName(clusterNamePrefix, aksClusterNameSuffix)
 			kubernetesVersionUpgradeFrom, err := GetAKSKubernetesVersion(ctx, e2eConfig, AKSKubernetesVersionUpgradeFrom)
@@ -776,7 +776,7 @@ var _ = Describe("Workload cluster creation", func() {
 		})
 	})
 
-	Context("Creating an AKS cluster for node pool tests [Managed Kubernetes]", func() {
+	Context("Creating an AKS cluster for node pool tests [Managed Kubernetes]", Label("aks"), func() {
 		It("with a single control plane node and 1 node", func() {
 			clusterName = getClusterName(clusterNamePrefix, "pool")
 			kubernetesVersion, err := GetAKSKubernetesVersion(ctx, e2eConfig, AKSKubernetesVersion)
@@ -896,7 +896,7 @@ var _ = Describe("Workload cluster creation", func() {
 		})
 	})
 
-	Context("Creating an AKS cluster using ClusterClass [Managed Kubernetes]", func() {
+	Context("Creating an AKS cluster using ClusterClass [Managed Kubernetes]", Label("aks"), func() {
 		It("with a single control plane node and 1 node", func() {
 			// Use default as the clusterclass name so test infra can find the clusterclass template
 			Expect(os.Setenv("CLUSTER_CLASS_NAME", "default")).To(Succeed())
@@ -941,7 +941,7 @@ var _ = Describe("Workload cluster creation", func() {
 		})
 	})
 
-	Context("Creating an AKS cluster with the ASO API [Managed Kubernetes]", func() {
+	Context("Creating an AKS cluster with the ASO API [Managed Kubernetes]", Label("aks"), func() {
 		It("with a single control plane node and 1 node", func() {
 			clusterName = getClusterName(clusterNamePrefix, "asoapi")
 			kubernetesVersion, err := GetAKSKubernetesVersion(ctx, e2eConfig, AKSKubernetesVersion)
@@ -977,7 +977,7 @@ var _ = Describe("Workload cluster creation", func() {
 	// ci-e2e.sh and Prow CI skip this test by default. To include this test, set `GINKGO_SKIP=""`.
 	// This spec expects a user-assigned identity named "cloud-provider-user-identity" in a "capz-ci"
 	// resource group. Override these defaults by setting the USER_IDENTITY and CI_RG environment variables.
-	Context("Creating a dual-stack cluster [OPTIONAL]", func() {
+	Context("Creating a dual-stack cluster [OPTIONAL]", Label("optional"), func() {
 		It("With dual-stack worker node", func() {
 			By("using user-assigned identity")
 			clusterName = getClusterName(clusterNamePrefix, "dual-stack")
@@ -1045,8 +1045,8 @@ var _ = Describe("Workload cluster creation", func() {
 		})
 	})
 
-	Context("Creating clusters using clusterclass [OPTIONAL]", func() {
-		It("with a single control plane node, one linux worker node, and one windows worker node", func() {
+	Context("Creating clusters using clusterclass [OPTIONAL]", Label("optional"), func() {
+		It("with a single control plane node, one linux worker node, and one windows worker node", Label("windows"), func() {
 			// Use ci-default as the clusterclass name so test infra can find the clusterclass template
 			Expect(os.Setenv("CLUSTER_CLASS_NAME", "ci-default")).To(Succeed())
 
@@ -1092,7 +1092,7 @@ var _ = Describe("Workload cluster creation", func() {
 		})
 	})
 
-	Context("Creating RKE2 clusters using clusterclass [OPTIONAL]", func() {
+	Context("Creating RKE2 clusters using clusterclass [OPTIONAL]", Label("optional"), func() {
 		It("with 3 control plane node and one linux worker node", func() {
 			// Use ci-rke2 as the clusterclass name so test infra can find the clusterclass template
 			Expect(os.Setenv("CLUSTER_CLASS_NAME", "ci-rke2")).To(Succeed())
@@ -1150,7 +1150,7 @@ var _ = Describe("Workload cluster creation", func() {
 	// resource group. Override these defaults by setting the USER_IDENTITY and CI_RG environment variables.
 	// You can also override the default SKU `Standard_DS2_v2` and `Standard_DS4_v2` storage by setting
 	// the `AZURE_EDGEZONE_CONTROL_PLANE_MACHINE_TYPE` and `AZURE_EDGEZONE_NODE_MACHINE_TYPE` environment variables.
-	Context("Creating clusters on public MEC [OPTIONAL]", func() {
+	Context("Creating clusters on public MEC [OPTIONAL]", Label("optional"), func() {
 		It("with 1 control plane nodes and 1 worker node", func() {
 			Skip("Skipping public MEC test until a new edgezone is available")
 			By("using user-assigned identity")
@@ -1191,7 +1191,7 @@ var _ = Describe("Workload cluster creation", func() {
 		})
 	})
 
-	Context("Creating a self-managed VM based cluster using API Server ILB feature gate using default template [OPTIONAL][API-Server-ILB]", func() {
+	Context("Creating a self-managed VM based cluster using API Server ILB feature gate using default template [OPTIONAL][API-Server-ILB]", Label("optional", "api-server-ilb"), func() {
 		It("with three controlplane node and three worker nodes", func() {
 			clusterName = getClusterName(clusterNamePrefix, "apiserver-ilb")
 
@@ -1237,7 +1237,7 @@ var _ = Describe("Workload cluster creation", func() {
 		})
 	})
 
-	Context("Creating a self-managed VM based cluster using API Server ILB feature gate and fully spec-ed out APIServer ILB template [OPTIONAL][API-Server-ILB]", func() {
+	Context("Creating a self-managed VM based cluster using API Server ILB feature gate and fully spec-ed out APIServer ILB template [OPTIONAL][API-Server-ILB]", Label("optional", "api-server-ilb"), func() {
 		It("with three controlplane node and three worker nodes", func() {
 			clusterName = getClusterName(clusterNamePrefix, "apiserver-ilb")
 
@@ -1288,7 +1288,7 @@ var _ = Describe("Workload cluster creation", func() {
 		})
 	})
 
-	Context("Creating a highly-available cluster with Azure Linux 3 [OPTIONAL]", func() {
+	Context("Creating a highly-available cluster with Azure Linux 3 [OPTIONAL]", Label("optional"), func() {
 		It("with three controlplane node and two worker nodes", func() {
 			clusterName = getClusterName(clusterNamePrefix, "azl3")
 			kubernetesVersion := e2eConfig.MustGetVariable(capi_e2e.KubernetesVersion)
