@@ -348,6 +348,61 @@ spec:
           group: network.azure.com
           kind: PrivateDnsZone
           name: ${CLUSTER_NAME}-storage
+  - apiVersion: network.azure.com/v1api20240601
+    kind: PrivateDnsZone
+    metadata:
+      name: ${CLUSTER_NAME}-acr
+    spec:
+      azureName: privatelink.azurecr.io
+      location: global
+      owner:
+        name: ${CLUSTER_NAME}
+  - apiVersion: network.azure.com/v1api20240301
+    kind: PrivateEndpoint
+    metadata:
+      name: ${CLUSTER_NAME}-acr
+    spec:
+      location: ${AZURE_LOCATION}
+      owner:
+        name: ${CLUSTER_NAME}
+      privateLinkServiceConnections:
+      - groupIds:
+        - registry
+        name: custom-builds
+        privateLinkServiceReference:
+          armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CI_RG}/providers/Microsoft.ContainerRegistry/registries/${REGISTRY%.azurecr.io}
+      subnet:
+        reference:
+          group: network.azure.com
+          kind: VirtualNetworksSubnet
+          name: ${CLUSTER_NAME}-controlplane
+  - apiVersion: network.azure.com/v1api20240601
+    kind: PrivateDnsZonesVirtualNetworkLink
+    metadata:
+      name: ${CLUSTER_NAME}-acr
+    spec:
+      location: global
+      owner:
+        name: ${CLUSTER_NAME}-acr
+      registrationEnabled: false
+      virtualNetwork:
+        reference:
+          group: network.azure.com
+          kind: VirtualNetwork
+          name: ${CLUSTER_NAME}
+  - apiVersion: network.azure.com/v1api20240301
+    kind: PrivateEndpointsPrivateDnsZoneGroup
+    metadata:
+      name: ${CLUSTER_NAME}-acr
+    spec:
+      owner:
+        name: ${CLUSTER_NAME}-acr
+      privateDnsZoneConfigs:
+      - name: config
+        privateDnsZoneReference:
+          group: network.azure.com
+          kind: PrivateDnsZone
+          name: ${CLUSTER_NAME}-acr
 ---
 apiVersion: v1
 kind: Secret
@@ -450,7 +505,8 @@ spec:
         echo "Logged in Azure with managed identity"
         echo "Use OOT credential provider"
         mkdir -p /var/lib/kubelet/credential-provider
-        az storage blob download --blob-url "https://${AZURE_STORAGE_ACCOUNT}.blob.core.windows.net/${AZURE_BLOB_CONTAINER_NAME}/${IMAGE_TAG_ACR_CREDENTIAL_PROVIDER}/azure-acr-credential-provider" -f /var/lib/kubelet/credential-provider/acr-credential-provider --auth-mode login
+        # The blob reader role might not have propagated yet, so retry this first download until it succeeds
+        until az storage blob download --blob-url "https://${AZURE_STORAGE_ACCOUNT}.blob.core.windows.net/${AZURE_BLOB_CONTAINER_NAME}/${IMAGE_TAG_ACR_CREDENTIAL_PROVIDER}/azure-acr-credential-provider" -f /var/lib/kubelet/credential-provider/acr-credential-provider --auth-mode login; do sleep 5; done
         chmod 755 /var/lib/kubelet/credential-provider/acr-credential-provider
         az storage blob download --blob-url "https://${AZURE_STORAGE_ACCOUNT}.blob.core.windows.net/${AZURE_BLOB_CONTAINER_NAME}/${IMAGE_TAG_ACR_CREDENTIAL_PROVIDER}/credential-provider-config.yaml" -f /var/lib/kubelet/credential-provider-config.yaml --auth-mode login
         chmod 644 /var/lib/kubelet/credential-provider-config.yaml
@@ -720,7 +776,7 @@ spec:
           name: blob-reader
         spec:
           owner:
-            armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}
+            armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CI_RG}/providers/Microsoft.Storage/storageAccounts/${AZURE_STORAGE_ACCOUNT}
           principalIdFromConfig:
             key: identity-principal-id
           roleDefinitionReference:
@@ -779,7 +835,8 @@ spec:
           echo "Logged in Azure with managed identity"
           echo "Use OOT credential provider"
           mkdir -p /var/lib/kubelet/credential-provider
-          az storage blob download --blob-url "https://${AZURE_STORAGE_ACCOUNT}.blob.core.windows.net/${AZURE_BLOB_CONTAINER_NAME}/${IMAGE_TAG_ACR_CREDENTIAL_PROVIDER}/azure-acr-credential-provider" -f /var/lib/kubelet/credential-provider/acr-credential-provider --auth-mode login
+          # The blob reader role might not have propagated yet, so retry this first download until it succeeds
+          until az storage blob download --blob-url "https://${AZURE_STORAGE_ACCOUNT}.blob.core.windows.net/${AZURE_BLOB_CONTAINER_NAME}/${IMAGE_TAG_ACR_CREDENTIAL_PROVIDER}/azure-acr-credential-provider" -f /var/lib/kubelet/credential-provider/acr-credential-provider --auth-mode login; do sleep 5; done
           chmod 755 /var/lib/kubelet/credential-provider/acr-credential-provider
           az storage blob download --blob-url "https://${AZURE_STORAGE_ACCOUNT}.blob.core.windows.net/${AZURE_BLOB_CONTAINER_NAME}/${IMAGE_TAG_ACR_CREDENTIAL_PROVIDER}/credential-provider-config.yaml" -f /var/lib/kubelet/credential-provider-config.yaml --auth-mode login
           chmod 644 /var/lib/kubelet/credential-provider-config.yaml
@@ -995,7 +1052,7 @@ spec:
           name: blob-reader
         spec:
           owner:
-            armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}
+            armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CI_RG}/providers/Microsoft.Storage/storageAccounts/${AZURE_STORAGE_ACCOUNT}
           principalIdFromConfig:
             key: identity-principal-id
           roleDefinitionReference:
