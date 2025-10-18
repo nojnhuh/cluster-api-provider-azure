@@ -68,3 +68,74 @@
           group: network.azure.com
           kind: PrivateDnsZone
           name: ${CLUSTER_NAME}-storage
+
+- op: add
+  path: /spec/resources/-
+  value:
+    apiVersion: network.azure.com/v1api20240601
+    kind: PrivateDnsZone
+    metadata:
+      name: ${CLUSTER_NAME}-acr
+    spec:
+      azureName: privatelink.azurecr.io
+      owner:
+        name: ${CLUSTER_NAME}
+      location: global
+
+- op: add
+  path: /spec/resources/-
+  value:
+    apiVersion: network.azure.com/v1api20240301
+    kind: PrivateEndpoint
+    metadata:
+      name: ${CLUSTER_NAME}-acr
+    spec:
+      owner:
+        name: ${CLUSTER_NAME}
+      location: ${AZURE_LOCATION}
+      privateLinkServiceConnections:
+      - groupIds:
+        - registry
+        name: custom-builds
+        privateLinkServiceReference:
+          armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CI_RG}/providers/Microsoft.ContainerRegistry/registries/${REGISTRY%.azurecr.io}
+      subnet:
+        reference:
+          group: network.azure.com
+          kind: VirtualNetworksSubnet
+          name: ${CLUSTER_NAME}-controlplane
+
+- op: add
+  path: /spec/resources/-
+  value:
+    apiVersion: network.azure.com/v1api20240601
+    kind: PrivateDnsZonesVirtualNetworkLink
+    metadata:
+      name: ${CLUSTER_NAME}-acr
+    spec:
+      location: global
+      owner:
+        name: ${CLUSTER_NAME}-acr
+      registrationEnabled: false
+      virtualNetwork:
+        reference:
+          group: network.azure.com
+          kind: VirtualNetwork
+          name: ${CLUSTER_NAME}
+
+- op: add
+  path: /spec/resources/-
+  value:
+    apiVersion: network.azure.com/v1api20240301
+    kind: PrivateEndpointsPrivateDnsZoneGroup
+    metadata:
+      name: ${CLUSTER_NAME}-acr
+    spec:
+      owner:
+        name: ${CLUSTER_NAME}-acr
+      privateDnsZoneConfigs:
+      - name: config
+        privateDnsZoneReference:
+          group: network.azure.com
+          kind: PrivateDnsZone
+          name: ${CLUSTER_NAME}-acr

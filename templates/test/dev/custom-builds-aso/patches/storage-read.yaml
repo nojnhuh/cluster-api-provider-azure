@@ -62,7 +62,7 @@
       name: blob-reader
     spec:
       owner:
-        armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}
+        armId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CI_RG}/providers/Microsoft.Storage/storageAccounts/${AZURE_STORAGE_ACCOUNT}
       principalIdFromConfig:
         key: identity-principal-id
       roleDefinitionReference:
