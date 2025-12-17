@@ -824,7 +824,7 @@ spec:
       env:
         - name: WITH_REBOOT
           value: "true"
-  version: v25.10.0
+  version: v25.10.1
 ---
 apiVersion: addons.cluster.x-k8s.io/v1alpha1
 kind: HelmChartProxy
@@ -848,7 +848,7 @@ spec:
     # image:
     #   repository: jondev.azurecr.io/nvidia/k8s-dra-driver-gpu
     #   pullPolicy: Always
-  version: 25.8.0
+  version: ^25.8
 ---
 apiVersion: addons.cluster.x-k8s.io/v1alpha1
 kind: HelmChartProxy
@@ -914,43 +914,70 @@ spec:
             - name: gpu
               deviceClassNames:
                 - gpu.nvidia.com
-# ---
-# apiVersion: addons.cluster.x-k8s.io/v1alpha1
-# kind: HelmChartProxy
+---
+apiVersion: addons.cluster.x-k8s.io/v1alpha1
+kind: HelmChartProxy
+metadata:
+  name: kuberay-operator
+  namespace: default
+spec:
+  clusterSelector:
+    matchLabels:
+      kuberay: "true"
+  chartName: kuberay-operator
+  namespace: kuberay
+  releaseName: kuberay-operator
+  repoURL: https://ray-project.github.io/kuberay-helm
+  valuesTemplate: ""
+  version: ^1.5
+---
+apiVersion: addons.cluster.x-k8s.io/v1alpha1
+kind: HelmChartProxy
+metadata:
+  name: ray-cluster
+  namespace: default
+spec:
+  clusterSelector:
+    matchLabels:
+      kuberay: "true"
+  chartName: ray-cluster
+  namespace: default
+  releaseName: raycluster
+  repoURL: https://ray-project.github.io/kuberay-helm
+  valuesTemplate: |-
+    # head and worker pods getting OOMKilled
+    head:
+      resources:
+        limits: null
+        claims:
+        - name: gpu
+    worker:
+      disabled: true
+  version: ^1.5
+# The RayCluster also requires a ResourceClaim:
+# kubectl apply --server-side -f- <<EOF
+# apiVersion: resource.k8s.io/v1
+# kind: ResourceClaim
 # metadata:
-#   name: kuberay-operator
+#   name: gpu
+# spec:
+#   devices:
+#     requests:
+#       - name: gpu
+#         exactly:
+#           deviceClassName: gpu.nvidia.com
+#           count: 1
+# ---
+# apiVersion: ray.io/v1
+# kind: RayCluster
+# metadata:
+#   name: raycluster-kuberay
 #   namespace: default
 # spec:
-#   clusterSelector:
-#     matchLabels:
-#       kuberay: "true"
-#   chartName: kuberay-operator
-#   namespace: kuberay
-#   releaseName: kuberay-operator
-#   repoURL: https://ray-project.github.io/kuberay-helm
-#   valuesTemplate: ""
-#   version: 1.4.2
-# ---
-# apiVersion: addons.cluster.x-k8s.io/v1alpha1
-# kind: HelmChartProxy
-# metadata:
-#   name: ray-cluster
-#   namespace: default
-# spec:
-#   clusterSelector:
-#     matchLabels:
-#       kuberay: "true"
-#   chartName: ray-cluster
-#   namespace: default
-#   releaseName: raycluster
-#   repoURL: https://ray-project.github.io/kuberay-helm
-#   valuesTemplate: |-
-#     # head and worker pods getting OOMKilled
-#     head:
-#       resources:
-#         limits: null
-#         claims:
-#         - name: gpu
-#     worker:
-#       disabled: true
-#   version: 1.4.2
+#   headGroupSpec:
+#     template:
+#       spec:
+#         resourceClaims:
+#           - name: gpu
+#             resourceClaimName: gpu
+# EOF
