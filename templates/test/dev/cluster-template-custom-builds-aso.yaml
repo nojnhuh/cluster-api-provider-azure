@@ -1,4 +1,4 @@
-apiVersion: cluster.x-k8s.io/v1beta1
+apiVersion: cluster.x-k8s.io/v1beta2
 kind: Cluster
 metadata:
   labels:
@@ -13,11 +13,11 @@ spec:
       cidrBlocks:
       - 192.168.0.0/16
   controlPlaneRef:
-    apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+    apiGroup: controlplane.cluster.x-k8s.io
     kind: KubeadmControlPlane
     name: ${CLUSTER_NAME}-controlplane
   infrastructureRef:
-    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    apiGroup: infrastructure.cluster.x-k8s.io
     kind: AzureASOCluster
     name: ${CLUSTER_NAME}
 ---
@@ -81,15 +81,15 @@ spec:
     - op: add
       path: /spec/loadBalancingRules/0/backendPort
       valueFrom:
-        template: '{{ .cluster.spec.clusterNetwork.apiServerPort }}'
+        template: '{{ .clusterV1beta2.spec.clusterNetwork.apiServerPort }}'
     - op: add
       path: /spec/loadBalancingRules/0/frontendPort
       valueFrom:
-        template: '{{ .cluster.spec.clusterNetwork.apiServerPort }}'
+        template: '{{ .clusterV1beta2.spec.clusterNetwork.apiServerPort }}'
     - op: add
       path: /spec/probes/0/port
       valueFrom:
-        template: '{{ .cluster.spec.clusterNetwork.apiServerPort }}'
+        template: '{{ .clusterV1beta2.spec.clusterNetwork.apiServerPort }}'
     selectors:
     - kind: LoadBalancer
       name: ${CLUSTER_NAME}
@@ -97,7 +97,7 @@ spec:
     - op: add
       path: /spec/destinationPortRange
       valueFrom:
-        template: '"{{ .cluster.spec.clusterNetwork.apiServerPort }}"'
+        template: '"{{ .clusterV1beta2.spec.clusterNetwork.apiServerPort }}"'
     selectors:
     - kind: NetworkSecurityGroupsSecurityRule
       name: ${CLUSTER_NAME}-allow-apiserver
@@ -443,7 +443,7 @@ stringData:
       "useManagedIdentityExtension": true
     }
 ---
-apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+apiVersion: controlplane.cluster.x-k8s.io/v1beta2
 kind: KubeadmControlPlane
 metadata:
   annotations:
@@ -453,20 +453,20 @@ metadata:
 spec:
   kubeadmConfigSpec:
     clusterConfiguration:
-      apiServer:
-        extraArgs: {}
-        timeoutForControlPlane: 20m
       controllerManager:
         extraArgs:
-          allocate-node-cidrs: "false"
-          cloud-provider: external
-          cluster-name: ${CLUSTER_NAME}
+        - name: allocate-node-cidrs
+          value: "false"
+        - name: cluster-name
+          value: ${CLUSTER_NAME}
+        - name: cloud-provider
+          value: external
       etcd:
         local:
           dataDir: /var/lib/etcddisk/etcd
           extraArgs:
-            quota-backend-bytes: "8589934592"
-      kubernetesVersion: ci/${CI_VERSION}
+          - name: quota-backend-bytes
+            value: "8589934592"
     diskSetup:
       filesystems:
       - device: /dev/disk/azure/scsi1/lun0
@@ -569,17 +569,27 @@ spec:
     initConfiguration:
       nodeRegistration:
         kubeletExtraArgs:
-          cloud-provider: external
-          image-credential-provider-bin-dir: /var/lib/kubelet/credential-provider
-          image-credential-provider-config: /var/lib/kubelet/credential-provider-config.yaml
+        - name: cloud-provider
+          value: external
+        - name: image-credential-provider-bin-dir
+          value: /var/lib/kubelet/credential-provider
+        - name: image-credential-provider-config
+          value: /var/lib/kubelet/credential-provider-config.yaml
         name: '{{ ds.meta_data["local_hostname"] }}'
+      timeouts:
+        controlPlaneComponentHealthCheckSeconds: 1200
     joinConfiguration:
       nodeRegistration:
         kubeletExtraArgs:
-          cloud-provider: external
-          image-credential-provider-bin-dir: /var/lib/kubelet/credential-provider
-          image-credential-provider-config: /var/lib/kubelet/credential-provider-config.yaml
+        - name: cloud-provider
+          value: external
+        - name: image-credential-provider-bin-dir
+          value: /var/lib/kubelet/credential-provider
+        - name: image-credential-provider-config
+          value: /var/lib/kubelet/credential-provider-config.yaml
         name: '{{ ds.meta_data["local_hostname"] }}'
+      timeouts:
+        controlPlaneComponentHealthCheckSeconds: 1200
     mounts:
     - - LABEL=etcd_disk
       - /var/lib/etcddisk
@@ -590,10 +600,11 @@ spec:
     - bash -c /tmp/replace-k8s-binaries.sh
     verbosity: 5
   machineTemplate:
-    infrastructureRef:
-      apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
-      kind: AzureASOMachineTemplate
-      name: ${CLUSTER_NAME}-controlplane
+    spec:
+      infrastructureRef:
+        apiGroup: infrastructure.cluster.x-k8s.io
+        kind: AzureASOMachineTemplate
+        name: ${CLUSTER_NAME}-controlplane
   replicas: ${CONTROL_PLANE_MACHINE_COUNT:=1}
   version: ${KUBERNETES_VERSION}
 ---
@@ -610,7 +621,7 @@ spec:
         - op: add
           path: /metadata
           valueFrom:
-            template: 'name: {{ .self.metadata.name }}'
+            template: 'name: {{ .selfV1alpha1.metadata.name }}'
         selectors:
         - kind: VirtualMachine
         - kind: NetworkInterface
@@ -618,28 +629,25 @@ spec:
         - op: add
           path: /spec/networkProfile/networkInterfaces/0/reference/name
           valueFrom:
-            template: '{{ .self.metadata.name }}'
+            template: '{{ .selfV1alpha1.metadata.name }}'
         - op: add
           path: /spec/osProfile/computerName
           valueFrom:
-            template: '{{ .self.metadata.name }}'
+            template: '{{ .selfV1alpha1.metadata.name }}'
         - op: add
           path: /spec/operatorSpec/configMapExpressions/0/name
           valueFrom:
-            template: '{{ .self.metadata.name }}'
+            template: '{{ .selfV1alpha1.metadata.name }}'
         - op: add
           path: /spec/operatorSpec/configMapExpressions/1/name
           valueFrom:
-            template: '{{ .self.metadata.name }}'
+            template: '{{ .selfV1alpha1.metadata.name }}'
         - op: add
           path: /spec/storageProfile
           valueFrom:
             template: |-
               imageReference:
-                publisher: cncf-upstream
-                offer: capi
-                sku: ubuntu-2204-gen1
-                version: latest
+                communityGalleryImageId: /CommunityGalleries/ClusterAPI-f72ceb4f-5159-4c26-a0fe-2ea738f0d019/Images/capi-ubun2-2404/Versions/latest
         - op: add
           path: /spec/osProfile/customData
           valueFrom:
@@ -653,7 +661,7 @@ spec:
         - op: add
           path: /spec/principalIdFromConfig/name
           valueFrom:
-            template: '{{ .self.metadata.name }}'
+            template: '{{ .selfV1alpha1.metadata.name }}'
         selectors:
         - kind: RoleAssignment
       - jsonPatches:
@@ -665,7 +673,7 @@ spec:
         - op: replace
           path: /metadata/name
           valueFrom:
-            template: '{{ .self.metadata.name }}-contributor'
+            template: '{{ .selfV1alpha1.metadata.name }}-contributor'
         selectors:
         - kind: RoleAssignment
           name: contributor
@@ -673,7 +681,7 @@ spec:
         - op: replace
           path: /metadata/name
           valueFrom:
-            template: '{{ .self.metadata.name }}-blob-reader'
+            template: '{{ .selfV1alpha1.metadata.name }}-blob-reader'
         selectors:
         - kind: RoleAssignment
           name: blob-reader
@@ -682,7 +690,7 @@ spec:
           key:
             value: provider-id
           name:
-            template: '{{ .self.metadata.name }}'
+            template: '{{ .selfV1alpha1.metadata.name }}'
       resources:
       - apiVersion: compute.azure.com/v1api20220301
         kind: VirtualMachine
@@ -782,7 +790,7 @@ spec:
           roleDefinitionReference:
             armId: /subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.Authorization/roleDefinitions/2a2b9908-6ea1-4ae2-8e65-a410df84e7d1
 ---
-apiVersion: cluster.x-k8s.io/v1beta1
+apiVersion: cluster.x-k8s.io/v1beta2
 kind: MachineDeployment
 metadata:
   name: ${CLUSTER_NAME}-md-0
@@ -796,17 +804,17 @@ spec:
     spec:
       bootstrap:
         configRef:
-          apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+          apiGroup: bootstrap.cluster.x-k8s.io
           kind: KubeadmConfigTemplate
           name: ${CLUSTER_NAME}-md-0
       clusterName: ${CLUSTER_NAME}
       infrastructureRef:
-        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+        apiGroup: infrastructure.cluster.x-k8s.io
         kind: AzureASOMachineTemplate
         name: ${CLUSTER_NAME}-md-0
       version: ${KUBERNETES_VERSION}
 ---
-apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
 kind: KubeadmConfigTemplate
 metadata:
   name: ${CLUSTER_NAME}-md-0
@@ -868,9 +876,12 @@ spec:
       joinConfiguration:
         nodeRegistration:
           kubeletExtraArgs:
-            cloud-provider: external
-            image-credential-provider-bin-dir: /var/lib/kubelet/credential-provider
-            image-credential-provider-config: /var/lib/kubelet/credential-provider-config.yaml
+          - name: cloud-provider
+            value: external
+          - name: image-credential-provider-bin-dir
+            value: /var/lib/kubelet/credential-provider
+          - name: image-credential-provider-config
+            value: /var/lib/kubelet/credential-provider-config.yaml
           name: '{{ ds.meta_data["local_hostname"] }}'
       preKubeadmCommands:
       - bash -c /tmp/oot-cred-provider.sh
@@ -889,7 +900,7 @@ spec:
         - op: add
           path: /metadata
           valueFrom:
-            template: 'name: {{ .self.metadata.name }}'
+            template: 'name: {{ .selfV1alpha1.metadata.name }}'
         selectors:
         - kind: VirtualMachine
         - kind: NetworkInterface
@@ -897,28 +908,25 @@ spec:
         - op: add
           path: /spec/networkProfile/networkInterfaces/0/reference/name
           valueFrom:
-            template: '{{ .self.metadata.name }}'
+            template: '{{ .selfV1alpha1.metadata.name }}'
         - op: add
           path: /spec/osProfile/computerName
           valueFrom:
-            template: '{{ .self.metadata.name }}'
+            template: '{{ .selfV1alpha1.metadata.name }}'
         - op: add
           path: /spec/operatorSpec/configMapExpressions/0/name
           valueFrom:
-            template: '{{ .self.metadata.name }}'
+            template: '{{ .selfV1alpha1.metadata.name }}'
         - op: add
           path: /spec/operatorSpec/configMapExpressions/1/name
           valueFrom:
-            template: '{{ .self.metadata.name }}'
+            template: '{{ .selfV1alpha1.metadata.name }}'
         - op: add
           path: /spec/storageProfile
           valueFrom:
             template: |-
               imageReference:
-                publisher: cncf-upstream
-                offer: capi
-                sku: ubuntu-2204-gen1
-                version: latest
+                communityGalleryImageId: /CommunityGalleries/ClusterAPI-f72ceb4f-5159-4c26-a0fe-2ea738f0d019/Images/capi-ubun2-2404/Versions/latest
         - op: add
           path: /spec/osProfile/customData
           valueFrom:
@@ -932,7 +940,7 @@ spec:
         - op: add
           path: /spec/principalIdFromConfig/name
           valueFrom:
-            template: '{{ .self.metadata.name }}'
+            template: '{{ .selfV1alpha1.metadata.name }}'
         selectors:
         - kind: RoleAssignment
       - jsonPatches:
@@ -944,7 +952,7 @@ spec:
         - op: replace
           path: /metadata/name
           valueFrom:
-            template: '{{ .self.metadata.name }}-contributor'
+            template: '{{ .selfV1alpha1.metadata.name }}-contributor'
         selectors:
         - kind: RoleAssignment
           name: contributor
@@ -952,7 +960,7 @@ spec:
         - op: replace
           path: /metadata/name
           valueFrom:
-            template: '{{ .self.metadata.name }}-blob-reader'
+            template: '{{ .selfV1alpha1.metadata.name }}-blob-reader'
         selectors:
         - kind: RoleAssignment
           name: blob-reader
@@ -961,7 +969,7 @@ spec:
           key:
             value: provider-id
           name:
-            template: '{{ .self.metadata.name }}'
+            template: '{{ .selfV1alpha1.metadata.name }}'
       resources:
       - apiVersion: compute.azure.com/v1api20220301
         kind: VirtualMachine

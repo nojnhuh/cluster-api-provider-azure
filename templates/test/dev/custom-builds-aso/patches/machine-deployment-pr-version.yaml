@@ -1,4 +1,4 @@
-apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+apiVersion: controlplane.cluster.x-k8s.io/v1beta2
 kind: KubeadmControlPlane
 metadata:
   annotations:
@@ -7,6 +7,4 @@ metadata:
   namespace: default
 spec:
   kubeadmConfigSpec:
-    clusterConfiguration:
-      kubernetesVersion: ci/${CI_VERSION}
     verbosity: 5

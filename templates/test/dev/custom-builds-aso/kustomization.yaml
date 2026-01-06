@@ -13,32 +13,44 @@ patches:
 - path: patches/storage-read.yaml
   target:
     kind: AzureASOMachineTemplate
-- path: ../../../test/ci/prow-ci-version/patches/oot-credential-provider.yaml
+- path: patches/oot-credential-provider.yaml
   target:
     group: bootstrap.cluster.x-k8s.io
     kind: KubeadmConfigTemplate
     name: .*-md-0
     namespace: default
-    version: v1beta1
-- path: ../../../test/ci/prow-ci-version/patches/oot-credential-provider-kcp.yaml
+    version: v1beta2
+- path: patches/oot-credential-provider-kcp.yaml
   target:
     group: controlplane.cluster.x-k8s.io
     kind: KubeadmControlPlane
     name: .*-controlplane
-    version: v1beta1
+    version: v1beta2
 - path: ../custom-builds/patches/kubeadm-bootstrap.yaml
   target:
     group: bootstrap.cluster.x-k8s.io
     kind: KubeadmConfigTemplate
     name: .*-md-0
     namespace: default
-    version: v1beta1
+    version: v1beta2
+- patch: |
+    - op: test
+      path: /spec/kubeadmConfigSpec/postKubeadmCommands
+      value: null
+    - op: add
+      path: /spec/kubeadmConfigSpec/postKubeadmCommands
+      value: []
+  target:
+    group: controlplane.cluster.x-k8s.io
+    kind: KubeadmControlPlane
+    name: .*-controlplane
+    version: v1beta2
 - path: ../custom-builds/patches/kubeadm-controlplane-bootstrap.yaml
   target:
     group: controlplane.cluster.x-k8s.io
     kind: KubeadmControlPlane
     name: .*-controlplane
-    version: v1beta1
+    version: v1beta2
 - path: patches/machine-deployment-pr-version.yaml
 
 sortOptions:

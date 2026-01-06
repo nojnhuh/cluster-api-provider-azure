@@ -9,10 +9,7 @@
     valueFrom:
       template: |-
         imageReference:
-          publisher: cncf-upstream
-          offer: capi
-          sku: ubuntu-2204-gen1
-          version: latest
+          communityGalleryImageId: /CommunityGalleries/ClusterAPI-f72ceb4f-5159-4c26-a0fe-2ea738f0d019/Images/capi-ubun2-2404/Versions/latest
 
 - op: test
   path: /spec/template/spec/patches/0/selectors/2/kind
@@ -31,7 +28,7 @@
       path: /metadata/name
       valueFrom:
         template: |-
-          {{ .self.metadata.name }}-contributor
+          {{ .selfV1alpha1.metadata.name }}-contributor
 
 - op: add
   path: /spec/template/spec/patches/-
@@ -44,7 +41,7 @@
       path: /metadata/name
       valueFrom:
         template: |-
-          {{ .self.metadata.name }}-blob-reader
+          {{ .selfV1alpha1.metadata.name }}-blob-reader
 
 - op: test
   path: /spec/template/spec/resources/2/kind
