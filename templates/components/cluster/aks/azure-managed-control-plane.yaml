@@ -1,0 +1,16 @@
+# The control plane abstracts readiness and provisioning of an AKS cluster.
+# Because AKS requires a default pool, this also requires a reference to the
+# default machine pool.
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: AzureManagedControlPlane
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  subscriptionID: ${AZURE_SUBSCRIPTION_ID}
+  resourceGroupName: "${AZURE_RESOURCE_GROUP:=${CLUSTER_NAME}}"
+  location: "${AZURE_LOCATION}"
+  sshPublicKey: ${AZURE_SSH_PUBLIC_KEY_B64:=""}
+  version: "${KUBERNETES_VERSION}"
+  oidcIssuerProfile:
+    enabled: true

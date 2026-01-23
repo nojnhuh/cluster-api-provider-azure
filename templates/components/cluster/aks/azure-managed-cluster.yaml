@@ -1,0 +1,8 @@
+# Due to the nature of managed Kubernetes and the control plane implementation,
+# the infrastructure provider for AKS cluster is basically a no-op.
+# It sets itself to ready as soon as it sees the control plane ready.
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: AzureManagedCluster
+metadata:
+  name: ${CLUSTER_NAME}

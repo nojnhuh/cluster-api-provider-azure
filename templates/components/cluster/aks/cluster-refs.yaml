@@ -1,0 +1,21 @@
+# Patch to set infrastructureRef and controlPlaneRef for AKS managed clusters
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  clusterNetwork:
+    # AKS uses services CIDR instead of pods CIDR
+    pods: null
+    services:
+      cidrBlocks:
+      - 192.168.0.0/16
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+    kind: AzureManagedCluster
+    name: ${CLUSTER_NAME}
+  controlPlaneRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+    kind: AzureManagedControlPlane
+    name: ${CLUSTER_NAME}
