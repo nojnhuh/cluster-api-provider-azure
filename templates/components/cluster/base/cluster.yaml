@@ -1,0 +1,11 @@
+# Base Cluster object without infrastructure/controlPlane refs.
+# These refs are provided by patches from cluster/core or cluster/aks.
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks: ["192.168.0.0/16"]
