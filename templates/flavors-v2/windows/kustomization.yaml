@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: default
+
+resources:
+# Start with the default flavor (linux cluster + linux workers)
+- ../default
+# Add windows workers
+- ../../components/machines/windows-md
+
+patches:
+# Add windows labels to the Cluster resource
+- path: ../../components/machines/windows-md/cluster-labels.yaml
+
+sortOptions:
+  order: fifo
