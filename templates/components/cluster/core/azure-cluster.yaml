@@ -1,0 +1,17 @@
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: AzureCluster
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  resourceGroup: "${AZURE_RESOURCE_GROUP:=${CLUSTER_NAME}}"
+  location: "${AZURE_LOCATION}"
+  subscriptionID: ${AZURE_SUBSCRIPTION_ID}
+  networkSpec:
+    vnet:
+      name: "${AZURE_VNET_NAME:=${CLUSTER_NAME}-vnet}"
+    subnets:
+    - name: control-plane-subnet
+      role: control-plane
+    - name: node-subnet
+      role: node

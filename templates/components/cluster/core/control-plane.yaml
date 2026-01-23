@@ -1,0 +1,89 @@
+---
+kind: KubeadmControlPlane
+apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+metadata:
+  name: "${CLUSTER_NAME}-control-plane"
+spec:
+  replicas: ${CONTROL_PLANE_MACHINE_COUNT:=1}
+  machineTemplate:
+    infrastructureRef:
+      kind: AzureMachineTemplate
+      apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+      name: "${CLUSTER_NAME}-control-plane"
+  kubeadmConfigSpec:
+    initConfiguration:
+      nodeRegistration:
+        name: '{{ ds.meta_data["local_hostname"] }}'
+        kubeletExtraArgs:
+          cloud-provider: external
+    joinConfiguration:
+      nodeRegistration:
+        name: '{{ ds.meta_data["local_hostname"] }}'
+        kubeletExtraArgs:
+          cloud-provider: external
+    clusterConfiguration:
+      apiServer:
+        timeoutForControlPlane: 20m
+        extraArgs: {}
+      controllerManager:
+        extraArgs:
+          allocate-node-cidrs: "false"
+          cluster-name: ${CLUSTER_NAME}
+          cloud-provider: external
+      etcd:
+        local:
+          dataDir: "/var/lib/etcddisk/etcd"
+          extraArgs:
+            quota-backend-bytes: "8589934592"
+    files:
+      - contentFrom:
+          secret:
+            name: ${CLUSTER_NAME}-control-plane-azure-json
+            key: control-plane-azure.json
+        owner: root:root
+        path: /etc/kubernetes/azure.json
+        permissions: "0644"
+    diskSetup:
+      partitions:
+        - device: /dev/disk/azure/scsi1/lun0
+          tableType: gpt
+          layout: true
+          overwrite: false
+      filesystems:
+        - label: etcd_disk
+          filesystem: ext4
+          device: /dev/disk/azure/scsi1/lun0
+          extraOpts:
+            - "-E"
+            - "lazy_itable_init=1,lazy_journal_init=1"
+        - label: ephemeral0
+          filesystem: ext4
+          device: ephemeral0.1
+          replaceFS: ntfs
+    mounts:
+      - - LABEL=etcd_disk
+        - /var/lib/etcddisk
+    preKubeadmCommands: []
+    postKubeadmCommands: []
+    verbosity: 10
+  version: "${KUBERNETES_VERSION}"
+---
+kind: AzureMachineTemplate
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+metadata:
+  name: "${CLUSTER_NAME}-control-plane"
+spec:
+  template:
+    spec:
+      vmSize: ${AZURE_CONTROL_PLANE_MACHINE_TYPE}
+      osDisk:
+        osType: "Linux"
+        diskSizeGB: 128
+      dataDisks:
+        - nameSuffix: etcddisk
+          diskSizeGB: 256
+          lun: 0
+      sshPublicKey: ${AZURE_SSH_PUBLIC_KEY_B64:=""}
+      identity: UserAssigned
+      userAssignedIdentities:
+      - providerID: azure:///subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${CI_RG:=capz-ci}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/${USER_IDENTITY:=cloud-provider-user-identity}
