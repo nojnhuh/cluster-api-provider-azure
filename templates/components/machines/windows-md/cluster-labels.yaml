@@ -1,0 +1,10 @@
+# Patch to add windows labels to the Cluster resource
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: ${CLUSTER_NAME}
+  labels:
+    cni-windows: calico
+    csi-proxy: enabled
+    windows: enabled
