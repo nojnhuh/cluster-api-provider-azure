@@ -784,7 +784,7 @@ spec:
       env:
         - name: WITH_REBOOT
           value: "true"
-  version: v25.10.1
+  version: v26.3.1
 ---
 apiVersion: addons.cluster.x-k8s.io/v1alpha1
 kind: HelmChartProxy
@@ -807,7 +807,7 @@ spec:
     # image:
     #   repository: jondev.azurecr.io/nvidia/k8s-dra-driver-gpu
     #   pullPolicy: Always
-  version: ^25.8
+  version: ^25.12
 ---
 apiVersion: addons.cluster.x-k8s.io/v1alpha1
 kind: HelmChartProxy
@@ -823,8 +823,6 @@ spec:
   releaseName: kueue
   repoURL: oci://registry.k8s.io/kueue/charts
   valuesTemplate: |-
-    # These are the defaults, except for the DRA feature gate and
-    # deviceClassMappings
     controllerManager:
       featureGates:
         - name: DynamicResourceAllocation
@@ -833,46 +831,12 @@ spec:
       controllerManagerConfigYaml: |-
         apiVersion: config.kueue.x-k8s.io/v1beta1
         kind: Configuration
-        health:
-          healthProbeBindAddress: :8081
-        metrics:
-          bindAddress: :8443
-        webhook:
-          port: 9443
-        leaderElection:
-          leaderElect: true
-          resourceName: c1f6bfd2.kueue.x-k8s.io
-        controller:
-          groupKindConcurrency:
-            Job.batch: 5
-            Pod: 5
-            Workload.kueue.x-k8s.io: 5
-            LocalQueue.kueue.x-k8s.io: 1
-            ClusterQueue.kueue.x-k8s.io: 1
-            ResourceFlavor.kueue.x-k8s.io: 1
-        clientConnection:
-          qps: 50
-          burst: 100
-        integrations:
-          frameworks:
-          - "batch/job"
-          - "kubeflow.org/mpijob"
-          - "ray.io/rayjob"
-          - "ray.io/raycluster"
-          - "jobset.x-k8s.io/jobset"
-          - "trainer.kubeflow.org/trainjob"
-          - "kubeflow.org/paddlejob"
-          - "kubeflow.org/pytorchjob"
-          - "kubeflow.org/tfjob"
-          - "kubeflow.org/xgboostjob"
-          - "kubeflow.org/jaxjob"
-          - "workload.codeflare.dev/appwrapper"
         resources:
           deviceClassMappings:
             - name: gpu
               deviceClassNames:
                 - gpu.nvidia.com
-  version: ^0.15
+  version: ^0.17
 ---
 apiVersion: addons.cluster.x-k8s.io/v1alpha1
 kind: HelmChartProxy
@@ -888,7 +852,7 @@ spec:
   releaseName: kuberay-operator
   repoURL: https://ray-project.github.io/kuberay-helm
   valuesTemplate: ""
-  version: ^1.5
+  version: ^1.6
 ---
 apiVersion: addons.cluster.x-k8s.io/v1alpha1
 kind: HelmChartProxy
@@ -912,4 +876,4 @@ spec:
         - name: gpu
     worker:
       disabled: true
-  version: ^1.5
+  version: ^1.6
