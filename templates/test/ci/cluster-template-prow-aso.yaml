@@ -807,7 +807,7 @@ spec:
   repoURL: oci://registry.k8s.io/dra-driver-nvidia/charts
   valuesTemplate: |-
     gpuResourcesEnabledOverride: true
-    nvidiaDriverRoot: /run/nvidia/driver
+    nvidiaDriverRoot: /run/nvidia/driver # The default "/" works for AKS
 
     # Custom builds
     # image:
