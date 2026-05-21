@@ -339,6 +339,12 @@ metadata:
 spec:
   kubeadmConfigSpec:
     clusterConfiguration:
+      apiServer:
+        extraArgs:
+        - name: feature-gates
+          value: ClusterTrustBundle=true,ClusterTrustBundleProjection=true,PodCertificateRequest=true
+        - name: runtime-config
+          value: certificates.k8s.io/v1beta1=true
       controllerManager:
         extraArgs:
         - name: allocate-node-cidrs
@@ -383,6 +389,8 @@ spec:
         kubeletExtraArgs:
         - name: cloud-provider
           value: external
+        - name: feature-gates
+          value: ClusterTrustBundle=true,ClusterTrustBundleProjection=true,PodCertificateRequest=true
         name: '{{ ds.meta_data["local_hostname"] }}'
       timeouts:
         controlPlaneComponentHealthCheckSeconds: 1200
@@ -391,13 +399,15 @@ spec:
         kubeletExtraArgs:
         - name: cloud-provider
           value: external
+        - name: feature-gates
+          value: ClusterTrustBundle=true,ClusterTrustBundleProjection=true,PodCertificateRequest=true
         name: '{{ ds.meta_data["local_hostname"] }}'
       timeouts:
         controlPlaneComponentHealthCheckSeconds: 1200
     mounts:
     - - LABEL=etcd_disk
       - /var/lib/etcddisk
-    verbosity: 10
+    verbosity: 5
   machineTemplate:
     spec:
       infrastructureRef:
@@ -607,6 +617,8 @@ spec:
           kubeletExtraArgs:
           - name: cloud-provider
             value: external
+          - name: feature-gates
+            value: ClusterTrustBundle=true,ClusterTrustBundleProjection=true,PodCertificateRequest=true
           name: '{{ ds.meta_data["local_hostname"] }}'
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
@@ -784,6 +796,10 @@ spec:
       env:
         - name: WITH_REBOOT
           value: "true"
+    toolkit:
+      env:
+      - name: RUNTIME_CONFIG_SOURCE
+        value: "file" # default "command,file" hits "drop-in config version 4 higher than root config version 4 higher than root config version 3" with image builder
   version: v26.3.1
 ---
 apiVersion: addons.cluster.x-k8s.io/v1alpha1
