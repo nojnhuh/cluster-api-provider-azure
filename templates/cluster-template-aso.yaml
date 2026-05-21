@@ -789,16 +789,16 @@ spec:
 apiVersion: addons.cluster.x-k8s.io/v1alpha1
 kind: HelmChartProxy
 metadata:
-  name: k8s-dra-driver-gpu
+  name: dra-driver-nvidia-gpu
   namespace: default
 spec:
-  chartName: nvidia-dra-driver-gpu
+  chartName: dra-driver-nvidia-gpu
   clusterSelector:
     matchLabels:
       nvidia-dra-driver: "true"
-  namespace: nvidia-dra-driver-gpu
-  releaseName: nvidia-dra-driver-gpu
-  repoURL: https://helm.ngc.nvidia.com/nvidia
+  namespace: dra-driver-nvidia-gpu
+  releaseName: dra-driver-nvidia-gpu
+  repoURL: oci://registry.k8s.io/dra-driver-nvidia/charts
   valuesTemplate: |-
     gpuResourcesEnabledOverride: true
     nvidiaDriverRoot: /run/nvidia/driver
@@ -807,7 +807,7 @@ spec:
     # image:
     #   repository: jondev.azurecr.io/nvidia/k8s-dra-driver-gpu
     #   pullPolicy: Always
-  version: ^25.12
+  version: ^0.4
 ---
 apiVersion: addons.cluster.x-k8s.io/v1alpha1
 kind: HelmChartProxy
